@@ -2,7 +2,7 @@
 
 ## Overview
 
-Takhleesly (تلخيصلي) is an Arabic-focused web application that transcribes audio lectures and generates AI-powered summaries. Users can either record audio directly in the browser or upload audio files, which are then processed through OpenAI's Whisper API for transcription and GPT-4 for intelligent summarization. The application is designed with Arabic language support as its primary focus, featuring RTL (right-to-left) layout and Arabic typography.
+Takhleesly (تلخيصلي) is a multi-language web application that transcribes audio lectures and generates AI-powered summaries. Users can select their preferred language (Arabic, French, or Algerian dialect) and either record audio directly in the browser or upload audio files. The audio is then processed through OpenAI's Whisper API for transcription and GPT-4 for intelligent summarization in the selected language. The application features RTL/LTR layout switching and language-specific typography.
 
 ## User Preferences
 
@@ -29,9 +29,12 @@ Preferred communication style: Simple, everyday language.
 - TanStack Query (React Query) for server state
 - Local React state for UI interactions
 - Theme context for light/dark mode persistence
+- Language context for multi-language support and RTL/LTR switching
 
 **Key Design Decisions**:
-- Progressive disclosure workflow: recording → transcription → summary
+- Progressive disclosure workflow: language selection → recording/upload → transcription → summary
+- Multi-language support with Arabic (Classical), French (Academic), and Algerian dialect
+- Dynamic RTL/LTR layout switching based on selected language
 - Material Design 3 color palette optimized for productivity and trust
 - Mobile-responsive with special considerations for touch interfaces
 - Accessibility-first with semantic HTML and ARIA labels
@@ -43,6 +46,7 @@ Preferred communication style: Simple, everyday language.
 **API Structure**: RESTful endpoints
 - `/api/health` - Health check endpoint
 - `/api/process-audio` - Main audio processing endpoint (POST with multipart/form-data)
+  - Accepts: audio file + language parameter (ar/fr/dz)
 
 **File Upload Handling**: Multer middleware
 - In-memory storage (no disk writes)
@@ -50,9 +54,15 @@ Preferred communication style: Simple, everyday language.
 - Audio MIME type validation (mp3, wav, m4a, ogg, webm)
 
 **Audio Processing Pipeline**:
-1. Receive audio file via multipart upload
-2. Transcribe using OpenAI Whisper API (Arabic language specified)
-3. Summarize transcription using GPT-4o-mini with Arabic system prompts
+1. Receive audio file and language selection via multipart upload
+2. Transcribe using OpenAI Whisper API with language-specific settings:
+   - Arabic (ar): Whisper with Arabic language
+   - French (fr): Whisper with French language
+   - Algerian dialect (dz): Whisper with Arabic language (dialect handled in summarization)
+3. Summarize transcription using GPT-4o-mini with language-specific prompts:
+   - Arabic: Classical Arabic (فصحى) summaries
+   - French: Academic French summaries
+   - Algerian dialect: Simple, student-friendly Algerian dialect
 4. Return structured JSON response with transcription, summary, and key points
 
 **Error Handling**: Centralized Express error middleware with status code propagation
@@ -77,9 +87,10 @@ Preferred communication style: Simple, everyday language.
 
 **AI/ML Services**:
 - **OpenAI API** (Primary integration)
-  - Whisper-1 model for Arabic audio transcription
-  - GPT-4o-mini for text summarization and key point extraction
-  - Uses official OpenAI Node.js SDK
+  - Whisper-1 model for multi-language audio transcription (Arabic, French)
+  - GPT-4o-mini for language-specific text summarization and key point extraction
+  - Language-specific prompts for Arabic, French, and Algerian dialect
+  - Uses official OpenAI Node.js SDK with toFile helper for buffer handling
   - Requires OPENAI_API_KEY environment variable
 
 **Database Services**:
@@ -96,7 +107,8 @@ Preferred communication style: Simple, everyday language.
 **Frontend Libraries**:
 - Media Recording API (browser native) for audio capture
 - File drag-and-drop using native browser APIs
-- Google Fonts CDN for Arabic typography
+- Google Fonts CDN for multi-language typography (Noto Sans Arabic + Inter)
+- Language persistence via localStorage
 
 **Build & Development**:
 - Vite for fast HMR and optimized production builds
