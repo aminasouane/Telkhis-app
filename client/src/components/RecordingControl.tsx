@@ -176,7 +176,7 @@ export default function RecordingControl({
           size="icon"
           variant={status === "recording" ? "destructive" : "default"}
           onClick={handleRecord}
-          data-testid="button-record"
+          data-testid="button-start-recording"
           disabled={status === "recording" || status === "stopping"}
           className={cn(
             "h-20 w-20 sm:h-24 sm:w-24 rounded-full transition-all",
