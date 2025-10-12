@@ -2,7 +2,11 @@ import { useState } from "react";
 import { Upload, File } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default function FileUpload() {
+interface FileUploadProps {
+  onFileSelect: (file: File) => void;
+}
+
+export default function FileUpload({ onFileSelect }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -19,9 +23,9 @@ export default function FileUpload() {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file) {
+    if (file && file.type.startsWith("audio/")) {
       setSelectedFile(file);
-      console.log("File dropped:", file.name);
+      onFileSelect(file);
     }
   };
 
@@ -29,7 +33,7 @@ export default function FileUpload() {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
-      console.log("File selected:", file.name);
+      onFileSelect(file);
     }
   };
 
@@ -47,7 +51,7 @@ export default function FileUpload() {
     >
       <input
         type="file"
-        accept=".mp3,.wav,.m4a,.ogg"
+        accept=".mp3,.wav,.m4a,.ogg,audio/*"
         onChange={handleFileSelect}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         data-testid="input-file"
