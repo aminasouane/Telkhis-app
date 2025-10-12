@@ -233,6 +233,8 @@ export default function Home() {
                             summary={liveResult.summary}
                             keyPoints={liveResult.keyPoints}
                             language={liveResult.language}
+                            title="معاينة-مباشرة"
+                            date={new Date().toISOString()}
                           />
                         )}
 
@@ -284,6 +286,8 @@ export default function Home() {
                 summary={result.summary}
                 keyPoints={result.keyPoints}
                 language={result.language}
+                title={viewingSession?.title || generateSessionTitle(result.summary)}
+                date={viewingSession?.date || new Date().toISOString()}
               />
             </div>
           )}
