@@ -34,6 +34,7 @@ Preferred communication style: Simple, everyday language.
 **Key Design Decisions**:
 - Progressive disclosure workflow: language selection → recording/upload → transcription → summary
 - Multi-language support with Arabic (Classical), French (Academic), and Algerian dialect
+- Algerian dialect is automatically converted to Classical Arabic for better clarity (with user notification)
 - Dynamic RTL/LTR layout switching based on selected language
 - Material Design 3 color palette optimized for productivity and trust
 - Mobile-responsive with special considerations for touch interfaces
@@ -62,7 +63,7 @@ Preferred communication style: Simple, everyday language.
 3. Summarize transcription using GPT-4o-mini with language-specific prompts:
    - Arabic: Classical Arabic (فصحى) summaries
    - French: Academic French summaries
-   - Algerian dialect: Simple, student-friendly Algerian dialect
+   - Algerian dialect: Automatically converted to simplified Classical Arabic (with UI notification)
 4. Return structured JSON response with transcription, summary, and key points
 
 **Error Handling**: Centralized Express error middleware with status code propagation
@@ -89,7 +90,10 @@ Preferred communication style: Simple, everyday language.
 - **OpenAI API** (Primary integration)
   - Whisper-1 model for multi-language audio transcription (Arabic, French)
   - GPT-4o-mini for language-specific text summarization and key point extraction
-  - Language-specific prompts for Arabic, French, and Algerian dialect
+  - Language-specific prompts:
+    - Arabic: Classical Arabic summaries
+    - French: Academic French summaries  
+    - Algerian dialect: Converts to simplified Classical Arabic (more suitable for academic context)
   - Uses official OpenAI Node.js SDK with toFile helper for buffer handling
   - Requires OPENAI_API_KEY environment variable
 

@@ -1,14 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, Check } from "lucide-react";
+import { Copy, Download, Check, Info } from "lucide-react";
 import { useState } from "react";
+import { Language } from "@shared/schema";
 
 interface SummaryCardProps {
   summary: string;
   keyPoints?: string[];
+  language?: Language;
 }
 
-export default function SummaryCard({ summary, keyPoints }: SummaryCardProps) {
+export default function SummaryCard({ summary, keyPoints, language }: SummaryCardProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -65,6 +67,15 @@ export default function SummaryCard({ summary, keyPoints }: SummaryCardProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {language === "dz" && (
+          <div className="flex items-start gap-2 p-3 bg-muted rounded-md border" data-testid="badge-language-conversion">
+            <Info className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+            <p className="text-sm text-muted-foreground">
+              تم تحويل التلخيص إلى عربية فصحى مبسطة من لهجة جزائرية
+            </p>
+          </div>
+        )}
+        
         <p className="text-base leading-relaxed" data-testid="text-summary">
           {summary}
         </p>

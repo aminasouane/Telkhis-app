@@ -9,7 +9,7 @@ import LanguageSelector from "@/components/LanguageSelector";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/components/LanguageProvider";
-import { languageNames } from "@shared/schema";
+import { languageNames, type Language } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 
@@ -17,6 +17,7 @@ interface ProcessingResult {
   transcription: string;
   summary: string;
   keyPoints: string[];
+  language: Language;
 }
 
 export default function Home() {
@@ -48,6 +49,7 @@ export default function Home() {
         transcription: data.transcription,
         summary: data.summary,
         keyPoints: data.keyPoints,
+        language: language, // حفظ اللغة المستخدمة في المعالجة
       });
 
       toast({
@@ -144,6 +146,7 @@ export default function Home() {
               <SummaryCard
                 summary={result.summary}
                 keyPoints={result.keyPoints}
+                language={result.language}
               />
             </div>
           )}
