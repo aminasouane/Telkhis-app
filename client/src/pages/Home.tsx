@@ -95,7 +95,7 @@ export default function Home() {
               <Alert className="max-w-md mx-auto" data-testid="alert-language-info">
                 <Info className="h-4 w-4" />
                 <AlertDescription>
-                  سيتم تلخيص المحاضرة بـ {languageNames[language]}
+                  سيتم تلخيص المحاضرة بـ{language === "dz" ? "اللغة العربية" : languageNames[language]}
                 </AlertDescription>
               </Alert>
 
