@@ -30,15 +30,26 @@ Preferred communication style: Simple, everyday language.
 - Local React state for UI interactions
 - Theme context for light/dark mode persistence
 - Language context for multi-language support and RTL/LTR switching
+- localStorage for session history persistence (takhleesly_sessions key)
 
 **Key Design Decisions**:
 - Progressive disclosure workflow: language selection → recording/upload → transcription → summary
 - Multi-language support with Arabic (Classical), French (Academic), and Algerian dialect
 - Algerian dialect is automatically converted to Classical Arabic for better clarity (with user notification)
 - Dynamic RTL/LTR layout switching based on selected language
+- Session history management with localStorage for offline persistence
 - Material Design 3 color palette optimized for productivity and trust
 - Mobile-responsive with special considerations for touch interfaces
 - Accessibility-first with semantic HTML and ARIA labels
+
+**Session Management**:
+- Auto-save transcription sessions after successful processing
+- Sessions stored locally in localStorage (key: "takhleesly_sessions")
+- Each session includes: id, title (first 5 words), date, language, summary, transcript, keyPoints
+- History view with card-based UI showing all saved sessions
+- Session actions: Open (view saved session), Delete (with confirmation dialog)
+- Empty state handling when no sessions exist
+- Date formatting with locale support (Arabic/French)
 
 ### Backend Architecture
 

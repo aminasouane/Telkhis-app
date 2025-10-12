@@ -32,3 +32,16 @@ export const languageSchema = z.object({
 });
 
 export type LanguageSelection = z.infer<typeof languageSchema>;
+
+// Session type for storing transcription history
+export const sessionSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  date: z.string(),
+  language: z.enum(languages),
+  summary: z.string(),
+  transcript: z.string(),
+  keyPoints: z.array(z.string()).optional(),
+});
+
+export type Session = z.infer<typeof sessionSchema>;
