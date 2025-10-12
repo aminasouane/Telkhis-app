@@ -142,6 +142,11 @@ Preferred communication style: Simple, everyday language.
 
 **Frontend Libraries**:
 - Media Recording API (browser native) for audio capture
+  - Manual stop recording feature with dedicated stop button
+  - Three recording states: idle, recording, stopping
+  - Protection against race conditions and multiple clicks
+  - Proper lifecycle management: idle→recording→stopping→idle
+  - State transitions follow MediaRecorder events (not timers)
 - File drag-and-drop using native browser APIs
 - Google Fonts CDN for multi-language typography (Noto Sans Arabic + Inter)
 - Language persistence via localStorage
