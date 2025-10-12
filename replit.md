@@ -41,6 +41,11 @@ Preferred communication style: Simple, everyday language.
 - Multi-language support with Arabic (Classical), French (Academic), and Algerian dialect
 - Algerian dialect is automatically converted to Classical Arabic for better clarity (with user notification)
 - Dynamic RTL/LTR layout switching based on selected language
+- **Live Summary Feature**: Real-time transcription and summarization during recording
+  - Automatic updates every 15 seconds during recording
+  - Displays partial transcription and key points as recording progresses
+  - Seamless transition to final summary when recording stops
+  - Non-intrusive error handling to prevent recording interruption
 - **Screen Separation Architecture**: Dedicated pages for focused user experience
   - Home page: Clean recording/upload interface without tabs
   - History page: Separate dedicated page for session management
@@ -78,8 +83,13 @@ Preferred communication style: Simple, everyday language.
 
 **API Structure**: RESTful endpoints
 - `/api/health` - Health check endpoint
+- `/api/process-audio-live` - Live summary endpoint for real-time updates during recording
+  - Accepts: audio chunk + language parameter (ar/fr/dz)
+  - Returns: partial transcription, summary, and key points
+  - Non-blocking error handling (returns empty response on error)
 - `/api/process-audio` - Main audio processing endpoint (POST with multipart/form-data)
   - Accepts: audio file + language parameter (ar/fr/dz)
+  - Returns: final transcription, summary, and key points
 
 **File Upload Handling**: Multer middleware
 - In-memory storage (no disk writes)

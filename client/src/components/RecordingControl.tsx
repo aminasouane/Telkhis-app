@@ -6,27 +6,89 @@ import { cn } from "@/lib/utils";
 
 type RecordingStatus = "idle" | "recording" | "stopping";
 
-interface RecordingControlProps {
-  onRecordingComplete: (audioBlob: Blob) => void;
+interface LiveUpdateData {
+  transcription: string;
+  summary: string;
+  keyPoints: string[];
 }
 
-export default function RecordingControl({ onRecordingComplete }: RecordingControlProps) {
+interface RecordingControlProps {
+  onRecordingComplete: (audioBlob: Blob) => void;
+  onLiveUpdate?: (data: LiveUpdateData) => void;
+  onRecordingStart?: () => void;
+  language: string;
+}
+
+export default function RecordingControl({ 
+  onRecordingComplete, 
+  onLiveUpdate,
+  onRecordingStart,
+  language 
+}: RecordingControlProps) {
   const [status, setStatus] = useState<RecordingStatus>("idle");
   const [duration, setDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const liveUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isProcessingLive, setIsProcessingLive] = useState(false);
 
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      if (liveUpdateIntervalRef.current) {
+        clearInterval(liveUpdateIntervalRef.current);
+      }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
         mediaRecorderRef.current.stop();
       }
     };
   }, []);
+
+  const processLiveChunk = async () => {
+    if (!onLiveUpdate || chunksRef.current.length === 0 || isProcessingLive) {
+      return;
+    }
+
+    try {
+      setIsProcessingLive(true);
+      
+      // Create blob from accumulated chunks
+      const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
+      
+      // Only process if we have meaningful audio (> 1KB)
+      if (audioBlob.size < 1024) {
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("audio", audioBlob, "live-recording.webm");
+      formData.append("language", language);
+
+      const response = await fetch("/api/process-audio-live", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.transcription || data.summary) {
+          onLiveUpdate({
+            transcription: data.transcription || "",
+            summary: data.summary || "",
+            keyPoints: data.keyPoints || [],
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Live update error:", error);
+      // Silently fail - don't interrupt recording
+    } finally {
+      setIsProcessingLive(false);
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -51,13 +113,26 @@ export default function RecordingControl({ onRecordingComplete }: RecordingContr
         setDuration(0);
       };
 
-      mediaRecorder.start();
+      // Start with 5-second timeslice to enable live updates
+      mediaRecorder.start(5000);
       setStatus("recording");
       setDuration(0);
+
+      // Notify parent that recording has started
+      if (onRecordingStart) {
+        onRecordingStart();
+      }
 
       intervalRef.current = setInterval(() => {
         setDuration((prev) => prev + 1);
       }, 1000);
+
+      // Start live updates every 15 seconds
+      if (onLiveUpdate) {
+        liveUpdateIntervalRef.current = setInterval(() => {
+          processLiveChunk();
+        }, 15000); // 15 seconds
+      }
     } catch (error) {
       console.error("Error accessing microphone:", error);
       alert("تعذر الوصول للميكروفون. الرجاء التأكد من الأذونات.");
@@ -73,6 +148,10 @@ export default function RecordingControl({ onRecordingComplete }: RecordingContr
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
+      }
+      if (liveUpdateIntervalRef.current) {
+        clearInterval(liveUpdateIntervalRef.current);
+        liveUpdateIntervalRef.current = null;
       }
       // Status will be reset to idle in onstop callback
     }

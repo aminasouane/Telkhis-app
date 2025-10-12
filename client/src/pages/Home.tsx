@@ -9,6 +9,7 @@ import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/components/LanguageProvider";
 import { languageNames, type Language, type Session } from "@shared/schema";
@@ -27,6 +28,8 @@ export default function Home() {
   const [, navigate] = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<ProcessingResult | null>(null);
+  const [liveResult, setLiveResult] = useState<ProcessingResult | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
@@ -125,11 +128,31 @@ export default function Home() {
   };
 
   const handleRecordingComplete = (audioBlob: Blob) => {
+    setIsRecording(false);
+    setLiveResult(null);
     processAudio(audioBlob, "recording.webm");
+  };
+
+  const handleLiveUpdate = (data: { transcription: string; summary: string; keyPoints: string[] }) => {
+    setLiveResult({
+      transcription: data.transcription,
+      summary: data.summary,
+      keyPoints: data.keyPoints,
+      language: language,
+    });
+  };
+
+  const handleRecordingStart = () => {
+    setIsRecording(true);
+    setLiveResult(null);
+    setResult(null);
+    setViewingSession(null);
   };
 
   const handleNewRecording = () => {
     setResult(null);
+    setLiveResult(null);
+    setIsRecording(false);
     setViewingSession(null);
     navigate("/");
   };
@@ -183,8 +206,44 @@ export default function Home() {
                     </TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="record" className="mt-8">
-                    <RecordingControl onRecordingComplete={handleRecordingComplete} />
+                  <TabsContent value="record" className="mt-8 space-y-8">
+                    <RecordingControl 
+                      onRecordingComplete={handleRecordingComplete}
+                      onLiveUpdate={handleLiveUpdate}
+                      onRecordingStart={handleRecordingStart}
+                      language={language}
+                    />
+
+                    {isRecording && liveResult && (
+                      <div className="space-y-4 mt-8">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                          <h3 className="text-lg font-semibold">التلخيص اللحظي</h3>
+                          <Badge variant="secondary" className="mr-auto">
+                            تحديث تلقائي
+                          </Badge>
+                        </div>
+
+                        {liveResult.transcription && (
+                          <TranscriptionCard text={liveResult.transcription} />
+                        )}
+
+                        {liveResult.summary && (
+                          <SummaryCard
+                            summary={liveResult.summary}
+                            keyPoints={liveResult.keyPoints}
+                            language={liveResult.language}
+                          />
+                        )}
+
+                        {!liveResult.transcription && !liveResult.summary && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <p>جاري معالجة الصوت...</p>
+                            <p className="text-sm mt-2">سيظهر التلخيص خلال ثوانٍ</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="upload" className="mt-8">

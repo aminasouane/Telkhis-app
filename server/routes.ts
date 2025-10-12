@@ -32,7 +32,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: "ok" });
   });
 
-  // Process audio file endpoint
+  // Live summary endpoint - processes audio chunks during recording
+  app.post("/api/process-audio-live", upload.single("audio"), async (req: Request, res) => {
+    try {
+      const file = (req as any).file;
+      const language = req.body.language || "ar";
+      
+      if (!file) {
+        return res.status(400).json({ error: "No audio file provided" });
+      }
+
+      // Validate language
+      const validLanguages = ["ar", "fr", "dz"];
+      if (!validLanguages.includes(language)) {
+        return res.status(400).json({ error: "Invalid language selection" });
+      }
+
+      // Step 1: Transcribe audio
+      const transcription = await transcribeAudio(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+        language
+      );
+
+      if (!transcription || transcription.trim().length === 0) {
+        return res.json({
+          transcription: "",
+          summary: "",
+          keyPoints: [],
+        });
+      }
+
+      // Step 2: Quick summarization for live preview
+      const { summary, keyPoints } = await summarizeText(transcription, language);
+
+      // Return partial results
+      res.json({
+        transcription,
+        summary,
+        keyPoints,
+        isLive: true,
+      });
+    } catch (error: any) {
+      console.error("Error in live processing:", error);
+      
+      // Return empty response on error to not break recording
+      res.json({
+        transcription: "",
+        summary: "",
+        keyPoints: [],
+        error: error.message || "Failed to process audio chunk",
+      });
+    }
+  });
+
+  // Process audio file endpoint (final processing)
   app.post("/api/process-audio", upload.single("audio"), async (req: Request, res) => {
     try {
       const file = (req as any).file;
