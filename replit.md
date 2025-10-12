@@ -46,6 +46,13 @@ Preferred communication style: Simple, everyday language.
   - Displays partial transcription and key points as recording progresses
   - Seamless transition to final summary when recording stops
   - Non-intrusive error handling to prevent recording interruption
+- **Save & Share Feature**: Export and share summaries with multiple formats
+  - Copy to clipboard: One-click copy of summary + key points
+  - Export as TXT: Plain text download with formatted content
+  - Export as PDF: Professional PDF with RTL support for Arabic
+  - Smart file naming: Includes session title and timestamp (yyyy-MM-dd_HH-mm)
+  - Toast notifications for all actions (copy, save, errors)
+  - Dialog-based export: User-friendly modal to choose format
 - **Screen Separation Architecture**: Dedicated pages for focused user experience
   - Home page: Clean recording/upload interface without tabs
   - History page: Separate dedicated page for session management
@@ -160,6 +167,11 @@ Preferred communication style: Simple, everyday language.
 - File drag-and-drop using native browser APIs
 - Google Fonts CDN for multi-language typography (Noto Sans Arabic + Inter)
 - Language persistence via localStorage
+- **Export Libraries**:
+  - jsPDF for PDF generation
+  - html2canvas for capturing HTML content with RTL/Arabic support
+  - Clipboard API for copy-to-clipboard functionality
+  - date-fns for timestamp formatting in filenames
 
 **Build & Development**:
 - Vite for fast HMR and optimized production builds
