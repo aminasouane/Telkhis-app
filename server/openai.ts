@@ -12,7 +12,8 @@ function getOpenAIClient(): OpenAI {
 export async function transcribeAudio(
   audioBuffer: Buffer,
   filename: string,
-  mimetype: string
+  mimetype: string,
+  language: string = "ar"
 ): Promise<string> {
   const openai = getOpenAIClient();
 
@@ -21,36 +22,83 @@ export async function transcribeAudio(
     type: mimetype,
   });
 
+  // Map language codes to Whisper API language codes
+  // For Algerian dialect, we use Arabic since Whisper doesn't support dialects
+  const whisperLanguage = language === "dz" ? "ar" : language;
+
   const transcription = await openai.audio.transcriptions.create({
     file: audioFile,
     model: "whisper-1",
-    language: "ar", // Arabic language
+    language: whisperLanguage,
   });
 
   return transcription.text;
 }
 
-export async function summarizeText(text: string): Promise<{
+export async function summarizeText(
+  text: string,
+  language: string = "ar"
+): Promise<{
   summary: string;
   keyPoints: string[];
 }> {
   const openai = getOpenAIClient();
-  
+
+  // Prepare system message based on selected language
+  let systemMessage = "";
+  let userMessage = "";
+
+  switch (language) {
+    case "ar":
+      systemMessage = `أنت مساعد متخصص في تلخيص المحاضرات والنصوص الأكاديمية باللغة العربية الفصحى. 
+مهمتك هي قراءة النص المقدم وتقديم:
+1. ملخص شامل ومختصر للمحتوى (2-3 جمل)
+2. قائمة بالنقاط الرئيسية (3-5 نقاط)
+
+يجب أن يكون الملخص واضحاً ومفيداً للطالب باللغة العربية الفصحى.`;
+      userMessage = `الرجاء تلخيص النص التالي:\n\n${text}`;
+      break;
+
+    case "fr":
+      systemMessage = `Vous êtes un assistant spécialisé dans la synthèse de cours et de textes académiques en français.
+Votre tâche est de lire le texte fourni et de fournir :
+1. Un résumé complet et concis du contenu (2-3 phrases)
+2. Une liste des points clés (3-5 points)
+
+Le résumé doit être clair et utile pour l'étudiant en français académique.`;
+      userMessage = `Veuillez résumer le texte suivant :\n\n${text}`;
+      break;
+
+    case "dz":
+      systemMessage = `راك خبير في تلخيص الكورسات والنصوص الأكاديمية بالدارجة الجزائرية البسيطة والمفهومة.
+خدمتك هي قراءة النص اللي معطينلك وتعطي:
+1. ملخص كامل ومختصر على المحتوى (2-3 جمل)
+2. ليستة النقاط المهمة (3-5 نقاط)
+
+لازم الملخص يكون واضح ومفهوم للطالب بالدارجة الجزائرية البسيطة.`;
+      userMessage = `من فضلك لخصلي النص هذا:\n\n${text}`;
+      break;
+
+    default:
+      systemMessage = `أنت مساعد متخصص في تلخيص المحاضرات والنصوص الأكاديمية باللغة العربية الفصحى. 
+مهمتك هي قراءة النص المقدم وتقديم:
+1. ملخص شامل ومختصر للمحتوى (2-3 جمل)
+2. قائمة بالنقاط الرئيسية (3-5 نقاط)
+
+يجب أن يكون الملخص واضحاً ومفيداً للطالب.`;
+      userMessage = `الرجاء تلخيص النص التالي:\n\n${text}`;
+  }
+
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
-        content: `أنت مساعد متخصص في تلخيص المحاضرات والنصوص الأكاديمية باللغة العربية. 
-مهمتك هي قراءة النص المقدم وتقديم:
-1. ملخص شامل ومختصر للمحتوى (2-3 جمل)
-2. قائمة بالنقاط الرئيسية (3-5 نقاط)
-
-يجب أن يكون الملخص واضحاً ومفيداً للطالب.`,
+        content: systemMessage,
       },
       {
         role: "user",
-        content: `الرجاء تلخيص النص التالي:\n\n${text}`,
+        content: userMessage,
       },
     ],
     response_format: {

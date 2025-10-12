@@ -36,24 +36,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/process-audio", upload.single("audio"), async (req: Request, res) => {
     try {
       const file = (req as any).file;
+      const language = req.body.language || "ar"; // Default to Arabic
       
       if (!file) {
         return res.status(400).json({ error: "No audio file provided" });
       }
 
-      // Step 1: Transcribe audio using the buffer, filename, and mimetype
+      // Validate language
+      const validLanguages = ["ar", "fr", "dz"];
+      if (!validLanguages.includes(language)) {
+        return res.status(400).json({ error: "Invalid language selection" });
+      }
+
+      // Step 1: Transcribe audio using the buffer, filename, mimetype, and language
       const transcription = await transcribeAudio(
         file.buffer,
         file.originalname,
-        file.mimetype
+        file.mimetype,
+        language
       );
 
       if (!transcription || transcription.trim().length === 0) {
         return res.status(400).json({ error: "Could not transcribe audio" });
       }
 
-      // Step 2: Summarize transcription
-      const { summary, keyPoints } = await summarizeText(transcription);
+      // Step 2: Summarize transcription with language context
+      const { summary, keyPoints } = await summarizeText(transcription, language);
 
       // Return results
       res.json({

@@ -5,8 +5,13 @@ import FileUpload from "@/components/FileUpload";
 import TranscriptionCard from "@/components/TranscriptionCard";
 import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
+import LanguageSelector from "@/components/LanguageSelector";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/components/LanguageProvider";
+import { languageNames } from "@shared/schema";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 interface ProcessingResult {
   transcription: string;
@@ -18,6 +23,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<ProcessingResult | null>(null);
   const { toast } = useToast();
+  const { language, setLanguage } = useLanguage();
 
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm") => {
     setIsProcessing(true);
@@ -25,6 +31,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append("audio", audioBlob, filename);
+      formData.append("language", language);
 
       const response = await fetch("/api/process-audio", {
         method: "POST",
@@ -80,6 +87,15 @@ export default function Home() {
           {!result ? (
             <>
               <EmptyState />
+
+              <LanguageSelector value={language} onChange={setLanguage} />
+
+              <Alert className="max-w-md mx-auto" data-testid="alert-language-info">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  سيتم تلخيص المحاضرة بـ {languageNames[language]}
+                </AlertDescription>
+              </Alert>
 
               {isProcessing ? (
                 <div className="flex flex-col items-center gap-4 py-12">
