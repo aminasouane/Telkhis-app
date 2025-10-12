@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mic, Square } from "lucide-react";
+import { Mic, Square, StopCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type RecordingStatus = "idle" | "recording";
+type RecordingStatus = "idle" | "recording" | "stopping";
 
 interface RecordingControlProps {
   onRecordingComplete: (audioBlob: Blob) => void;
@@ -45,6 +45,10 @@ export default function RecordingControl({ onRecordingComplete }: RecordingContr
         const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
         onRecordingComplete(audioBlob);
         stream.getTracks().forEach((track) => track.stop());
+        
+        // Reset to idle after recording is complete
+        setStatus("idle");
+        setDuration(0);
       };
 
       mediaRecorder.start();
@@ -61,25 +65,22 @@ export default function RecordingControl({ onRecordingComplete }: RecordingContr
   };
 
   const stopRecording = () => {
+    if (status === "stopping") return; // Prevent multiple clicks
+    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      setStatus("stopping");
       mediaRecorderRef.current.stop();
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      // Reset to idle after a short delay to allow processing
-      setTimeout(() => {
-        setStatus("idle");
-        setDuration(0);
-      }, 500);
+      // Status will be reset to idle in onstop callback
     }
   };
 
   const handleRecord = () => {
     if (status === "idle") {
       startRecording();
-    } else if (status === "recording") {
-      stopRecording();
     }
   };
 
@@ -97,16 +98,13 @@ export default function RecordingControl({ onRecordingComplete }: RecordingContr
           variant={status === "recording" ? "destructive" : "default"}
           onClick={handleRecord}
           data-testid="button-record"
+          disabled={status === "recording" || status === "stopping"}
           className={cn(
             "h-20 w-20 sm:h-24 sm:w-24 rounded-full transition-all",
             status === "recording" && "animate-pulse"
           )}
         >
-          {status === "recording" ? (
-            <Square className="h-8 w-8 sm:h-10 sm:w-10" />
-          ) : (
-            <Mic className="h-8 w-8 sm:h-10 sm:w-10" />
-          )}
+          <Mic className="h-8 w-8 sm:h-10 sm:w-10" />
         </Button>
 
         {status === "recording" && (
@@ -116,33 +114,48 @@ export default function RecordingControl({ onRecordingComplete }: RecordingContr
 
       <div className="flex flex-col items-center gap-2">
         <Badge
-          variant={status === "recording" ? "destructive" : "outline"}
+          variant={status === "recording" ? "destructive" : status === "stopping" ? "secondary" : "outline"}
           data-testid="badge-status"
         >
           {status === "idle" && "جاهز للتسجيل"}
           {status === "recording" && "جاري التسجيل..."}
+          {status === "stopping" && "جاري الإيقاف..."}
         </Badge>
 
-        {status === "recording" && (
+        {(status === "recording" || status === "stopping") && (
           <p className="text-2xl font-mono font-semibold" data-testid="text-duration">
             {formatDuration(duration)}
           </p>
         )}
       </div>
 
-      {status === "recording" && (
-        <div className="flex gap-1 items-end h-12">
-          {[...Array(20)].map((_, i) => (
-            <div
-              key={i}
-              className="w-1 bg-primary rounded-full animate-pulse"
-              style={{
-                height: `${Math.random() * 100}%`,
-                animationDelay: `${i * 50}ms`,
-              }}
-            />
-          ))}
-        </div>
+      {(status === "recording" || status === "stopping") && (
+        <>
+          <div className="flex gap-1 items-end h-12">
+            {[...Array(20)].map((_, i) => (
+              <div
+                key={i}
+                className="w-1 bg-primary rounded-full animate-pulse"
+                style={{
+                  height: `${Math.random() * 100}%`,
+                  animationDelay: `${i * 50}ms`,
+                }}
+              />
+            ))}
+          </div>
+
+          <Button
+            size="lg"
+            variant="destructive"
+            onClick={stopRecording}
+            disabled={status === "stopping"}
+            data-testid="button-stop-recording"
+            className="min-w-[200px] gap-2"
+          >
+            <StopCircle className="h-5 w-5" />
+            {status === "stopping" ? "جاري الإيقاف..." : "إيقاف التسجيل"}
+          </Button>
+        </>
       )}
     </div>
   );
