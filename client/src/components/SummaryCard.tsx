@@ -71,7 +71,7 @@ export default function SummaryCard({ summary, keyPoints, language }: SummaryCar
           <div className="flex items-start gap-2 p-3 bg-muted rounded-md border" data-testid="badge-language-conversion">
             <Info className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
             <p className="text-sm text-muted-foreground">
-              تم تحويل التلخيص إلى عربية فصحى مبسطة من لهجة جزائرية
+              سيتم تلخيص المحاضرة باللغة العربية
             </p>
           </div>
         )}
