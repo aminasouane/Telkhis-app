@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import Header from "@/components/Header";
 import RecordingControl from "@/components/RecordingControl";
 import FileUpload from "@/components/FileUpload";
@@ -6,13 +7,13 @@ import TranscriptionCard from "@/components/TranscriptionCard";
 import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
-import HistoryList from "@/components/HistoryList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/components/LanguageProvider";
 import { languageNames, type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Info, History } from "lucide-react";
 import { sessionStorage } from "@/utils/storage";
 
 interface ProcessingResult {
@@ -23,21 +24,37 @@ interface ProcessingResult {
 }
 
 export default function Home() {
+  const [, navigate] = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<ProcessingResult | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
-  const [activeTab, setActiveTab] = useState<"new" | "history">("new");
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
 
   useEffect(() => {
-    const loadedSessions = sessionStorage.getAll().map(session => ({
-      ...session,
-      keyPoints: session.keyPoints || []
-    }));
-    setSessions(loadedSessions);
-  }, []);
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session');
+    
+    if (sessionId) {
+      const session = sessionStorage.getById(sessionId);
+      if (session) {
+        setViewingSession(session);
+        setResult({
+          transcription: session.transcript,
+          summary: session.summary,
+          keyPoints: session.keyPoints || [],
+          language: session.language,
+        });
+      } else {
+        toast({
+          title: "الجلسة غير موجودة",
+          description: "لم يتم العثور على الجلسة المطلوبة",
+          variant: "destructive",
+        });
+        navigate("/");
+      }
+    }
+  }, [navigate, toast]);
 
   const generateSessionTitle = (summary: string): string => {
     const words = summary.trim().split(/\s+/).slice(0, 5);
@@ -56,7 +73,6 @@ export default function Home() {
     };
 
     sessionStorage.save(session);
-    setSessions(sessionStorage.getAll());
   };
 
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm") => {
@@ -115,32 +131,7 @@ export default function Home() {
   const handleNewRecording = () => {
     setResult(null);
     setViewingSession(null);
-  };
-
-  const handleOpenSession = (session: Session) => {
-    setViewingSession(session);
-    setResult({
-      transcription: session.transcript,
-      summary: session.summary,
-      keyPoints: session.keyPoints || [],
-      language: session.language,
-    });
-    setActiveTab("new");
-  };
-
-  const handleDeleteSession = (id: string) => {
-    sessionStorage.delete(id);
-    setSessions(sessionStorage.getAll());
-    
-    if (viewingSession?.id === id) {
-      setViewingSession(null);
-      setResult(null);
-    }
-    
-    toast({
-      title: "تم الحذف",
-      description: "تم حذف التلخيص من السجل",
-    });
+    navigate("/");
   };
 
   return (
@@ -149,93 +140,94 @@ export default function Home() {
 
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="max-w-5xl mx-auto space-y-8">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "new" | "history")} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
-              <TabsTrigger value="new" data-testid="tab-main-new">
-                تسجيل جديد
-              </TabsTrigger>
-              <TabsTrigger value="history" data-testid="tab-main-history">
-                سجل التلخيصات
-              </TabsTrigger>
-            </TabsList>
+          {!result ? (
+            <>
+              <EmptyState />
 
-            <TabsContent value="new" className="mt-8 space-y-8">
-              {!result ? (
-                <>
-                  <EmptyState />
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/history")}
+                  data-testid="button-view-history"
+                >
+                  <History className="h-4 w-4 ml-2" />
+                  عرض سجل التلخيصات
+                </Button>
+              </div>
 
-                  <LanguageSelector value={language} onChange={setLanguage} />
+              <LanguageSelector value={language} onChange={setLanguage} />
 
-                  <Alert className="max-w-md mx-auto" data-testid="alert-language-info">
-                    <Info className="h-4 w-4" />
-                    <AlertDescription>
-                      سيتم تلخيص المحاضرة بـ{language === "dz" ? "اللغة العربية" : languageNames[language]}
-                    </AlertDescription>
-                  </Alert>
+              <Alert className="max-w-md mx-auto" data-testid="alert-language-info">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  سيتم تلخيص المحاضرة بـ{language === "dz" ? "اللغة العربية" : languageNames[language]}
+                </AlertDescription>
+              </Alert>
 
-                  {isProcessing ? (
-                    <div className="flex flex-col items-center gap-4 py-12">
-                      <div className="h-16 w-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                      <p className="text-lg font-medium">جاري المعالجة...</p>
-                      <p className="text-sm text-muted-foreground">
-                        يتم تحويل الصوت إلى نص وتلخيصه
-                      </p>
-                    </div>
-                  ) : (
-                    <Tabs defaultValue="record" className="w-full">
-                      <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
-                        <TabsTrigger value="record" data-testid="tab-record">
-                          تسجيل صوتي
-                        </TabsTrigger>
-                        <TabsTrigger value="upload" data-testid="tab-upload">
-                          رفع ملف
-                        </TabsTrigger>
-                      </TabsList>
-
-                      <TabsContent value="record" className="mt-8">
-                        <RecordingControl onRecordingComplete={handleRecordingComplete} />
-                      </TabsContent>
-
-                      <TabsContent value="upload" className="mt-8">
-                        <FileUpload onFileSelect={handleFileUpload} />
-                      </TabsContent>
-                    </Tabs>
-                  )}
-                </>
-              ) : (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between flex-wrap gap-4">
-                    <h2 className="text-2xl font-semibold">
-                      {viewingSession ? "جلسة محفوظة" : "النتائج"}
-                    </h2>
-                    <button
-                      onClick={handleNewRecording}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      data-testid="button-new-recording"
-                    >
-                      تسجيل جديد ←
-                    </button>
-                  </div>
-
-                  <TranscriptionCard text={result.transcription} />
-
-                  <SummaryCard
-                    summary={result.summary}
-                    keyPoints={result.keyPoints}
-                    language={result.language}
-                  />
+              {isProcessing ? (
+                <div className="flex flex-col items-center gap-4 py-12">
+                  <div className="h-16 w-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                  <p className="text-lg font-medium">جاري المعالجة...</p>
+                  <p className="text-sm text-muted-foreground">
+                    يتم تحويل الصوت إلى نص وتلخيصه
+                  </p>
                 </div>
-              )}
-            </TabsContent>
+              ) : (
+                <Tabs defaultValue="record" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
+                    <TabsTrigger value="record" data-testid="tab-record">
+                      تسجيل صوتي
+                    </TabsTrigger>
+                    <TabsTrigger value="upload" data-testid="tab-upload">
+                      رفع ملف
+                    </TabsTrigger>
+                  </TabsList>
 
-            <TabsContent value="history" className="mt-8">
-              <HistoryList
-                sessions={sessions}
-                onOpenSession={handleOpenSession}
-                onDeleteSession={handleDeleteSession}
+                  <TabsContent value="record" className="mt-8">
+                    <RecordingControl onRecordingComplete={handleRecordingComplete} />
+                  </TabsContent>
+
+                  <TabsContent value="upload" className="mt-8">
+                    <FileUpload onFileSelect={handleFileUpload} />
+                  </TabsContent>
+                </Tabs>
+              )}
+            </>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <h2 className="text-2xl font-semibold">
+                  {viewingSession ? "جلسة محفوظة" : "النتائج"}
+                </h2>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate("/history")}
+                    data-testid="button-view-history-from-result"
+                  >
+                    <History className="h-4 w-4 ml-2" />
+                    السجل
+                  </Button>
+                  <button
+                    onClick={handleNewRecording}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    data-testid="button-new-recording"
+                  >
+                    تسجيل جديد ←
+                  </button>
+                </div>
+              </div>
+
+              <TranscriptionCard text={result.transcription} />
+
+              <SummaryCard
+                summary={result.summary}
+                keyPoints={result.keyPoints}
+                language={result.language}
               />
-            </TabsContent>
-          </Tabs>
+            </div>
+          )}
         </div>
       </main>
     </div>

@@ -6,12 +6,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import Home from "@/pages/Home";
+import HistoryScreen from "@/pages/HistoryScreen";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/history" component={HistoryScreen} />
       <Route component={NotFound} />
     </Switch>
   );
