@@ -63,7 +63,7 @@ export default function HistoryList({ sessions, onOpenSession, onDeleteSession }
 
       <div className="space-y-3">
         {sessions.map((session) => (
-          <Card key={session.id} className="hover-elevate" data-testid={`session-card-${session.id}`}>
+          <Card key={session.id} className="hover-elevate printable-card" data-testid={`session-card-${session.id}`}>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex-1 min-w-0">

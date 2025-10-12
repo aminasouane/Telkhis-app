@@ -349,3 +349,143 @@
     inset: -1px;
   }
 }
+
+/* Print Styles */
+@media print {
+  /* Hide non-printable elements */
+  header,
+  nav,
+  .print\\:hidden,
+  [data-testid*="button-"],
+  button,
+  dialog {
+    display: none !important;
+  }
+
+  /* Page setup */
+  @page {
+    size: A4;
+    margin: 2cm;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+    line-height: 1.6;
+  }
+
+  /* Card styles for print - target actual card components */
+  [data-testid*="card"],
+  [role="article"],
+  .printable-card {
+    border: 1px solid #ddd !important;
+    background: white !important;
+    page-break-inside: avoid;
+    margin-bottom: 1rem;
+    padding: 1rem;
+  }
+
+  /* Force white backgrounds for all containers */
+  main,
+  section,
+  article,
+  div {
+    background: white !important;
+  }
+
+  /* RTL support for Arabic */
+  [dir="rtl"],
+  .rtl,
+  html[dir="rtl"] body {
+    direction: rtl !important;
+    text-align: right !important;
+  }
+
+  /* LTR support for French */
+  [dir="ltr"],
+  .ltr,
+  html[dir="ltr"] body {
+    direction: ltr !important;
+    text-align: left !important;
+  }
+
+  /* Typography for print */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    color: black !important;
+    font-weight: bold;
+  }
+
+  h1 { font-size: 18pt; }
+  h2 { font-size: 16pt; }
+  h3 { font-size: 14pt; }
+  h4 { font-size: 13pt; }
+
+  p {
+    orphans: 3;
+    widows: 3;
+    color: black !important;
+  }
+
+  /* Lists */
+  ul, ol {
+    page-break-inside: avoid;
+  }
+
+  /* Summary content */
+  [data-testid*="text-summary"],
+  [data-testid*="text-keypoint"] {
+    color: black !important;
+    font-size: 11pt;
+    line-height: 1.8;
+  }
+
+  /* Key points list */
+  [data-testid*="text-keypoint"] {
+    margin-bottom: 0.5rem;
+  }
+
+  /* Borders for clarity */
+  .border,
+  [class*="border"] {
+    border-color: #ddd !important;
+  }
+
+  /* Remove shadows and backgrounds */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Optimize spacing */
+  .container {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  /* Page breaks */
+  .page-break-before {
+    page-break-before: always;
+  }
+
+  .page-break-after {
+    page-break-after: always;
+  }
+
+  .no-page-break {
+    page-break-inside: avoid;
+  }
+
+  /* Ensure text is black everywhere */
+  * {
+    color: black !important;
+  }
+
+  /* Override any colored text */
+  .text-muted-foreground,
+  .text-primary,
+  .text-secondary {
+    color: #333 !important;
+  }
+}

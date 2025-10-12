@@ -130,7 +130,7 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
   };
 
   return (
-    <Card className="bg-primary/5">
+    <Card className="bg-primary/5 printable-card">
       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4 flex-wrap">
         <CardTitle className="text-xl">الملخص</CardTitle>
         <div className="flex gap-2 flex-wrap">
