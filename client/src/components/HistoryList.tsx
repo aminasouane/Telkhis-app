@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { History, Eye, Trash2, Calendar } from "lucide-react";
+import { History, Eye, Trash2, Calendar, Printer } from "lucide-react";
 import { Session, languageNames } from "@shared/schema";
 import { format } from "date-fns";
 import { ar, fr } from "date-fns/locale";
@@ -21,9 +21,10 @@ interface HistoryListProps {
   sessions: Session[];
   onOpenSession: (session: Session) => void;
   onDeleteSession: (id: string) => void;
+  onPrintSession?: (session: Session) => void;
 }
 
-export default function HistoryList({ sessions, onOpenSession, onDeleteSession }: HistoryListProps) {
+export default function HistoryList({ sessions, onOpenSession, onDeleteSession, onPrintSession }: HistoryListProps) {
   const { language } = useLanguage();
   
   const getLocale = () => {
@@ -81,7 +82,7 @@ export default function HistoryList({ sessions, onOpenSession, onDeleteSession }
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     size="sm"
                     variant="outline"
@@ -92,6 +93,19 @@ export default function HistoryList({ sessions, onOpenSession, onDeleteSession }
                     <Eye className="h-4 w-4 ml-2" />
                     فتح
                   </Button>
+
+                  {onPrintSession && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onPrintSession(session)}
+                      data-testid={`button-print-session-${session.id}`}
+                      className="hover-elevate active-elevate-2 print:hidden"
+                    >
+                      <Printer className="h-4 w-4 ml-2" />
+                      طباعة
+                    </Button>
+                  )}
 
                   <AlertDialog>
                     <AlertDialogTrigger asChild>

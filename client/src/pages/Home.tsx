@@ -37,6 +37,7 @@ export default function Home() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get('session');
+    const shouldPrint = params.get('print') === 'true';
     
     if (sessionId) {
       const session = sessionStorage.getById(sessionId);
@@ -48,6 +49,13 @@ export default function Home() {
           keyPoints: session.keyPoints || [],
           language: session.language,
         });
+
+        if (shouldPrint) {
+          setTimeout(() => {
+            window.print();
+            window.history.replaceState({}, '', `/?session=${sessionId}`);
+          }, 500);
+        }
       } else {
         toast({
           title: "الجلسة غير موجودة",

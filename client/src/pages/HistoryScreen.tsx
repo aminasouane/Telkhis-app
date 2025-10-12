@@ -25,6 +25,10 @@ export default function HistoryScreen() {
     navigate(`/?session=${session.id}`);
   };
 
+  const handlePrintSession = (session: Session) => {
+    navigate(`/?session=${session.id}&print=true`);
+  };
+
   const handleDeleteSession = (id: string) => {
     sessionStorage.delete(id);
     setSessions(sessionStorage.getAll().map(session => ({
@@ -71,6 +75,7 @@ export default function HistoryScreen() {
             <HistoryList
               sessions={sessions}
               onOpenSession={handleOpenSession}
+              onPrintSession={handlePrintSession}
               onDeleteSession={handleDeleteSession}
             />
           </div>
