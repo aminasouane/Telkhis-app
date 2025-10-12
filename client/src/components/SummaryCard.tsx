@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, Check, Info, FileText, FileDown } from "lucide-react";
+import { Copy, Download, Check, Info, FileText, FileDown, Printer } from "lucide-react";
 import { useState, useRef } from "react";
 import { Language } from "@shared/schema";
 import {
@@ -125,11 +125,15 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <Card className="bg-primary/5">
       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4 flex-wrap">
         <CardTitle className="text-xl">الملخص</CardTitle>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button
             size="sm"
             variant="outline"
@@ -144,6 +148,17 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
             )}
             {copied ? "تم" : "نسخ"}
           </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handlePrint}
+            data-testid="button-print-summary"
+            className="hover-elevate active-elevate-2 print:hidden"
+          >
+            <Printer className="h-4 w-4 ml-2" />
+            طباعة
+          </Button>
           
           <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
             <DialogTrigger asChild>
@@ -151,7 +166,7 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
                 size="sm"
                 variant="outline"
                 data-testid="button-export-summary"
-                className="hover-elevate active-elevate-2"
+                className="hover-elevate active-elevate-2 print:hidden"
               >
                 <Download className="h-4 w-4 ml-2" />
                 حفظ
