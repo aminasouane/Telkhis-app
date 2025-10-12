@@ -15,8 +15,12 @@ Preferred communication style: Simple, everyday language.
 **Framework**: React with TypeScript using Vite as the build tool
 
 **Routing**: Wouter (lightweight client-side routing)
-- Single-page application with minimal routing (Home page and 404)
+- Multi-page application with three routes:
+  - `/` - Home page (recording/upload and results display)
+  - `/history` - History page (session management)
+  - 404 - NotFound page
 - Simple, declarative route definitions
+- URL query parameters for session loading: `/?session={id}`
 
 **UI Component System**: Radix UI with shadcn/ui design patterns
 - Material Design 3 inspired color system
@@ -37,6 +41,10 @@ Preferred communication style: Simple, everyday language.
 - Multi-language support with Arabic (Classical), French (Academic), and Algerian dialect
 - Algerian dialect is automatically converted to Classical Arabic for better clarity (with user notification)
 - Dynamic RTL/LTR layout switching based on selected language
+- **Screen Separation Architecture**: Dedicated pages for focused user experience
+  - Home page: Clean recording/upload interface without tabs
+  - History page: Separate dedicated page for session management
+  - Navigation: Clear buttons for switching between recording and history
 - Session history management with localStorage for offline persistence
 - Material Design 3 color palette optimized for productivity and trust
 - Mobile-responsive with special considerations for touch interfaces
@@ -46,10 +54,23 @@ Preferred communication style: Simple, everyday language.
 - Auto-save transcription sessions after successful processing
 - Sessions stored locally in localStorage (key: "takhleesly_sessions")
 - Each session includes: id, title (first 5 words), date, language, summary, transcript, keyPoints
-- History view with card-based UI showing all saved sessions
-- Session actions: Open (view saved session), Delete (with confirmation dialog)
-- Empty state handling when no sessions exist
-- Date formatting with locale support (Arabic/French)
+- **History Page** (`/history`):
+  - Dedicated page for session management
+  - Two main action buttons:
+    - "تسجيل محاضرة جديدة" (New Recording): Navigate to home
+    - "سجل التلخيصات" (History): Disabled when on history page
+  - Card-based UI showing all saved sessions
+  - Session actions: Open (navigate to `/?session={id}`), Delete (with confirmation dialog)
+  - Empty state handling when no sessions exist
+  - Date formatting with locale support (Arabic/French)
+- **Session Loading**:
+  - URL parameter support: `/?session={id}` opens specific session
+  - Error handling for invalid/missing session IDs with toast notification
+  - Session normalized on load with keyPoints fallback to empty array
+- **Navigation Flow**:
+  - Home → History: Click "عرض سجل التلخيصات" button
+  - History → Home: Click "تسجيل محاضرة جديدة" button
+  - History → Home (with session): Click "فتح" on session card
 
 ### Backend Architecture
 
