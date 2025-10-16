@@ -23,10 +23,10 @@ Preferred communication style: Simple, everyday language.
 - URL query parameters for session loading: `/?session={id}`
 
 **UI Component System**: Radix UI with shadcn/ui design patterns
-- Material Design 3 inspired color system
+- Material Design 3 inspired color system with cyan primary color (hue 180°)
 - Comprehensive component library (40+ pre-built components)
 - Custom theming with CSS variables for light/dark modes
-- RTL-first design with Arabic typography (Noto Sans Arabic + Inter fallback)
+- RTL-first design with Arabic typography (Noto Kufi Arabic + Inter fallback)
 - Tailwind CSS for styling with custom configuration
 
 **State Management**: 
@@ -58,9 +58,14 @@ Preferred communication style: Simple, everyday language.
   - History page: Separate dedicated page for session management
   - Navigation: Clear buttons for switching between recording and history
 - Session history management with localStorage for offline persistence
-- Material Design 3 color palette optimized for productivity and trust
+- Material Design 3 color palette with cyan primary color (180° hue) optimized for productivity and trust
 - Mobile-responsive with special considerations for touch interfaces
 - Accessibility-first with semantic HTML and ARIA labels
+- **Print Feature**: Print-friendly styling with automatic print trigger via URL parameter
+  - Print button in SummaryCard and HistoryList components
+  - URL parameter `?print=true` triggers automatic print dialog
+  - Clean white-background print layout with RTL support
+  - Hides interactive elements during printing
 
 **Session Management**:
 - Auto-save transcription sessions after successful processing
@@ -165,7 +170,7 @@ Preferred communication style: Simple, everyday language.
   - Proper lifecycle management: idle→recording→stopping→idle
   - State transitions follow MediaRecorder events (not timers)
 - File drag-and-drop using native browser APIs
-- Google Fonts CDN for multi-language typography (Noto Sans Arabic + Inter)
+- Google Fonts CDN for multi-language typography (Noto Kufi Arabic + Inter)
 - Language persistence via localStorage
 - **Export Libraries**:
   - jsPDF for PDF generation
