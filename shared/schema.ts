@@ -22,9 +22,9 @@ export const languages = ["ar", "fr", "dz"] as const;
 export type Language = (typeof languages)[number];
 
 export const languageNames: Record<Language, string> = {
-  ar: "🇩🇿 العربية",
-  fr: "🇫🇷 الفرنسية",
-  dz: "🗣️ اللهجة الجزائرية",
+  ar: "العربية الفصحى",
+  fr: "اللغة الفرنسية",
+  dz: "اللهجة الجزائرية",
 };
 
 export const languageSchema = z.object({

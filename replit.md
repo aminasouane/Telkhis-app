@@ -39,6 +39,7 @@ Preferred communication style: Simple, everyday language.
 **Key Design Decisions**:
 - Progressive disclosure workflow: language selection → recording/upload → transcription → summary
 - Multi-language support with Arabic (Classical), French (Academic), and Algerian dialect
+  - Language names: "العربية الفصحى", "اللغة الفرنسية", "اللهجة الجزائرية" (clean text without emojis)
 - Algerian dialect is automatically converted to Classical Arabic for better clarity (with user notification)
 - Dynamic RTL/LTR layout switching based on selected language
 - **Live Summary Feature**: Real-time transcription and summarization during recording
