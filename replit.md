@@ -54,6 +54,13 @@ Preferred communication style: Simple, everyday language.
   - Smart file naming: Includes session title and timestamp (yyyy-MM-dd_HH-mm)
   - Toast notifications for all actions (copy, save, errors)
   - Dialog-based export: User-friendly modal to choose format
+  - **Share Feature**: Native sharing with Web Share API and fallbacks
+    - Share button in SummaryCard with Share2 icon
+    - Share as text: Uses Web Share API if available, falls back to clipboard copy
+    - Share as PDF: Generates PDF and shares via Web Share API (files), or downloads for manual sharing
+    - Dynamic UI descriptions based on browser capabilities
+    - Graceful degradation for browsers without Web Share API support
+    - Works on both mobile and desktop with appropriate sharing methods
 - **Screen Separation Architecture**: Dedicated pages for focused user experience
   - Home page: Clean recording/upload interface without tabs
   - History page: Separate dedicated page for session management
