@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, Check, Info, FileText, FileDown, Printer } from "lucide-react";
+import { Copy, Download, Check, Info, FileText, FileDown, Printer, Share2 } from "lucide-react";
 import { useState, useRef } from "react";
 import { Language } from "@shared/schema";
 import {
@@ -27,7 +27,9 @@ interface SummaryCardProps {
 export default function SummaryCard({ summary, keyPoints, language, title, date }: SummaryCardProps) {
   const [copied, setCopied] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const summaryContentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -129,6 +131,129 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
     window.print();
   };
 
+  const handleShare = () => {
+    setIsShareDialogOpen(true);
+  };
+
+  const handleShareText = async () => {
+    const textToShare = keyPoints
+      ? `${summary}\n\nالنقاط الرئيسية:\n${keyPoints.map((p) => `• ${p}`).join("\n")}`
+      : summary;
+    
+    const shareTitle = title || "ملخص المحاضرة";
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: textToShare,
+        });
+        
+        setIsShareDialogOpen(false);
+        toast({
+          title: "تمت المشاركة بنجاح",
+          description: "تم مشاركة التلخيص",
+        });
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          toast({
+            title: "خطأ في المشاركة",
+            description: "فشلت عملية المشاركة",
+            variant: "destructive",
+          });
+        }
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(textToShare);
+        setIsShareDialogOpen(false);
+        toast({
+          title: "تم النسخ إلى الحافظة",
+          description: "تم نسخ التلخيص، يمكنك لصقه في أي تطبيق",
+        });
+      } catch (error) {
+        toast({
+          title: "خطأ في النسخ",
+          description: "فشل نسخ التلخيص إلى الحافظة",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleSharePDF = async () => {
+    if (!summaryContentRef.current) return;
+    
+    setIsSharing(true);
+    
+    try {
+      const canvas = await html2canvas(summaryContentRef.current, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 10;
+
+      pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      
+      const pdfBlob = pdf.output('blob');
+      const pdfFile = new File([pdfBlob], getFilename("pdf"), { type: 'application/pdf' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            title: title || "ملخص المحاضرة",
+            files: [pdfFile],
+          });
+          
+          setIsShareDialogOpen(false);
+          toast({
+            title: "تمت المشاركة بنجاح",
+            description: "تم مشاركة ملف PDF",
+          });
+        } catch (error: any) {
+          if (error.name !== 'AbortError') {
+            pdf.save(getFilename("pdf"));
+            setIsShareDialogOpen(false);
+            toast({
+              title: "تم الحفظ",
+              description: "تم حفظ الملف، يمكنك مشاركته يدوياً",
+            });
+          }
+        }
+      } else {
+        pdf.save(getFilename("pdf"));
+        setIsShareDialogOpen(false);
+        toast({
+          title: "تم الحفظ",
+          description: "تم حفظ الملف، يمكنك مشاركته يدوياً",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "خطأ في المشاركة",
+        description: "فشل إنشاء ملف PDF",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   return (
     <Card className="bg-primary/5 printable-card">
       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4 flex-wrap">
@@ -158,6 +283,17 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
           >
             <Printer className="h-4 w-4 ml-2" />
             طباعة
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleShare}
+            data-testid="button-share-summary"
+            className="hover-elevate active-elevate-2 print:hidden"
+          >
+            <Share2 className="h-4 w-4 ml-2" />
+            مشاركة
           </Button>
           
           <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
@@ -204,6 +340,48 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
                     <div className="font-medium">مستند PDF</div>
                     <div className="text-sm text-muted-foreground">
                       {isExporting ? "جاري الإنشاء..." : "حفظ كملف PDF منسق"}
+                    </div>
+                  </div>
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>مشاركة التلخيص</DialogTitle>
+                <DialogDescription>
+                  اختر طريقة المشاركة المناسبة لك
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 py-4">
+                <Button
+                  variant="outline"
+                  onClick={handleShareText}
+                  data-testid="button-share-text"
+                  className="justify-start gap-3 h-auto py-4 hover-elevate active-elevate-2"
+                >
+                  <Share2 className="h-5 w-5" />
+                  <div className="text-right flex-1">
+                    <div className="font-medium">مشاركة كنص</div>
+                    <div className="text-sm text-muted-foreground">
+                      {navigator.share ? "مشاركة عبر التطبيقات المتاحة" : "نسخ إلى الحافظة"}
+                    </div>
+                  </div>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleSharePDF}
+                  disabled={isSharing}
+                  data-testid="button-share-pdf"
+                  className="justify-start gap-3 h-auto py-4 hover-elevate active-elevate-2"
+                >
+                  <FileDown className="h-5 w-5" />
+                  <div className="text-right flex-1">
+                    <div className="font-medium">مشاركة كملف PDF</div>
+                    <div className="text-sm text-muted-foreground">
+                      {isSharing ? "جاري الإنشاء..." : "مشاركة أو حفظ ملف PDF"}
                     </div>
                   </div>
                 </Button>
