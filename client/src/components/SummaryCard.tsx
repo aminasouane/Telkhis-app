@@ -366,7 +366,7 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
                   <div className="text-right flex-1">
                     <div className="font-medium">مشاركة كنص</div>
                     <div className="text-sm text-muted-foreground">
-                      {navigator.share ? "مشاركة عبر التطبيقات المتاحة" : "نسخ إلى الحافظة"}
+                      {typeof navigator !== 'undefined' && 'share' in navigator ? "مشاركة عبر التطبيقات المتاحة" : "نسخ إلى الحافظة"}
                     </div>
                   </div>
                 </Button>
