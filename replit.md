@@ -15,12 +15,14 @@ Preferred communication style: Simple, everyday language.
 **Framework**: React with TypeScript using Vite as the build tool
 
 **Routing**: Wouter (lightweight client-side routing)
-- Multi-page application with three routes:
+- Multi-page application with four routes:
+  - `/login` - Login page (authentication)
   - `/` - Home page (recording/upload and results display)
   - `/history` - History page (session management)
   - 404 - NotFound page
 - Simple, declarative route definitions
-- URL query parameters for session loading: `/?session={id}`
+- Protected routes with authentication checks
+- URL query parameters for session loading: `/?summary={id}`
 
 **UI Component System**: Radix UI with shadcn/ui design patterns
 - Material Design 3 inspired color system with cyan primary color (hue 180°)
@@ -34,7 +36,8 @@ Preferred communication style: Simple, everyday language.
 - Local React state for UI interactions
 - Theme context for light/dark mode persistence
 - Language context for multi-language support and RTL/LTR switching
-- localStorage for session history persistence (takhleesly_sessions key)
+- **Authentication context** (AuthProvider) for user session management
+- **Supabase database** for cloud-based session history persistence (replaces localStorage)
 
 **Key Design Decisions**:
 - Progressive disclosure workflow: language selection → recording/upload → transcription → summary
@@ -77,25 +80,37 @@ Preferred communication style: Simple, everyday language.
 
 **Session Management**:
 - Auto-save transcription sessions after successful processing
-- Sessions stored locally in localStorage (key: "takhleesly_sessions")
-- Each session includes: id, title (first 5 words), date, language, summary, transcript, keyPoints
+- **Supabase Cloud Storage**: Sessions stored in Supabase database (replaces localStorage)
+  - Each session includes: id, user_id, title (first 5 words), date, language, content, transcript, key_points
+  - User-scoped queries with authorization checks
+  - Secure multi-tenant architecture preventing cross-user data access
+- **Authentication Required**: All pages require login
+  - Protected routes redirect to `/login` if not authenticated
+  - Supabase Auth with email/password and Google OAuth
+  - Session persistence across page reloads
 - **History Page** (`/history`):
   - Dedicated page for session management
   - Two main action buttons:
     - "تسجيل محاضرة جديدة" (New Recording): Navigate to home
     - "سجل التلخيصات" (History): Disabled when on history page
-  - Card-based UI showing all saved sessions
-  - Session actions: Open (navigate to `/?session={id}`), Delete (with confirmation dialog)
+  - Card-based UI showing user's saved sessions from database
+  - Session actions: Open (navigate to `/?summary={id}`), Delete (with confirmation dialog)
   - Empty state handling when no sessions exist
   - Date formatting with locale support (Arabic/French)
 - **Session Loading**:
-  - URL parameter support: `/?session={id}` opens specific session
-  - Error handling for invalid/missing session IDs with toast notification
+  - URL parameter support: `/?summary={id}` opens specific session
+  - Authorization check: Only session owner can view/delete
+  - Error handling with "غير مصرح" toast for unauthorized access
   - Session normalized on load with keyPoints fallback to empty array
 - **Navigation Flow**:
+  - Login → Home: After successful authentication
   - Home → History: Click "عرض سجل التلخيصات" button
   - History → Home: Click "تسجيل محاضرة جديدة" button
   - History → Home (with session): Click "فتح" on session card
+- **User Profile Display**:
+  - Header shows user email and subscription type badge
+  - Subscription types: Free, Premium, Pro Plus
+  - Logout functionality with session cleanup
 
 ### Backend Architecture
 
