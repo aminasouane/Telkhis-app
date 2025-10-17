@@ -11,25 +11,21 @@ import { getSummaries, deleteSummary } from "@/services/dbService";
 
 export default function HistoryScreen() {
   const [, navigate] = useLocation();
-  const { user, loading: authLoading } = useAuth();
+  const { user, isGuest, guestUserId, loading: authLoading } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
-    }
-  }, [user, authLoading, navigate]);
+  // Get current user ID (guest or authenticated)
+  const currentUserId = isGuest ? guestUserId : user?.id;
 
   // Load summaries from database
   useEffect(() => {
-    if (!user) return;
+    if (!currentUserId) return;
 
     const loadSummaries = async () => {
       setLoading(true);
-      const summaries = await getSummaries(user.id);
+      const summaries = await getSummaries(currentUserId);
       
       // Convert summaries to Session format
       const sessionsList: Session[] = summaries.map(summary => ({
@@ -47,7 +43,7 @@ export default function HistoryScreen() {
     };
 
     loadSummaries();
-  }, [user]);
+  }, [currentUserId]);
 
   const handleOpenSession = (session: Session) => {
     navigate(`/?summary=${session.id}`);
@@ -58,9 +54,9 @@ export default function HistoryScreen() {
   };
 
   const handleDeleteSession = async (id: string) => {
-    if (!user) return;
+    if (!currentUserId) return;
     
-    const success = await deleteSummary(id, user.id);
+    const success = await deleteSummary(id, currentUserId);
     
     if (success) {
       setSessions(sessions.filter(s => s.id !== id));
@@ -78,17 +74,12 @@ export default function HistoryScreen() {
   };
 
   // Show loading while checking auth
-  if (authLoading || loading) {
+  if (authLoading || loading || !currentUserId) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
-  }
-
-  // Don't render if not authenticated
-  if (!user) {
-    return null;
   }
 
   return (
