@@ -16,6 +16,7 @@ import { languageNames, type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History } from "lucide-react";
 import { sessionStorage } from "@/utils/storage";
+import { supabase } from "@/lib/supabaseClient";
 
 interface ProcessingResult {
   transcription: string;
@@ -35,6 +36,8 @@ export default function Home() {
   const { language, setLanguage } = useLanguage();
 
   useEffect(() => {
+    console.log('✅ Supabase connected successfully');
+    
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get('session');
     const shouldPrint = params.get('print') === 'true';
