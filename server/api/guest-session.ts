@@ -41,9 +41,15 @@ export async function createGuestSession(req: Request, res: Response) {
     }
 
     // Create new guest user with Supabase Auth (anonymous sign-in)
+    // إنشاء مستخدم ضيف باستخدام بريد إلكتروني وهمي فريد
+    const guestEmail = `guest_${Date.now()}@takhleesly.app`;
+    
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: guestEmail,
       email_confirm: true,
       user_metadata: {
+        role: "guest",
+        deviceId,
         device_id: deviceId,
         user_type: 'guest'
       }
