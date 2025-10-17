@@ -1,46 +1,93 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/components/AuthProvider";
 import Header from "@/components/Header";
 import HistoryList from "@/components/HistoryList";
 import { Button } from "@/components/ui/button";
-import { Plus, History } from "lucide-react";
-import { sessionStorage } from "@/utils/storage";
+import { Plus, History, Loader2 } from "lucide-react";
 import { type Session } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { getSummaries, deleteSummary } from "@/services/dbService";
 
 export default function HistoryScreen() {
   const [, navigate] = useLocation();
+  const { user, loading: authLoading } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
+  // Redirect to login if not authenticated
   useEffect(() => {
-    const loadedSessions = sessionStorage.getAll().map(session => ({
-      ...session,
-      keyPoints: session.keyPoints || []
-    }));
-    setSessions(loadedSessions);
-  }, []);
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [user, authLoading, navigate]);
+
+  // Load summaries from database
+  useEffect(() => {
+    if (!user) return;
+
+    const loadSummaries = async () => {
+      setLoading(true);
+      const summaries = await getSummaries(user.id);
+      
+      // Convert summaries to Session format
+      const sessionsList: Session[] = summaries.map(summary => ({
+        id: summary.id!,
+        title: summary.title || '',
+        date: summary.created_at || new Date().toISOString(),
+        language: summary.language,
+        summary: summary.content,
+        transcript: summary.transcript || '',
+        keyPoints: summary.key_points || []
+      }));
+      
+      setSessions(sessionsList);
+      setLoading(false);
+    };
+
+    loadSummaries();
+  }, [user]);
 
   const handleOpenSession = (session: Session) => {
-    navigate(`/?session=${session.id}`);
+    navigate(`/?summary=${session.id}`);
   };
 
   const handlePrintSession = (session: Session) => {
-    navigate(`/?session=${session.id}&print=true`);
+    navigate(`/?summary=${session.id}&print=true`);
   };
 
-  const handleDeleteSession = (id: string) => {
-    sessionStorage.delete(id);
-    setSessions(sessionStorage.getAll().map(session => ({
-      ...session,
-      keyPoints: session.keyPoints || []
-    })));
+  const handleDeleteSession = async (id: string) => {
+    const success = await deleteSummary(id);
     
-    toast({
-      title: "تم الحذف",
-      description: "تم حذف التلخيص من السجل",
-    });
+    if (success) {
+      setSessions(sessions.filter(s => s.id !== id));
+      toast({
+        title: "تم الحذف",
+        description: "تم حذف التلخيص من قاعدة البيانات",
+      });
+    } else {
+      toast({
+        title: "خطأ",
+        description: "حدث خطأ أثناء حذف التلخيص",
+        variant: "destructive",
+      });
+    }
   };
+
+  // Show loading while checking auth
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">

@@ -19,6 +19,7 @@ export interface SummaryData {
   key_points: string[];
   language: Language;
   shared?: boolean;
+  created_at?: string;
 }
 
 export interface SubscriptionData {
