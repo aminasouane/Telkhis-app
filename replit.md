@@ -4,9 +4,40 @@
 
 Takhleesly (تلخيصلي) is a multi-language web application that transcribes audio lectures and generates AI-powered summaries. Users can select their preferred language (Arabic, French, or Algerian dialect) and either record audio directly in the browser or upload audio files. The audio is then processed through OpenAI's Whisper API for transcription and GPT-4 for intelligent summarization in the selected language. The application features RTL/LTR layout switching and language-specific typography.
 
+**NEW: Soft Authentication & Trial System** - Users can start using the app immediately as guests without login. Guest users get 10 free summaries or 7 days trial period (whichever comes first). Upon signup, all guest data is automatically migrated to the authenticated account.
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+
+## Recent Changes (October 17, 2025)
+
+### Soft Authentication & Trial System Implementation
+
+**Architecture Decision**: Implemented soft authentication allowing users to start using the app immediately without login. Guest users are automatically created with device-based identification.
+
+**Key Components Added**:
+- `client/src/services/trialService.ts` - Manages guest users, trial tracking, and data migration
+- `client/src/components/TrialExpiredModal.tsx` - Prompts users to sign up when trial expires
+- `database/complete_supabase_setup.sql` - Complete database setup with trial support
+- `database/SETUP_INSTRUCTIONS.md` - Step-by-step Supabase configuration guide
+
+**Trial System Details**:
+- Trial limits: 10 summaries OR 7 days (whichever comes first)
+- Device-based identification stored in localStorage
+- Automatic data migration when guest signs up (summaries, settings)
+- Trial status checked before each summary generation
+
+**Database Changes**:
+- Added `device_id` column to users table (for guest identification)
+- Added `user_type` column (guest, free, premium, pro_plus)
+- Added trial fields to subscriptions table (trial_end_date, trial_summaries_used, trial_summaries_limit)
+- Email is now nullable to support guest users
+
+**Security Model**: 
+- RLS disabled in Supabase (security enforced at application level)
+- All operations verify user_id to prevent unauthorized access
+- Guest users identified by device_id in localStorage
 
 ## System Architecture
 
