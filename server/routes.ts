@@ -7,6 +7,7 @@ import { saveSummary } from "./api/save-summary";
 import { getSummaries, getSummaryById, deleteSummary } from "./api/summaries";
 import { migrateGuest } from "./api/migrate-guest";
 import { getTrialStatus } from "./api/trial-status";
+import { upsertUser, getUserSettings, updateUserSettings } from "./api/user";
 
 // Configure multer for memory storage
 const upload = multer({
@@ -45,6 +46,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/summaries/:id", deleteSummary);
   app.post("/api/migrate-guest", migrateGuest);
   app.get("/api/trial-status", getTrialStatus);
+  
+  // User management endpoints
+  app.post("/api/user/upsert", upsertUser);
+  app.get("/api/user/settings", getUserSettings);
+  app.post("/api/user/settings", updateUserSettings);
 
   // Live summary endpoint - processes audio chunks during recording
   app.post("/api/process-audio-live", upload.single("audio"), async (req: Request, res) => {

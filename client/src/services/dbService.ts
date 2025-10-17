@@ -68,27 +68,25 @@ export async function getUserData(userId: string): Promise<UserData | null> {
 }
 
 /**
- * Create or update user data
+ * Create or update user data via backend API
  */
 export async function upsertUser(userId: string, email: string, name?: string): Promise<UserData | null> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .upsert({
-        id: userId,
-        email,
-        name: name || null,
-        subscription_type: 'free'
-      })
-      .select()
-      .single();
+    const response = await fetch('/api/user/upsert', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, email, name }),
+    });
 
-    if (error) {
-      console.error('Error upserting user:', error);
+    if (!response.ok) {
+      console.error('Failed to upsert user');
       return null;
     }
 
-    return data;
+    const { user } = await response.json();
+    return user;
   } catch (error) {
     console.error('Error in upsertUser:', error);
     return null;
@@ -262,22 +260,19 @@ export async function updateSubscription(
 }
 
 /**
- * Get user settings
+ * Get user settings via backend API
  */
 export async function getUserSettings(userId: string): Promise<UserSettings | null> {
   try {
-    const { data, error } = await supabase
-      .from('settings')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching settings:', error);
+    const response = await fetch(`/api/user/settings?userId=${userId}`);
+    
+    if (!response.ok) {
+      console.error('Failed to fetch settings');
       return null;
     }
 
-    return data || null;
+    const { settings } = await response.json();
+    return settings;
   } catch (error) {
     console.error('Error in getUserSettings:', error);
     return null;
@@ -285,26 +280,29 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
 }
 
 /**
- * Update user settings
+ * Update user settings via backend API
  */
 export async function updateUserSettings(settings: UserSettings): Promise<UserSettings | null> {
   try {
-    const { data, error } = await supabase
-      .from('settings')
-      .upsert({
+    const response = await fetch('/api/user/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         user_id: settings.user_id,
         preferred_language: settings.preferred_language,
         notifications_enabled: settings.notifications_enabled
-      })
-      .select()
-      .single();
+      }),
+    });
 
-    if (error) {
-      console.error('Error updating settings:', error);
+    if (!response.ok) {
+      console.error('Failed to update settings');
       return null;
     }
 
-    return data;
+    const { settings: updatedSettings } = await response.json();
+    return updatedSettings;
   } catch (error) {
     console.error('Error in updateUserSettings:', error);
     return null;

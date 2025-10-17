@@ -7,6 +7,7 @@ export interface TrialInfo {
   summariesUsed: number;
   summariesLimit: number;
   daysRemaining: number;
+  expiryDate: string | null;
 }
 
 export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
@@ -26,7 +27,8 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
       isExpired: true,
       summariesUsed: 0,
       summariesLimit: 10,
-      daysRemaining: 0
+      daysRemaining: 0,
+      expiryDate: null
     };
   }
 
@@ -48,7 +50,8 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
     isExpired,
     summariesUsed: subscription.trial_summaries_used || 0,
     summariesLimit: subscription.trial_summaries_limit || 10,
-    daysRemaining
+    daysRemaining,
+    expiryDate: trialEndDate?.toISOString() || null
   };
 }
 

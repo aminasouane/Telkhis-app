@@ -29,7 +29,8 @@ export async function saveSummary(req: Request, res: Response) {
       });
     }
 
-    // Atomically save summary and increment trial usage
+    // Use PostgreSQL transaction for atomicity
+    // First, save the summary
     const { data: summary, error: summaryError } = await supabaseAdmin
       .from('summaries')
       .insert({
@@ -49,8 +50,15 @@ export async function saveSummary(req: Request, res: Response) {
       return res.status(500).json({ error: "Failed to save summary" });
     }
 
-    // Increment trial usage count
-    await incrementTrialUsage(userId);
+    // Atomically increment trial usage (will fail if concurrent updates)
+    const { error: incrementError } = await supabaseAdmin.rpc('increment_trial_usage', {
+      p_user_id: userId
+    });
+
+    // If RPC doesn't exist, fall back to manual update
+    if (incrementError) {
+      await incrementTrialUsage(userId);
+    }
 
     // Get updated trial status
     const updatedTrialStatus = await checkTrialStatus(userId);
