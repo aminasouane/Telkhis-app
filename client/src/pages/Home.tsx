@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/components/AuthProvider";
 import Header from "@/components/Header";
 import RecordingControl from "@/components/RecordingControl";
 import FileUpload from "@/components/FileUpload";
@@ -14,9 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/components/LanguageProvider";
 import { languageNames, type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info, History } from "lucide-react";
-import { sessionStorage } from "@/utils/storage";
-import { supabase } from "@/lib/supabaseClient";
+import { Info, History, Loader2 } from "lucide-react";
+import { saveSummary, getSummaryById } from "@/services/dbService";
 
 interface ProcessingResult {
   transcription: string;
@@ -27,6 +27,7 @@ interface ProcessingResult {
 
 export default function Home() {
   const [, navigate] = useLocation();
+  const { user, loading: authLoading } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<ProcessingResult | null>(null);
   const [liveResult, setLiveResult] = useState<ProcessingResult | null>(null);
@@ -35,58 +36,90 @@ export default function Home() {
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
 
+  // Redirect to login if not authenticated
   useEffect(() => {
-    console.log('✅ Supabase connected successfully');
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [user, authLoading, navigate]);
+
+  // Load summary from URL parameter
+  useEffect(() => {
+    if (!user) return;
     
     const params = new URLSearchParams(window.location.search);
-    const sessionId = params.get('session');
+    const summaryId = params.get('summary');
     const shouldPrint = params.get('print') === 'true';
     
-    if (sessionId) {
-      const session = sessionStorage.getById(sessionId);
-      if (session) {
-        setViewingSession(session);
-        setResult({
-          transcription: session.transcript,
-          summary: session.summary,
-          keyPoints: session.keyPoints || [],
-          language: session.language,
-        });
+    if (summaryId) {
+      getSummaryById(summaryId).then((summary) => {
+        if (summary) {
+          setResult({
+            transcription: summary.transcript || '',
+            summary: summary.content,
+            keyPoints: summary.key_points || [],
+            language: summary.language,
+          });
 
-        if (shouldPrint) {
-          setTimeout(() => {
-            window.print();
-            window.history.replaceState({}, '', `/?session=${sessionId}`);
-          }, 500);
+          if (shouldPrint) {
+            setTimeout(() => {
+              window.print();
+              window.history.replaceState({}, '', `/?summary=${summaryId}`);
+            }, 500);
+          }
+        } else {
+          toast({
+            title: "التلخيص غير موجود",
+            description: "لم يتم العثور على التلخيص المطلوب",
+            variant: "destructive",
+          });
+          navigate("/");
         }
-      } else {
-        toast({
-          title: "الجلسة غير موجودة",
-          description: "لم يتم العثور على الجلسة المطلوبة",
-          variant: "destructive",
-        });
-        navigate("/");
-      }
+      });
     }
-  }, [navigate, toast]);
+  }, [user, navigate, toast]);
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated
+  if (!user) {
+    return null;
+  }
 
   const generateSessionTitle = (summary: string): string => {
     const words = summary.trim().split(/\s+/).slice(0, 5);
     return words.join(" ") + (words.length >= 5 ? "..." : "");
   };
 
-  const saveSession = (data: ProcessingResult) => {
-    const session: Session = {
-      id: Date.now().toString(),
+  const saveSessionToDatabase = async (data: ProcessingResult) => {
+    if (!user) return;
+
+    const summaryData = {
+      user_id: user.id,
       title: generateSessionTitle(data.summary),
-      date: new Date().toISOString(),
-      language: data.language,
-      summary: data.summary,
+      content: data.summary,
       transcript: data.transcription,
-      keyPoints: data.keyPoints,
+      key_points: data.keyPoints,
+      language: data.language,
+      shared: false,
     };
 
-    sessionStorage.save(session);
+    const savedSummary = await saveSummary(summaryData);
+    
+    if (!savedSummary) {
+      toast({
+        title: "خطأ في الحفظ",
+        description: "حدث خطأ أثناء حفظ التلخيص",
+        variant: "destructive",
+      });
+    }
   };
 
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm") => {
@@ -116,11 +149,11 @@ export default function Home() {
       };
       
       setResult(resultData);
-      saveSession(resultData);
+      await saveSessionToDatabase(resultData);
 
       toast({
         title: "تم التلخيص بنجاح",
-        description: "تم تحويل الصوت إلى نص وتلخيصه وحفظه في السجل",
+        description: "تم تحويل الصوت إلى نص وتلخيصه وحفظه في قاعدة البيانات",
       });
     } catch (error: any) {
       console.error("Error processing audio:", error);

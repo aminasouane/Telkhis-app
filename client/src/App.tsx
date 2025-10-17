@@ -5,8 +5,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { LanguageProvider } from "@/components/LanguageProvider";
+import { AuthProvider } from "@/components/AuthProvider";
 import Home from "@/pages/Home";
 import HistoryScreen from "@/pages/HistoryScreen";
+import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -14,6 +16,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/history" component={HistoryScreen} />
+      <Route path="/login" component={Login} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -24,10 +27,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ThemeProvider>
-          <LanguageProvider>
-            <Toaster />
-            <Router />
-          </LanguageProvider>
+          <AuthProvider>
+            <LanguageProvider>
+              <Toaster />
+              <Router />
+            </LanguageProvider>
+          </AuthProvider>
         </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
