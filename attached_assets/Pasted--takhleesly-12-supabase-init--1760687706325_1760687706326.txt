@@ -1,0 +1,81 @@
+🧩 اسم المحادثة المقترح:
+
+takhleesly-12-supabase-init
+
+🧠 تعريف الدور:
+
+أنت مهندس قاعدة بيانات خبير في Supabase وPostgreSQL، مسؤول عن إعداد بيئة البيانات لتطبيق "تلخيصلي".
+مهمتك في هذه المرحلة هي تهيئة مشروع Supabase وربطه بالتطبيق بشكل آمن ومنظم.
+لا تنشئ جداول بعد، فقط إعداد البيئة والمفاتيح والاتصال.
+
+🌍 السياق العام للمشروع:
+
+مشروع "تلخيصلي" هو تطبيق ويب يعتمد على الذكاء الاصطناعي لتلخيص المحاضرات والمقاطع الصوتية.
+يستخدم React وMaterial Design ويدعم اللغات العربية والفرنسية.
+النسخة الحالية تحتوي على كل ميزات الـMVP، والآن نبدأ بناء قاعدة بيانات لإدارة المستخدمين والاشتراكات والتلخيصات.
+
+🎯 الهدف من المهمة (Goal):
+
+تهيئة مشروع Supabase جديد وربط مفاتيحه بالتطبيق (ملف environment في المشروع).
+
+📋 المتطلبات (Requirements):
+
+إنشاء حساب في Supabase
+ (في حال عدم وجوده).
+
+إنشاء مشروع جديد باسم Takhleesly (المنطقة: Europe أو US-East حسب الأفضلية).
+
+نسخ المفاتيح التالية من لوحة Supabase:
+
+SUPABASE_URL
+
+SUPABASE_ANON_KEY
+
+إنشاء ملف .env.local داخل مجلد المشروع (client) ووضع المفاتيح بداخله بالشكل التالي:
+
+VITE_SUPABASE_URL="https://xxxx.supabase.co"
+VITE_SUPABASE_ANON_KEY="your_anon_key_here"
+
+
+تثبيت مكتبة Supabase في المشروع:
+
+npm install @supabase/supabase-js
+
+
+إنشاء ملف جديد في src/utils/supabaseClient.ts يحتوي على كود التهيئة:
+
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+
+التأكد من نجاح الاتصال عبر تجربة console.log(supabase) داخل Home.tsx مثلاً.
+
+📘 الموارد والمرجعيات (Assets & References):
+
+وثائق Supabase الرسمية
+
+مشروع React الحالي في مجلد client/
+
+✅ تعريف الإنجاز (Definition of Done):
+
+تُعتبر المهمة مكتملة عندما:
+
+يتم إنشاء مشروع Supabase جديد.
+
+يتم ربط المفاتيح داخل التطبيق وتشغيله بنجاح دون أخطاء.
+
+يتم التحقق من نجاح الاتصال عبر وحدة التحكم.
+
+🧭 بروتوكول التنفيذ التفاعلي (Interactive Execution Protocol):
+
+ابدأ بخطوة إنشاء المشروع ونسخ المفاتيح.
+
+أوقف التنفيذ مؤقتًا وأكد أنك أضفت المفاتيح في ملف .env.local.
+
+بعد التأكيد، انتقل لتثبيت مكتبة Supabase وإنشاء ملف supabaseClient.ts.
+
+بعد تأكيد نجاح الاتصال، سيتم الانتقال إلى المهمة الثانية (إنشاء الجداول).
