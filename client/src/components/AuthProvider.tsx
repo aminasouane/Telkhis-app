@@ -2,12 +2,15 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { User, Session } from "@supabase/supabase-js";
 import { upsertUser, getUserSettings, updateUserSettings } from "@/services/dbService";
+import { createGuestUser, getGuestUserByDeviceId, migrateGuestToUser } from "@/services/trialService";
 import type { Language } from "@shared/schema";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isGuest: boolean;
+  guestUserId: string | null;
   signInWithEmail: (email: string, password: string) => Promise<{ error: any }>;
   signUpWithEmail: (email: string, password: string, name?: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
@@ -22,35 +25,80 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestUserId, setGuestUserId] = useState<string | null>(null);
   const [userPreferredLanguage, setUserPreferredLanguage] = useState<Language | null>(null);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        initializeUser(session.user);
-      }
-      setLoading(false);
-    });
+    initializeAuth();
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        setIsGuest(false);
+        
+        // If there was a guest user, migrate their data
+        if (guestUserId) {
+          await migrateGuestToUser(guestUserId, session.user.id);
+          setGuestUserId(null);
+        }
+        
         await initializeUser(session.user);
       } else {
-        setUserPreferredLanguage(null);
+        // User signed out, create guest session
+        await initializeGuestSession();
       }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const initializeAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        setIsGuest(false);
+        await initializeUser(session.user);
+      } else {
+        // No authenticated user, create or get guest session
+        await initializeGuestSession();
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Error initializing auth:', error);
+      setLoading(false);
+    }
+  };
+
+  const initializeGuestSession = async () => {
+    try {
+      // Check if guest user already exists
+      let guestUser = await getGuestUserByDeviceId();
+      
+      if (!guestUser) {
+        // Create new guest user
+        guestUser = await createGuestUser();
+      }
+      
+      if (guestUser) {
+        setIsGuest(true);
+        setGuestUserId(guestUser.id);
+        setUserPreferredLanguage('ar'); // Default language for guests
+      }
+    } catch (error) {
+      console.error('Error initializing guest session:', error);
+    }
+  };
 
   const initializeUser = async (user: User) => {
     // Upsert user in database
@@ -123,6 +171,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     session,
     loading,
+    isGuest,
+    guestUserId,
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,
