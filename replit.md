@@ -35,7 +35,16 @@ Preferred communication style: Simple, everyday language.
 - `/api/health`: Health check.
 - `/api/process-audio-live`: Real-time transcription/summarization during recording.
 - `/api/process-audio`: Main audio processing (transcription, summarization).
-- Backend-mediated authentication and trial enforcement, with all Supabase operations handled server-side using a service role key.
+- **Secure Guest & User Management APIs**:
+  - `POST /api/guest-session`: Creates guest user with trial subscription (server-side only)
+  - `GET /api/trial-status`: Returns trial status (expired, summaries used, days remaining)
+  - `POST /api/save-summary`: Saves summary with atomic trial enforcement
+  - `GET /api/summaries`: Lists user summaries with authorization
+  - `DELETE /api/summaries/:id`: Deletes summary with ownership verification
+  - `POST /api/migrate-guest`: Migrates guest data to authenticated account
+  - `POST /api/user/upsert`: Creates/updates user data
+  - `GET /api/user/settings`: Retrieves user settings
+  - `POST /api/user/settings`: Updates user settings
 
 **File Handling**: Multer middleware for in-memory audio file processing (max 25MB, specific MIME types).
 
@@ -45,7 +54,13 @@ Preferred communication style: Simple, everyday language.
 3. Summarization via GPT-4o-mini with language-specific prompts (Classical Arabic, Academic French; Algerian dialect converted to simplified Classical Arabic).
 4. Returns structured JSON response.
 
-**Security**: Backend-only Supabase access, server-side trial enforcement before AI processing, atomic summary saving/trial increment, and RLS policies for user data isolation.
+**Security Architecture**:
+- **Backend-Mediated Design**: All Supabase operations use `SUPABASE_SERVICE_ROLE_KEY` on server only
+- **Zero Frontend Exposure**: Frontend has no direct Supabase access for sensitive operations
+- **Trial Enforcement**: Checks happen BEFORE AI processing, not after
+- **Atomic Operations**: Summary save + trial increment use PostgreSQL RPC function to prevent race conditions
+- **Authorization**: Every request verifies user ownership
+- **RLS Policies**: Row Level Security enforces data isolation at database level
 
 ### Data Storage Solutions
 
