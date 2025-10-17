@@ -145,14 +145,15 @@ export async function getSummaries(userId: string): Promise<SummaryData[]> {
 }
 
 /**
- * Get a single summary by ID
+ * Get a single summary by ID (only if owned by user)
  */
-export async function getSummaryById(summaryId: string): Promise<SummaryData | null> {
+export async function getSummaryById(summaryId: string, userId: string): Promise<SummaryData | null> {
   try {
     const { data, error } = await supabase
       .from('summaries')
       .select('*')
       .eq('id', summaryId)
+      .eq('user_id', userId)
       .single();
 
     if (error) {
@@ -168,14 +169,15 @@ export async function getSummaryById(summaryId: string): Promise<SummaryData | n
 }
 
 /**
- * Delete a summary
+ * Delete a summary (only if owned by user)
  */
-export async function deleteSummary(summaryId: string): Promise<boolean> {
+export async function deleteSummary(summaryId: string, userId: string): Promise<boolean> {
   try {
     const { error } = await supabase
       .from('summaries')
       .delete()
-      .eq('id', summaryId);
+      .eq('id', summaryId)
+      .eq('user_id', userId);
 
     if (error) {
       console.error('Error deleting summary:', error);

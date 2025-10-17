@@ -58,7 +58,9 @@ export default function HistoryScreen() {
   };
 
   const handleDeleteSession = async (id: string) => {
-    const success = await deleteSummary(id);
+    if (!user) return;
+    
+    const success = await deleteSummary(id, user.id);
     
     if (success) {
       setSessions(sessions.filter(s => s.id !== id));

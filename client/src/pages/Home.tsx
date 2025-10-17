@@ -52,7 +52,7 @@ export default function Home() {
     const shouldPrint = params.get('print') === 'true';
     
     if (summaryId) {
-      getSummaryById(summaryId).then((summary) => {
+      getSummaryById(summaryId, user.id).then((summary) => {
         if (summary) {
           setResult({
             transcription: summary.transcript || '',
@@ -69,8 +69,8 @@ export default function Home() {
           }
         } else {
           toast({
-            title: "التلخيص غير موجود",
-            description: "لم يتم العثور على التلخيص المطلوب",
+            title: "غير مصرح",
+            description: "ليس لديك صلاحية لعرض هذا التلخيص",
             variant: "destructive",
           });
           navigate("/");
