@@ -17,8 +17,8 @@ import { useLanguage } from "@/components/LanguageProvider";
 import { languageNames, type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History, Loader2 } from "lucide-react";
-import { saveSummary, getSummaryById } from "@/services/dbService";
-import { getTrialStatus, incrementTrialUsage } from "@/services/trialService";
+import { getSummaryById } from "@/services/dbService";
+import { getTrialStatus, saveSummary as saveTrialSummary } from "@/services/trialService";
 
 interface ProcessingResult {
   transcription: string;
@@ -120,23 +120,34 @@ export default function Home() {
   const saveSessionToDatabase = async (data: ProcessingResult) => {
     if (!currentUserId) return;
 
-    const summaryData = {
-      user_id: currentUserId,
-      title: generateSessionTitle(data.summary),
-      content: data.summary,
-      transcript: data.transcription,
-      key_points: data.keyPoints,
-      language: data.language,
-      shared: false,
-    };
-
-    const savedSummary = await saveSummary(summaryData);
+    const title = generateSessionTitle(data.summary);
     
-    if (!savedSummary) {
+    const result = await saveTrialSummary(
+      currentUserId,
+      title,
+      data.summary,
+      data.transcription,
+      data.keyPoints,
+      data.language
+    );
+    
+    if (!result.success) {
+      if (result.error === 'Trial expired') {
+        setShowTrialModal(true);
+        return;
+      }
+      
       toast({
         title: "خطأ في الحفظ",
-        description: "حدث خطأ أثناء حفظ التلخيص",
+        description: result.error || "حدث خطأ أثناء حفظ التلخيص",
         variant: "destructive",
+      });
+    } else if (result.trialStatus) {
+      // Update trial info after successful save
+      setTrialInfo({
+        used: result.trialStatus.summariesUsed,
+        limit: result.trialStatus.summariesLimit,
+        daysRemaining: result.trialStatus.daysRemaining
       });
     }
   };
@@ -178,12 +189,6 @@ export default function Home() {
       
       setResult(resultData);
       await saveSessionToDatabase(resultData);
-
-      // Increment trial usage for guest users
-      if (isGuest && guestUserId) {
-        await incrementTrialUsage(guestUserId);
-        await checkTrialStatus(); // Refresh trial status
-      }
 
       toast({
         title: "تم التلخيص بنجاح",

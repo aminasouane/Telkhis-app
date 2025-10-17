@@ -127,22 +127,19 @@ export async function saveSummary(summaryData: SummaryData): Promise<SummaryData
 }
 
 /**
- * Get all summaries for a user
+ * Get all summaries for a user via backend API
  */
 export async function getSummaries(userId: string): Promise<SummaryData[]> {
   try {
-    const { data, error } = await supabase
-      .from('summaries')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching summaries:', error);
+    const response = await fetch(`/api/summaries?userId=${userId}`);
+    
+    if (!response.ok) {
+      console.error('Failed to fetch summaries');
       return [];
     }
 
-    return data || [];
+    const { summaries } = await response.json();
+    return summaries || [];
   } catch (error) {
     console.error('Error in getSummaries:', error);
     return [];
@@ -150,23 +147,19 @@ export async function getSummaries(userId: string): Promise<SummaryData[]> {
 }
 
 /**
- * Get a single summary by ID (only if owned by user)
+ * Get a single summary by ID via backend API (only if owned by user)
  */
 export async function getSummaryById(summaryId: string, userId: string): Promise<SummaryData | null> {
   try {
-    const { data, error } = await supabase
-      .from('summaries')
-      .select('*')
-      .eq('id', summaryId)
-      .eq('user_id', userId)
-      .single();
-
-    if (error) {
-      console.error('Error fetching summary:', error);
+    const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`);
+    
+    if (!response.ok) {
+      console.error('Failed to fetch summary');
       return null;
     }
 
-    return data;
+    const { summary } = await response.json();
+    return summary;
   } catch (error) {
     console.error('Error in getSummaryById:', error);
     return null;
@@ -174,25 +167,16 @@ export async function getSummaryById(summaryId: string, userId: string): Promise
 }
 
 /**
- * Delete a summary (only if owned by user)
+ * Delete a summary via backend API (only if owned by user)
  */
 export async function deleteSummary(summaryId: string, userId: string): Promise<boolean> {
   try {
-    const { data, error } = await supabase
-      .from('summaries')
-      .delete()
-      .eq('id', summaryId)
-      .eq('user_id', userId)
-      .select();
-
-    if (error) {
-      console.error('Error deleting summary:', error);
-      return false;
-    }
-
-    // Check if any rows were actually deleted
-    if (!data || data.length === 0) {
-      console.error('No summary found or not authorized to delete');
+    const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to delete summary');
       return false;
     }
 

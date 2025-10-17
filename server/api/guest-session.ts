@@ -99,8 +99,15 @@ export async function createGuestSession(req: Request, res: Response) {
         trial_summaries_limit: TRIAL_SUMMARIES_LIMIT
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in createGuestSession:', error);
+    
+    if (error.status === 401 || error.message?.includes('Invalid API key')) {
+      return res.status(500).json({ 
+        error: "Supabase service role key is invalid or not configured. Please check SUPABASE_SERVICE_ROLE_KEY in Replit Secrets." 
+      });
+    }
+    
     res.status(500).json({ error: "Internal server error" });
   }
 }

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { User, Session } from "@supabase/supabase-js";
 import { upsertUser, getUserSettings, updateUserSettings } from "@/services/dbService";
-import { createGuestUser, getGuestUserByDeviceId, migrateGuestToUser } from "@/services/trialService";
+import { createGuestSession, migrateGuestToUser, getDeviceId } from "@/services/trialService";
 import type { Language } from "@shared/schema";
 
 interface AuthContextType {
@@ -82,17 +82,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const initializeGuestSession = async () => {
     try {
-      // Check if guest user already exists
-      let guestUser = await getGuestUserByDeviceId();
+      // Create or retrieve guest session via backend API
+      const guestSession = await createGuestSession();
       
-      if (!guestUser) {
-        // Create new guest user
-        guestUser = await createGuestUser();
-      }
-      
-      if (guestUser) {
+      if (guestSession) {
         setIsGuest(true);
-        setGuestUserId(guestUser.id);
+        setGuestUserId(guestSession.userId);
         setUserPreferredLanguage('ar'); // Default language for guests
       }
     } catch (error) {

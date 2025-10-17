@@ -1,14 +1,13 @@
-import { supabase } from "@/lib/supabaseClient";
-
 const DEVICE_ID_KEY = 'takhleesly_device_id';
-const TRIAL_DAYS = 7;
-const TRIAL_SUMMARIES_LIMIT = 10;
 
-export interface GuestUser {
-  id: string;
-  device_id: string;
-  user_type: 'guest';
-  created_at: string;
+export interface GuestSessionResponse {
+  userId: string;
+  isGuest: boolean;
+  trial: {
+    trial_end_date: string;
+    trial_summaries_used: number;
+    trial_summaries_limit: number;
+  };
 }
 
 export interface TrialStatus {
@@ -42,86 +41,49 @@ export function getDeviceId(): string {
 }
 
 /**
- * Create a new guest user in Supabase
+ * Create or retrieve guest session via secure backend API
  */
-export async function createGuestUser(): Promise<GuestUser | null> {
+export async function createGuestSession(): Promise<GuestSessionResponse | null> {
   try {
     const deviceId = getDeviceId();
     
-    // Check if guest user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('device_id', deviceId)
-      .eq('user_type', 'guest')
-      .single();
-    
-    if (existingUser) {
-      return existingUser as GuestUser;
-    }
-    
-    // Create new guest user
-    const { data: newUser, error: userError } = await supabase
-      .from('users')
-      .insert({
-        device_id: deviceId,
-        user_type: 'guest',
-        subscription_type: 'free'
-      })
-      .select()
-      .single();
-    
-    if (userError) {
-      console.error('Error creating guest user:', userError);
+    const response = await fetch('/api/guest-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ deviceId }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to create guest session');
       return null;
     }
-    
-    // Create trial subscription for guest user
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DAYS);
-    
-    const { error: subscriptionError } = await supabase
-      .from('subscriptions')
-      .insert({
-        user_id: newUser.id,
-        plan_name: 'trial',
-        status: 'active',
-        trial_end_date: trialEndDate.toISOString(),
-        trial_summaries_used: 0,
-        trial_summaries_limit: TRIAL_SUMMARIES_LIMIT
-      });
-    
-    if (subscriptionError) {
-      console.error('Error creating trial subscription:', subscriptionError);
-    }
-    
-    return newUser as GuestUser;
+
+    const data = await response.json();
+    return data;
   } catch (error) {
-    console.error('Error in createGuestUser:', error);
+    console.error('Error in createGuestSession:', error);
     return null;
   }
 }
 
 /**
- * Get trial status for a user
+ * Get trial status from backend API
  */
 export async function getTrialStatus(userId: string): Promise<TrialStatus | null> {
   try {
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .select('trial_end_date, trial_summaries_used, trial_summaries_limit')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+    const response = await fetch(`/api/trial-status?userId=${userId}`);
     
-    if (error || !data) {
+    if (!response.ok) {
+      console.error('Failed to get trial status');
       return null;
     }
+
+    const { trialStatus } = await response.json();
     
     const now = new Date();
-    const expiryDate = data.trial_end_date ? new Date(data.trial_end_date) : null;
+    const expiryDate = trialStatus.expiryDate ? new Date(trialStatus.expiryDate) : null;
     
     // Calculate days remaining
     let daysRemaining = 0;
@@ -130,14 +92,10 @@ export async function getTrialStatus(userId: string): Promise<TrialStatus | null
       daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
     }
     
-    // Check if trial is expired
-    const isExpiredByDate = expiryDate ? expiryDate < now : false;
-    const isExpiredByUsage = data.trial_summaries_used >= data.trial_summaries_limit;
-    
     return {
-      isExpired: isExpiredByDate || isExpiredByUsage,
-      summariesUsed: data.trial_summaries_used,
-      summariesLimit: data.trial_summaries_limit,
+      isExpired: trialStatus.isExpired,
+      summariesUsed: trialStatus.summariesUsed,
+      summariesLimit: trialStatus.summariesLimit,
       daysRemaining,
       expiryDate: expiryDate?.toISOString() || null
     };
@@ -148,96 +106,79 @@ export async function getTrialStatus(userId: string): Promise<TrialStatus | null
 }
 
 /**
- * Increment trial usage count
+ * Save summary via secure backend API (includes trial enforcement)
  */
-export async function incrementTrialUsage(userId: string): Promise<boolean> {
+export async function saveSummary(
+  userId: string,
+  title: string,
+  content: string,
+  transcript: string,
+  keyPoints: string[],
+  language: 'ar' | 'fr' | 'dz'
+): Promise<{ success: boolean; trialStatus?: TrialStatus; error?: string }> {
   try {
-    // Try using RPC function first
-    const { error: rpcError } = await supabase.rpc('increment_trial_usage', {
-      p_user_id: userId
+    const response = await fetch('/api/save-summary', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        title,
+        content,
+        transcript,
+        keyPoints,
+        language,
+      }),
     });
-    
-    if (!rpcError) {
-      return true;
-    }
-    
-    // Fallback: Get current value and increment
-    const { data: currentData } = await supabase
-      .from('subscriptions')
-      .select('trial_summaries_used')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .single();
-    
-    if (currentData) {
-      const newCount = (currentData.trial_summaries_used || 0) + 1;
-      
-      const { error: updateError } = await supabase
-        .from('subscriptions')
-        .update({ trial_summaries_used: newCount })
-        .eq('user_id', userId)
-        .eq('status', 'active');
-      
-      if (updateError) {
-        console.error('Error incrementing trial usage:', updateError);
-        return false;
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        // Trial expired
+        return {
+          success: false,
+          trialStatus: data.trialStatus,
+          error: 'Trial expired'
+        };
       }
+      return { success: false, error: data.error || 'Failed to save summary' };
     }
-    
-    return true;
+
+    return { 
+      success: true, 
+      trialStatus: data.trialStatus 
+    };
   } catch (error) {
-    console.error('Error in incrementTrialUsage:', error);
-    return false;
+    console.error('Error saving summary:', error);
+    return { success: false, error: 'Network error' };
   }
 }
 
 /**
- * Migrate guest user data to authenticated user
+ * Migrate guest user data to authenticated user via secure backend API
  */
-export async function migrateGuestToUser(guestUserId: string, newUserId: string): Promise<boolean> {
+export async function migrateGuestToUser(guestUserId: string, authenticatedUserId: string): Promise<boolean> {
   try {
-    // Transfer all summaries from guest to new user
-    const { error: summariesError } = await supabase
-      .from('summaries')
-      .update({ user_id: newUserId })
-      .eq('user_id', guestUserId);
-    
-    if (summariesError) {
-      console.error('Error migrating summaries:', summariesError);
+    const response = await fetch('/api/migrate-guest', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        guestUserId,
+        authenticatedUserId,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to migrate guest data');
       return false;
     }
-    
-    // Transfer subscriptions
-    const { error: subscriptionsError } = await supabase
-      .from('subscriptions')
-      .update({ user_id: newUserId })
-      .eq('user_id', guestUserId);
-    
-    if (subscriptionsError) {
-      console.error('Error migrating subscriptions:', subscriptionsError);
-      return false;
-    }
-    
-    // Update device_id link to new user
-    const deviceId = getDeviceId();
-    const { error: userUpdateError } = await supabase
-      .from('users')
-      .update({ device_id: deviceId })
-      .eq('id', newUserId);
-    
-    if (userUpdateError) {
-      console.error('Error updating user device_id:', userUpdateError);
-    }
-    
-    // Delete old guest user
-    const { error: deleteError } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', guestUserId);
-    
-    if (deleteError) {
-      console.error('Error deleting guest user:', deleteError);
-    }
+
+    // Clear device ID after successful migration
+    localStorage.removeItem(DEVICE_ID_KEY);
     
     return true;
   } catch (error) {
@@ -247,48 +188,62 @@ export async function migrateGuestToUser(guestUserId: string, newUserId: string)
 }
 
 /**
- * Check if user is guest
+ * Get summaries for a user via backend API
  */
-export async function isGuestUser(userId: string): Promise<boolean> {
+export async function getSummaries(userId: string) {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('user_type')
-      .eq('id', userId)
-      .single();
+    const response = await fetch(`/api/summaries?userId=${userId}`);
     
-    if (error || !data) {
-      return false;
+    if (!response.ok) {
+      console.error('Failed to get summaries');
+      return [];
     }
-    
-    return data.user_type === 'guest';
+
+    const { summaries } = await response.json();
+    return summaries || [];
   } catch (error) {
-    console.error('Error checking if guest user:', error);
-    return false;
+    console.error('Error getting summaries:', error);
+    return [];
   }
 }
 
 /**
- * Get guest user by device ID
+ * Get a specific summary by ID via backend API
  */
-export async function getGuestUserByDeviceId(): Promise<GuestUser | null> {
+export async function getSummaryById(summaryId: string, userId: string) {
   try {
-    const deviceId = getDeviceId();
+    const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`);
     
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('device_id', deviceId)
-      .eq('user_type', 'guest')
-      .single();
-    
-    if (error || !data) {
+    if (!response.ok) {
+      console.error('Failed to get summary');
       return null;
     }
-    
-    return data as GuestUser;
+
+    const { summary } = await response.json();
+    return summary;
   } catch (error) {
-    console.error('Error getting guest user:', error);
+    console.error('Error getting summary:', error);
     return null;
+  }
+}
+
+/**
+ * Delete a summary via backend API
+ */
+export async function deleteSummary(summaryId: string, userId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to delete summary');
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting summary:', error);
+    return false;
   }
 }
