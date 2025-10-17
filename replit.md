@@ -167,7 +167,17 @@ Preferred communication style: Simple, everyday language.
   - Client library: @supabase/supabase-js
   - Client configuration in client/src/lib/supabaseClient.ts
   - Environment variables: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
-  - Currently initialized for future user authentication and data persistence
+  - Database schema defined in `database/supabase_schema.sql`
+  - **Database Tables**:
+    - **users**: User accounts (id, email, name, subscription_type, created_at)
+    - **subscriptions**: User subscription plans (id, user_id, plan_name, status, start_date, end_date, payment_provider)
+    - **summaries**: User-generated summaries (id, user_id, title, content, transcript, key_points, language, created_at, shared)
+    - **settings**: User preferences (id, user_id, preferred_language, notifications_enabled)
+  - **Relations**:
+    - subscriptions.user_id → users.id (CASCADE DELETE)
+    - summaries.user_id → users.id (CASCADE DELETE)
+    - settings.user_id → users.id (CASCADE DELETE)
+  - Indexed columns for optimized queries: email, user_id references, created_at, language
 
 **Development Tools**:
 - **Replit-specific plugins** (development mode only)
