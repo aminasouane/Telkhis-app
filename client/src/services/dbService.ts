@@ -4,8 +4,10 @@ import type { Language } from "@shared/schema";
 // Types for database operations
 export interface UserData {
   id: string;
-  email: string;
+  email: string | null;
   name: string | null;
+  device_id?: string | null;
+  user_type?: 'guest' | 'free' | 'premium' | 'pro_plus';
   subscription_type: 'free' | 'premium' | 'pro_plus';
   created_at: string;
 }
@@ -30,6 +32,9 @@ export interface SubscriptionData {
   start_date: string;
   end_date: string | null;
   payment_provider: string | null;
+  trial_end_date?: string | null;
+  trial_summaries_used?: number;
+  trial_summaries_limit?: number;
 }
 
 export interface UserSettings {
