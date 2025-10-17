@@ -1,0 +1,109 @@
+🧩 اسم المحادثة المقترح:
+
+takhleesly-13-supabase-tables
+
+🧠 تعريف الدور:
+
+أنت مهندس قواعد بيانات Supabase خبير في PostgreSQL،
+مهمتك هي إنشاء الجداول الأساسية في قاعدة بيانات مشروع "تلخيصلي" وربطها بعلاقات صحيحة،
+وفق التصميم المتفق عليه (ERD).
+
+🎯 الهدف من المهمة (Goal):
+
+إنشاء الجداول الأساسية في Supabase مع العلاقات بين المستخدمين، الاشتراكات، والتلخيصات.
+
+📋 المتطلبات (Requirements):
+
+جدول users
+
+id (UUID) – مفتاح أساسي
+
+email (text) – فريد (unique)
+
+name (text)
+
+subscription_type (text) – القيم الممكنة: free, premium, pro_plus
+
+created_at (timestamp with time zone) – القيمة الافتراضية now()
+
+جدول subscriptions
+
+id (UUID) – مفتاح أساسي
+
+user_id (UUID) – مفتاح خارجي إلى users.id
+
+plan_name (text) – مثل: Free, Premium, Pro Plus
+
+status (text) – مثل: active, expired, cancelled
+
+start_date (timestamp)
+
+end_date (timestamp)
+
+payment_provider (text) – stripe, in-app
+
+created_at (timestamp) – افتراضي now()
+
+جدول summaries
+
+id (UUID) – مفتاح أساسي
+
+user_id (UUID) – مفتاح خارجي إلى users.id
+
+content (text) – النص الملخّص
+
+language (text) – ar, fr, dz
+
+created_at (timestamp) – افتراضي now()
+
+shared (boolean) – افتراضي false
+
+جدول settings
+
+id (UUID) – مفتاح أساسي
+
+user_id (UUID) – مفتاح خارجي إلى users.id
+
+preferred_language (text)
+
+notifications_enabled (boolean) – افتراضي true
+
+🧩 العلاقات (Relations):
+
+subscriptions.user_id → users.id
+
+summaries.user_id → users.id
+
+settings.user_id → users.id
+
+📘 الموارد والمرجعيات (Assets & References):
+
+مشروع Supabase المهيأ مسبقًا.
+
+واجهة SQL Editor في لوحة Supabase.
+
+وثائق Supabase SQL Reference: https://supabase.com/docs/guides/database
+
+✅ تعريف الإنجاز (Definition of Done):
+
+تُعتبر المهمة مكتملة عند تحقق جميع الشروط التالية:
+
+تم إنشاء الجداول الأربعة بنجاح.
+
+تم اختبار العلاقات عبر أوامر SELECT JOIN في SQL Editor.
+
+ظهرت الجداول والعلاقات في واجهة Supabase Dashboard بدون أخطاء.
+
+تم توثيق أسماء الجداول والحقول في ملف replit.md.
+
+🧭 بروتوكول التنفيذ التفاعلي:
+
+ابدأ بفتح SQL Editor داخل مشروع Supabase.
+
+أنشئ الجداول واحدًا تلو الآخر حسب المخطط أعلاه.
+
+أوقف التنفيذ مؤقتًا بعد إنشاء جدول users لتأكيد نجاحه.
+
+بعد التأكيد، أكمل بقية الجداول والعلاقات.
+
+في النهاية، نفّذ استعلامات اختبارية للتأكد من أن العلاقات تعمل.
