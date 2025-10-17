@@ -1,0 +1,80 @@
+💌 رسالة إلى المطور — مشكلة في إنشاء جلسة الضيف (Guest Session Error 500)
+
+مرحبًا 👋
+
+أثناء اختبار نظام الدخول التجريبي الجديد في تطبيق تلخيصلي (Takhleesly)، ظهر الخطأ التالي عند محاولة إنشاء جلسة ضيف:
+
+POST /api/guest-session 500 (Internal Server Error)
+trialService.ts:59 Failed to create guest session
+
+🎯 وصف المشكلة
+
+الواجهة الأمامية (Frontend) تعمل بشكل صحيح، لكنها تتلقى استجابة خطأ 500 من الخادم عند استدعاء نقطة النهاية /api/guest-session.
+يبدو أن الخطأ يحدث داخل الكود المسؤول عن إنشاء المستخدم الضيف في Supabase.
+
+🧩 أسباب محتملة مع خطوات التحقق
+1. 🔑 متغيرات البيئة (Environment Variables)
+
+تأكد من أن المفتاح السري SUPABASE_SERVICE_ROLE_KEY وSUPABASE_URL تمت قراءتهما بنجاح في الخادم.
+
+أضف سطرين مؤقتين في بداية /api/guest-session للتحقق:
+
+console.log("Supabase URL:", process.env.SUPABASE_URL);
+console.log("Service Key:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+
+إذا ظهرت النتيجة undefined أو false، فهذا يعني أن الخادم لا يقرأ المتغيرات بشكل صحيح من بيئة Replit.
+
+2. 🧱 هيكل الجداول في Supabase
+
+قد يفشل الإدخال إذا كانت الحقول التالية غير موجودة في جدول users أو subscriptions:
+
+users: device_id, user_type  
+subscriptions: plan_name, start_date, end_date
+
+
+يمكن تنفيذ SQL إصلاحي سريع في Supabase:
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS device_id text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS user_type text DEFAULT 'guest';
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS plan_name text DEFAULT 'trial';
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS start_date timestamp DEFAULT now();
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS end_date timestamp DEFAULT now() + interval '7 day';
+
+3. 🧩 سياسات الأمان (RLS Policies)
+
+ربما تم تفعيل Row Level Security دون سياسة تسمح لمفتاح الخدمة بالكتابة.
+يرجى تنفيذ هذه السياسة في SQL Editor لاختبار الأمان:
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow_service_role_users" ON users
+FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
+
+ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow_service_role_subscriptions" ON subscriptions
+FOR ALL
+TO service_role
+USING (true)
+WITH CHECK (true);
+
+✅ تعريف الإنجاز (Definition of Done)
+
+تُعتبر المشكلة محلولة عندما:
+
+يتم إنشاء المستخدم الضيف بنجاح عبر /api/guest-session.
+
+يتلقى الواجهة الأمامية استجابة تحتوي على:
+
+{ "deviceId": "...", "sessionToken": "...", "user": { ... } }
+
+
+لا تظهر أي أخطاء 500 في Console أو Logs.
+
+🧠 ملاحظة:
+يرجى تسجيل نص الخطأ الكامل من Console (Replit logs) عند تنفيذ الطلب —
+إذا كانت هناك رسالة من نوع PostgrestError, يرجى إضافتها في التقرير لتوثيق السبب الجذري.
+
+شكرًا مقدمًا على العمل الدقيق — هذه الخطوة الأخيرة ستثبت استقرار نظام الجلسات التجريبية بالكامل 🔒
