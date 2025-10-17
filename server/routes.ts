@@ -2,6 +2,11 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import { transcribeAudio, summarizeText } from "./openai";
+import { createGuestSession } from "./api/guest-session";
+import { saveSummary } from "./api/save-summary";
+import { getSummaries, getSummaryById, deleteSummary } from "./api/summaries";
+import { migrateGuest } from "./api/migrate-guest";
+import { getTrialStatus } from "./api/trial-status";
 
 // Configure multer for memory storage
 const upload = multer({
@@ -31,6 +36,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  // Secure API endpoints for guest and user management
+  app.post("/api/guest-session", createGuestSession);
+  app.post("/api/save-summary", saveSummary);
+  app.get("/api/summaries", getSummaries);
+  app.get("/api/summaries/:id", getSummaryById);
+  app.delete("/api/summaries/:id", deleteSummary);
+  app.post("/api/migrate-guest", migrateGuest);
+  app.get("/api/trial-status", getTrialStatus);
 
   // Live summary endpoint - processes audio chunks during recording
   app.post("/api/process-audio-live", upload.single("audio"), async (req: Request, res) => {
