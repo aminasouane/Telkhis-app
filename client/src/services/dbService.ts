@@ -173,14 +173,21 @@ export async function getSummaryById(summaryId: string, userId: string): Promise
  */
 export async function deleteSummary(summaryId: string, userId: string): Promise<boolean> {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('summaries')
       .delete()
       .eq('id', summaryId)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select();
 
     if (error) {
       console.error('Error deleting summary:', error);
+      return false;
+    }
+
+    // Check if any rows were actually deleted
+    if (!data || data.length === 0) {
+      console.error('No summary found or not authorized to delete');
       return false;
     }
 

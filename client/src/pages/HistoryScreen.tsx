@@ -70,8 +70,8 @@ export default function HistoryScreen() {
       });
     } else {
       toast({
-        title: "خطأ",
-        description: "حدث خطأ أثناء حذف التلخيص",
+        title: "غير مصرح",
+        description: "ليس لديك صلاحية لحذف هذا التلخيص",
         variant: "destructive",
       });
     }
