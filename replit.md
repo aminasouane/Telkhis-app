@@ -163,6 +163,11 @@ Preferred communication style: Simple, everyday language.
 - **Neon Database** (Serverless PostgreSQL)
   - Connection via @neondatabase/serverless
   - Requires DATABASE_URL environment variable
+- **Supabase** (PostgreSQL + Auth + Storage)
+  - Client library: @supabase/supabase-js
+  - Client configuration in client/src/lib/supabaseClient.ts
+  - Environment variables: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+  - Currently initialized for future user authentication and data persistence
 
 **Development Tools**:
 - **Replit-specific plugins** (development mode only)
