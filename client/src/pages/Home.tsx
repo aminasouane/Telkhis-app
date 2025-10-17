@@ -8,6 +8,7 @@ import TranscriptionCard from "@/components/TranscriptionCard";
 import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
+import TrialExpiredModal from "@/components/TrialExpiredModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import { languageNames, type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History, Loader2 } from "lucide-react";
 import { saveSummary, getSummaryById } from "@/services/dbService";
+import { getTrialStatus, incrementTrialUsage } from "@/services/trialService";
 
 interface ProcessingResult {
   transcription: string;
@@ -27,32 +29,54 @@ interface ProcessingResult {
 
 export default function Home() {
   const [, navigate] = useLocation();
-  const { user, loading: authLoading } = useAuth();
+  const { user, isGuest, guestUserId, loading: authLoading } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<ProcessingResult | null>(null);
   const [liveResult, setLiveResult] = useState<ProcessingResult | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
+  const [showTrialModal, setShowTrialModal] = useState(false);
+  const [trialInfo, setTrialInfo] = useState({ used: 0, limit: 10, daysRemaining: 7 });
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
 
-  // Redirect to login if not authenticated
+  // Get current user ID (guest or authenticated)
+  const currentUserId = isGuest ? guestUserId : user?.id;
+
+  // Check trial status for guest users
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login");
+    if (isGuest && guestUserId) {
+      checkTrialStatus();
     }
-  }, [user, authLoading, navigate]);
+  }, [isGuest, guestUserId]);
+
+  const checkTrialStatus = async () => {
+    if (!guestUserId) return;
+    
+    const status = await getTrialStatus(guestUserId);
+    if (status) {
+      setTrialInfo({
+        used: status.summariesUsed,
+        limit: status.summariesLimit,
+        daysRemaining: status.daysRemaining
+      });
+      
+      if (status.isExpired) {
+        setShowTrialModal(true);
+      }
+    }
+  };
 
   // Load summary from URL parameter
   useEffect(() => {
-    if (!user) return;
+    if (!currentUserId) return;
     
     const params = new URLSearchParams(window.location.search);
     const summaryId = params.get('summary');
     const shouldPrint = params.get('print') === 'true';
     
     if (summaryId) {
-      getSummaryById(summaryId, user.id).then((summary) => {
+      getSummaryById(summaryId, currentUserId).then((summary) => {
         if (summary) {
           setResult({
             transcription: summary.transcript || '',
@@ -77,20 +101,15 @@ export default function Home() {
         }
       });
     }
-  }, [user, navigate, toast]);
+  }, [currentUserId, navigate, toast]);
 
   // Show loading while checking auth
-  if (authLoading) {
+  if (authLoading || !currentUserId) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
-  }
-
-  // Don't render if not authenticated
-  if (!user) {
-    return null;
   }
 
   const generateSessionTitle = (summary: string): string => {
@@ -99,10 +118,10 @@ export default function Home() {
   };
 
   const saveSessionToDatabase = async (data: ProcessingResult) => {
-    if (!user) return;
+    if (!currentUserId) return;
 
     const summaryData = {
-      user_id: user.id,
+      user_id: currentUserId,
       title: generateSessionTitle(data.summary),
       content: data.summary,
       transcript: data.transcription,
@@ -123,6 +142,15 @@ export default function Home() {
   };
 
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm") => {
+    // Check trial status for guests before processing
+    if (isGuest && guestUserId) {
+      const status = await getTrialStatus(guestUserId);
+      if (status && status.isExpired) {
+        setShowTrialModal(true);
+        return;
+      }
+    }
+
     setIsProcessing(true);
     
     try {
@@ -150,6 +178,12 @@ export default function Home() {
       
       setResult(resultData);
       await saveSessionToDatabase(resultData);
+
+      // Increment trial usage for guest users
+      if (isGuest && guestUserId) {
+        await incrementTrialUsage(guestUserId);
+        await checkTrialStatus(); // Refresh trial status
+      }
 
       toast({
         title: "تم التلخيص بنجاح",
@@ -337,6 +371,13 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      <TrialExpiredModal
+        open={showTrialModal}
+        summariesUsed={trialInfo.used}
+        summariesLimit={trialInfo.limit}
+        daysRemaining={trialInfo.daysRemaining}
+      />
     </div>
   );
 }
