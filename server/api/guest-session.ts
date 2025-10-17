@@ -41,11 +41,13 @@ export async function createGuestSession(req: Request, res: Response) {
     }
 
     // Create new guest user with Supabase Auth (anonymous sign-in)
-    // إنشاء مستخدم ضيف باستخدام بريد إلكتروني وهمي فريد
+    // إنشاء مستخدم ضيف باستخدام بريد إلكتروني وهمي فريد وكلمة مرور عشوائية
     const guestEmail = `guest_${Date.now()}@takhleesly.app`;
+    const guestPassword = Math.random().toString(36).slice(-10); // كلمة مرور عشوائية
     
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: guestEmail,
+      password: guestPassword,
       email_confirm: true,
       user_metadata: {
         role: "guest",
