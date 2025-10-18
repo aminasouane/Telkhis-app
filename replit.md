@@ -26,7 +26,7 @@ Preferred communication style: Simple, everyday language.
 - **Screen Separation**: Dedicated Home page for recording/upload and History page for session management.
 - **Session Management**: Sessions (id, user_id, title, date, language, content, transcript, key_points) are stored in a Supabase database. User-scoped queries ensure data security.
 - **Authentication**: Supabase Auth with email/password and Google OAuth. All pages require authentication, redirecting to `/login` if not authenticated.
-- **Trial System**: Guest users get **1 free summary per day for 7 days** with a maximum recording duration of **5 minutes** per session. Trial checks (daily limit, duration limit, and period expiry) are enforced server-side before AI processing. Data migrates upon signup.
+- **Trial System**: **All new users** (both guest and authenticated) get **1 free summary per day for 7 days** with a maximum recording duration of **5 minutes** per session. Trial subscription is automatically created upon first login/signup. Trial checks (daily limit, duration limit, and period expiry) are enforced server-side before AI processing. Guest data migrates upon signup.
 - **Print Feature**: Print-friendly styling with automatic print trigger via URL parameter `?print=true`.
 
 ### Backend Architecture
@@ -42,7 +42,7 @@ Preferred communication style: Simple, everyday language.
   - `GET /api/summaries`: Lists user summaries with authorization
   - `DELETE /api/summaries/:id`: Deletes summary with ownership verification
   - `POST /api/migrate-guest`: Migrates guest data to authenticated account
-  - `POST /api/user/upsert`: Creates/updates user data
+  - `POST /api/user/upsert`: Creates/updates user data and automatically creates trial subscription for new users
   - `GET /api/user/settings`: Retrieves user settings
   - `POST /api/user/settings`: Updates user settings
 
@@ -143,3 +143,14 @@ This design prevents attackers from bypassing limits via:
 - Forged duration values (server always calculates from buffer)
 - Replay attacks (5-minute freshness window)
 - Live endpoint bypass (both endpoints equally protected)
+
+## Recent Fixes (October 2025)
+
+**Trial Subscription Display Issue** (Fixed):
+- **Problem**: Subscription page appeared immediately after first login for authenticated users, despite active trial period
+- **Root Cause**: Trial subscription was only created for guest users, not for authenticated users who signed up/logged in
+- **Solution**: 
+  - Modified `/api/user/upsert` to automatically create trial subscription for new authenticated users
+  - Fixed date comparison logic to use `<=` instead of `<` for more accurate expiry checking
+  - Improved days remaining calculation with explicit UTC handling
+- **Impact**: All new users now receive 7-day trial regardless of authentication method
