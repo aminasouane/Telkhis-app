@@ -122,11 +122,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 2: Quick summarization for live preview
       const { summary, keyPoints } = await summarizeText(transcription, language);
 
-      // Return partial results
+      // Return partial results with server-calculated metadata
       res.json({
         transcription,
         summary,
         keyPoints,
+        audioDuration,
+        processedAt: new Date().toISOString(),
         isLive: true,
       });
     } catch (error: any) {

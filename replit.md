@@ -49,19 +49,39 @@ Preferred communication style: Simple, everyday language.
 **File Handling**: Multer middleware for in-memory audio file processing (max 25MB, specific MIME types).
 
 **Audio Processing Pipeline**:
-1. Audio file and language received.
-2. Transcription via OpenAI Whisper API (language-specific settings).
-3. Summarization via GPT-4o-mini with language-specific prompts (Classical Arabic, Academic French; Algerian dialect converted to simplified Classical Arabic).
-4. Returns structured JSON response.
+1. Audio file and language received via `/api/process-audio` or `/api/process-audio-live`.
+2. **Server-Side Duration Calculation**: Uses `music-metadata` library to parse audio buffer and extract duration metadata.
+3. **Pre-Processing Validation**: 
+   - Hard-fail if metadata parsing fails (422 error)
+   - Hard-fail if duration missing from metadata (422 error)
+   - Hard-fail if duration exceeds 300 seconds (403 error) **BEFORE** calling OpenAI APIs
+4. Transcription via OpenAI Whisper API (language-specific settings).
+5. Summarization via GPT-4o-mini with language-specific prompts (Classical Arabic, Academic French; Algerian dialect converted to simplified Classical Arabic).
+6. Returns structured JSON with: transcription, summary, keyPoints, **server-calculated audioDuration**, and **server-issued processedAt timestamp**.
 
-**Security Architecture**:
+**Security Architecture - Multi-Layer Defense**:
+
+**Primary Enforcement Layer** (Audio Processing):
+- **Server-Side Duration Calculation**: All audio files are parsed with `music-metadata` to extract true duration from file metadata
+- **Hard-Fail on Parse Errors**: Malformed or unsupported files are rejected (422) before processing
+- **Pre-AI Validation**: Duration limit (300s) enforced BEFORE expensive OpenAI API calls to prevent cost abuse
+- **Trusted Metadata**: Server returns `audioDuration` + `processedAt` timestamp that client cannot spoof
+- **Both Endpoints Protected**: Identical validation on `/api/process-audio` and `/api/process-audio-live` prevents bypass
+
+**Defense-in-Depth Layer** (Summary Persistence):
+- **Required Timestamp**: `/api/save-summary` mandates `processedAt` field from processing endpoints
+- **Freshness Validation**: Rejects summaries processed >5 minutes ago (anti-replay protection)
+- **Clock Skew Protection**: Rejects future timestamps >1 minute ahead
+- **Sanity Checks**: Validates transcript length correlates with duration (~1.5 words/sec minimum)
+- **Secondary Duration Check**: Enforces 300s limit again as defense-in-depth
+- **Trial Enforcement**:
+  - **Daily Limit**: 1 summary per day (tracked via `last_summary_date` in subscriptions table)
+  - **Period Limit**: Trial expires after 7 days from first use
+  - Checks happen AFTER duration validation to ensure consistent enforcement
+
+**Additional Security Measures**:
 - **Backend-Mediated Design**: All Supabase operations use `SUPABASE_SERVICE_ROLE_KEY` on server only
 - **Zero Frontend Exposure**: Frontend has no direct Supabase access for sensitive operations
-- **Trial Enforcement**: 
-  - **Daily Limit**: Users can create only 1 summary per day (tracked via `last_summary_date` in subscriptions table)
-  - **Duration Limit**: Audio recordings must be ≤ 5 minutes (300 seconds)
-  - **Period Limit**: Trial expires after 7 days from first use
-  - All checks happen BEFORE AI processing to prevent wasted API calls
 - **Atomic Operations**: Summary save + trial increment use PostgreSQL RPC function to prevent race conditions
 - **Authorization**: Every request verifies user ownership
 - **RLS Policies**: Row Level Security enforces data isolation at database level
@@ -96,6 +116,10 @@ Preferred communication style: Simple, everyday language.
 - **Neon Database**: Serverless PostgreSQL for core database needs (connection via `@neondatabase/serverless`).
 - **Supabase**: PostgreSQL, Authentication, and Storage. Used for user management, session history, and RLS.
 
+### Backend Libraries
+
+- **music-metadata**: Server-side audio file metadata parsing for duration extraction and validation.
+
 ### Frontend Libraries
 
 - **Media Recording API**: Browser native for audio capture and recording state management.
@@ -104,3 +128,18 @@ Preferred communication style: Simple, everyday language.
 - **html2canvas**: Capturing HTML content for PDF export (with RTL/Arabic support).
 - **Clipboard API**: Copy-to-clipboard functionality.
 - **date-fns**: Timestamp formatting.
+
+## Security Notes
+
+**Duration Limit Enforcement**:
+The 5-minute recording limit is enforced through a multi-layer security approach:
+1. **Client-side UX**: Frontend pre-calculates duration for uploads to show early warnings (user experience)
+2. **Server-side Primary**: Backend parses audio metadata and rejects >300s files before OpenAI processing (cost protection)
+3. **Server-side Defense-in-Depth**: Save endpoint validates duration + freshness + sanity checks (anti-tampering)
+
+This design prevents attackers from bypassing limits via:
+- Oversized file uploads (rejected at parse time)
+- Malformed files (hard-fail on metadata errors)
+- Forged duration values (server always calculates from buffer)
+- Replay attacks (5-minute freshness window)
+- Live endpoint bypass (both endpoints equally protected)

@@ -31,10 +31,25 @@ export async function saveSummary(req: Request, res: Response) {
       });
     }
 
-    // Freshness check: ensure this summary was recently processed (within last 5 minutes)
-    // This prevents replay attacks with old processed data
-    if (processedAt) {
+    // REQUIRED: Freshness check to prevent replay attacks
+    if (!processedAt || typeof processedAt !== 'string') {
+      return res.status(400).json({
+        error: "Missing processing timestamp",
+        message: "بيانات المعالجة غير صالحة. يرجى معالجة الملف الصوتي مرة أخرى."
+      });
+    }
+
+    // Validate timestamp is recent (within last 5 minutes)
+    try {
       const processedTime = new Date(processedAt).getTime();
+      
+      if (isNaN(processedTime)) {
+        return res.status(400).json({
+          error: "Invalid timestamp format",
+          message: "تنسيق الطابع الزمني غير صالح"
+        });
+      }
+      
       const now = Date.now();
       const fiveMinutesMs = 5 * 60 * 1000;
       
@@ -44,6 +59,19 @@ export async function saveSummary(req: Request, res: Response) {
           message: "انتهت صلاحية البيانات. يرجى معالجة الملف الصوتي مرة أخرى."
         });
       }
+      
+      // Also reject future timestamps (clock skew protection)
+      if (processedTime > now + 60000) { // Allow 1 minute clock skew
+        return res.status(403).json({
+          error: "Invalid timestamp",
+          message: "الطابع الزمني غير صالح"
+        });
+      }
+    } catch (error) {
+      return res.status(400).json({
+        error: "Invalid timestamp",
+        message: "تنسيق الطابع الزمني غير صالح"
+      });
     }
 
     // Sanity check: transcript length should correlate with duration
