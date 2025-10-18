@@ -39,8 +39,7 @@ export async function saveSummary(req: Request, res: Response) {
         content,
         transcript: transcript || '',
         key_points: keyPoints || [],
-        language,
-        shared: false
+        language
       })
       .select()
       .single();
