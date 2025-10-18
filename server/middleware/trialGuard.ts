@@ -8,13 +8,15 @@ export interface TrialInfo {
   summariesLimit: number;
   daysRemaining: number;
   expiryDate: string | null;
+  canSummaryToday: boolean;
+  lastSummaryDate: string | null;
 }
 
 export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
   // Get user's active subscription with trial info
   const { data: subscription, error } = await supabaseAdmin
     .from('subscriptions')
-    .select('trial_end_date, trial_summaries_used, trial_summaries_limit')
+    .select('trial_end_date, trial_summaries_used, trial_summaries_limit, last_summary_date')
     .eq('user_id', userId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -26,9 +28,11 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
       userId,
       isExpired: true,
       summariesUsed: 0,
-      summariesLimit: 10,
+      summariesLimit: 1,
       daysRemaining: 0,
-      expiryDate: null
+      expiryDate: null,
+      canSummaryToday: false,
+      lastSummaryDate: null
     };
   }
 
@@ -40,18 +44,27 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
     ? Math.max(0, Math.ceil((trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
 
-  // Check if trial is expired
+  // Check if trial is expired by date
   const isExpiredByDate = trialEndDate ? trialEndDate < now : false;
-  const isExpiredByUsage = subscription.trial_summaries_used >= subscription.trial_summaries_limit;
-  const isExpired = isExpiredByDate || isExpiredByUsage;
+
+  // Check daily limit: can the user create a summary today?
+  const lastSummaryDate = subscription.last_summary_date;
+  const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const canSummaryToday = !lastSummaryDate || lastSummaryDate !== today;
+
+  // Trial is expired if trial period ended (7 days passed)
+  // Note: Daily limit is checked separately via canSummaryToday
+  const isExpired = isExpiredByDate;
 
   return {
     userId,
     isExpired,
     summariesUsed: subscription.trial_summaries_used || 0,
-    summariesLimit: subscription.trial_summaries_limit || 10,
+    summariesLimit: 1, // Daily limit: 1 summary per day
     daysRemaining,
-    expiryDate: trialEndDate?.toISOString() || null
+    expiryDate: trialEndDate?.toISOString() || null,
+    canSummaryToday,
+    lastSummaryDate: lastSummaryDate || null
   };
 }
 
@@ -64,10 +77,14 @@ export async function incrementTrialUsage(userId: string): Promise<void> {
     .single();
 
   if (currentSub) {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    
     await supabaseAdmin
       .from('subscriptions')
       .update({ 
-        trial_summaries_used: (currentSub.trial_summaries_used || 0) + 1
+        trial_summaries_used: (currentSub.trial_summaries_used || 0) + 1,
+        last_summary_date: today,
+        updated_at: new Date().toISOString()
       })
       .eq('user_id', userId)
       .eq('status', 'active');

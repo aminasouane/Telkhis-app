@@ -13,7 +13,7 @@ interface LiveUpdateData {
 }
 
 interface RecordingControlProps {
-  onRecordingComplete: (audioBlob: Blob) => void;
+  onRecordingComplete: (audioBlob: Blob, duration: number) => void;
   onLiveUpdate?: (data: LiveUpdateData) => void;
   onRecordingStart?: () => void;
   language: string;
@@ -105,7 +105,8 @@ export default function RecordingControl({
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
-        onRecordingComplete(audioBlob);
+        const recordingDuration = duration; // Capture current duration
+        onRecordingComplete(audioBlob, recordingDuration);
         stream.getTracks().forEach((track) => track.stop());
         
         // Reset to idle after recording is complete

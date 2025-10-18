@@ -19,12 +19,15 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History, Loader2 } from "lucide-react";
 import { getSummaryById } from "@/services/dbService";
 import { getTrialStatus, saveSummary as saveTrialSummary } from "@/services/trialService";
+import { getAudioDuration } from "@/utils/audioUtils";
 
 interface ProcessingResult {
   transcription: string;
   summary: string;
   keyPoints: string[];
   language: Language;
+  audioDuration?: number;
+  processedAt?: string;
 }
 
 export default function Home() {
@@ -128,10 +131,27 @@ export default function Home() {
       data.summary,
       data.transcription,
       data.keyPoints,
-      data.language
+      data.language,
+      data.audioDuration,
+      data.processedAt
     );
     
     if (!result.success) {
+      // Show custom message if available (for daily limit or duration limit)
+      if (result.message) {
+        toast({
+          title: "تنبيه",
+          description: result.message,
+          variant: "destructive",
+        });
+        
+        // If it's trial expired, show modal
+        if (result.error === 'Trial expired' || result.error === 'Trial period expired' || result.error === 'Daily limit reached') {
+          setShowTrialModal(true);
+        }
+        return;
+      }
+      
       if (result.error === 'Trial expired') {
         setShowTrialModal(true);
         return;
@@ -152,7 +172,7 @@ export default function Home() {
     }
   };
 
-  const processAudio = async (audioBlob: Blob, filename: string = "recording.webm") => {
+  const processAudio = async (audioBlob: Blob, filename: string = "recording.webm", audioDuration?: number) => {
     // Check trial status for guests before processing
     if (isGuest && guestUserId) {
       const status = await getTrialStatus(guestUserId);
@@ -185,6 +205,10 @@ export default function Home() {
         summary: data.summary,
         keyPoints: data.keyPoints || [],
         language: language,
+        // Prefer server-calculated duration (null-safe), fallback to client only if server didn't provide
+        audioDuration: data.audioDuration ?? audioDuration,
+        // Include server timestamp for validation
+        processedAt: data.processedAt,
       };
       
       setResult(resultData);
@@ -206,14 +230,36 @@ export default function Home() {
     }
   };
 
-  const handleFileUpload = (file: File) => {
-    processAudio(file, file.name);
+  const handleFileUpload = async (file: File) => {
+    try {
+      // Calculate audio duration before processing
+      const duration = await getAudioDuration(file);
+      
+      // Check duration limit (5 minutes = 300 seconds)
+      if (duration > 300) {
+        toast({
+          title: "تنبيه",
+          description: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      processAudio(file, file.name, duration);
+    } catch (error) {
+      console.error("Error calculating audio duration:", error);
+      toast({
+        title: "خطأ",
+        description: "فشل قراءة الملف الصوتي. يرجى المحاولة مرة أخرى.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleRecordingComplete = (audioBlob: Blob) => {
+  const handleRecordingComplete = (audioBlob: Blob, duration: number) => {
     setIsRecording(false);
     setLiveResult(null);
-    processAudio(audioBlob, "recording.webm");
+    processAudio(audioBlob, "recording.webm", duration);
   };
 
   const handleLiveUpdate = (data: { transcription: string; summary: string; keyPoints: string[] }) => {

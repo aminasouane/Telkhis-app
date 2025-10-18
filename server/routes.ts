@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
+import { parseBuffer } from 'music-metadata';
 import { transcribeAudio, summarizeText } from "./openai";
 import { createGuestSession } from "./api/guest-session";
 import { saveSummary } from "./api/save-summary";
@@ -68,6 +69,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid language selection" });
       }
 
+      // Calculate and validate audio duration (same security checks as main endpoint)
+      let audioDuration: number;
+      try {
+        const metadata = await parseBuffer(file.buffer, {
+          mimeType: file.mimetype
+        });
+        
+        if (!metadata.format.duration) {
+          return res.status(422).json({
+            error: "لا يمكن قراءة مدة الملف الصوتي",
+            errorCode: "METADATA_MISSING"
+          });
+        }
+        
+        audioDuration = Math.ceil(metadata.format.duration);
+        
+        // Enforce 5-minute duration limit BEFORE AI processing
+        if (audioDuration > 300) {
+          return res.status(403).json({
+            error: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق)",
+            errorCode: "DURATION_EXCEEDED",
+            duration: audioDuration,
+            maxDuration: 300
+          });
+        }
+      } catch (metadataError) {
+        console.error("Error parsing live audio metadata:", metadataError);
+        // Hard fail to prevent bypass
+        return res.status(422).json({
+          error: "فشل قراءة معلومات الملف الصوتي",
+          errorCode: "METADATA_PARSE_ERROR"
+        });
+      }
+
       // Step 1: Transcribe audio
       const transcription = await transcribeAudio(
         file.buffer,
@@ -123,6 +158,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid language selection" });
       }
 
+      // Calculate audio duration server-side (security: don't trust client)
+      let audioDuration: number;
+      try {
+        const metadata = await parseBuffer(file.buffer, {
+          mimeType: file.mimetype
+        });
+        
+        if (!metadata.format.duration) {
+          return res.status(422).json({
+            error: "لا يمكن قراءة مدة الملف الصوتي. يرجى التأكد من أن الملف صحيح والمحاولة مرة أخرى.",
+            errorCode: "METADATA_MISSING"
+          });
+        }
+        
+        audioDuration = Math.ceil(metadata.format.duration);
+        
+        // Enforce 5-minute (300 second) duration limit BEFORE AI processing
+        if (audioDuration > 300) {
+          return res.status(403).json({
+            error: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
+            errorCode: "DURATION_EXCEEDED",
+            duration: audioDuration,
+            maxDuration: 300
+          });
+        }
+      } catch (metadataError) {
+        console.error("Error parsing audio metadata:", metadataError);
+        // Hard fail if we can't parse metadata - security measure to prevent bypass
+        return res.status(422).json({
+          error: "فشل قراءة معلومات الملف الصوتي. يرجى التأكد من تنسيق الملف والمحاولة مرة أخرى.",
+          errorCode: "METADATA_PARSE_ERROR"
+        });
+      }
+
       // Step 1: Transcribe audio using the buffer, filename, mimetype, and language
       const transcription = await transcribeAudio(
         file.buffer,
@@ -138,11 +207,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 2: Summarize transcription with language context
       const { summary, keyPoints } = await summarizeText(transcription, language);
 
-      // Return results
+      // Return results with duration (server-calculated, trusted value)
+      // Note: duration is now server-authoritative and should be used for all trial checks
       res.json({
         transcription,
         summary,
         keyPoints,
+        audioDuration,
+        // Add a server timestamp for freshness validation
+        processedAt: new Date().toISOString(),
       });
     } catch (error: any) {
       console.error("Error processing audio:", error);

@@ -9,22 +9,86 @@ interface SaveSummaryRequest {
   transcript: string;
   keyPoints: string[];
   language: 'ar' | 'fr' | 'dz';
+  audioDuration?: number; // في ثواني (seconds)
+  processedAt?: string; // ISO timestamp from /api/process-audio
 }
 
 export async function saveSummary(req: Request, res: Response) {
   try {
-    const { userId, title, content, transcript, keyPoints, language } = req.body as SaveSummaryRequest;
+    const { userId, title, content, transcript, keyPoints, language, audioDuration, processedAt } = req.body as SaveSummaryRequest;
 
     // Validate required fields
     if (!userId || !content || !language) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    // Validate audio duration
+    // Accept 0 for very short clips, but reject null/undefined/negative values
+    if (audioDuration === null || audioDuration === undefined || typeof audioDuration !== 'number' || audioDuration < 0) {
+      return res.status(400).json({ 
+        error: "Missing or invalid audio duration",
+        message: "مدة التسجيل الصوتي غير صالحة"
+      });
+    }
+
+    // Freshness check: ensure this summary was recently processed (within last 5 minutes)
+    // This prevents replay attacks with old processed data
+    if (processedAt) {
+      const processedTime = new Date(processedAt).getTime();
+      const now = Date.now();
+      const fiveMinutesMs = 5 * 60 * 1000;
+      
+      if (now - processedTime > fiveMinutesMs) {
+        return res.status(403).json({
+          error: "Stale summary data",
+          message: "انتهت صلاحية البيانات. يرجى معالجة الملف الصوتي مرة أخرى."
+        });
+      }
+    }
+
+    // Sanity check: transcript length should correlate with duration
+    // Very rough heuristic: ~2-4 words per second for typical speech
+    // If duration is long but transcript is suspiciously short, reject it
+    const wordCount = transcript.trim().split(/\s+/).length;
+    const expectedMinWords = Math.max(1, Math.floor(audioDuration * 1.5)); // 1.5 words/sec minimum
+    
+    if (wordCount < expectedMinWords && audioDuration > 10) {
+      return res.status(403).json({
+        error: "Suspicious data mismatch",
+        message: "البيانات المقدمة غير متسقة. يرجى معالجة الملف الصوتي مرة أخرى."
+      });
+    }
+
+    // Check audio duration limit (5 minutes = 300 seconds)
+    // NOTE: This is a secondary check. Primary enforcement happens in /api/process-audio
+    // to prevent wasting OpenAI API calls on oversized files
+    const MAX_DURATION_SECONDS = 300;
+    if (audioDuration > MAX_DURATION_SECONDS) {
+      return res.status(403).json({ 
+        error: "Audio too long",
+        message: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
+        maxDuration: MAX_DURATION_SECONDS,
+        actualDuration: audioDuration
+      });
+    }
+
     // Check trial status BEFORE saving (enforced server-side)
     const trialStatus = await checkTrialStatus(userId);
+    
+    // Check if trial period expired (7 days)
     if (trialStatus.isExpired) {
       return res.status(403).json({ 
-        error: "Trial expired",
+        error: "Trial period expired",
+        message: "انتهت الفترة التجريبية. يرجى الاشتراك لمتابعة الاستخدام.",
+        trialStatus 
+      });
+    }
+
+    // Check if daily limit reached
+    if (!trialStatus.canSummaryToday) {
+      return res.status(403).json({ 
+        error: "Daily limit reached",
+        message: "لقد استخدمت التلخيص المجاني اليوم. يمكنك المحاولة غدًا.",
         trialStatus 
       });
     }
@@ -39,7 +103,8 @@ export async function saveSummary(req: Request, res: Response) {
         content,
         transcript: transcript || '',
         key_points: keyPoints || [],
-        language
+        language,
+        audio_duration: audioDuration || null
       })
       .select()
       .single();

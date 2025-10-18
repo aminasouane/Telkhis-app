@@ -114,8 +114,10 @@ export async function saveSummary(
   content: string,
   transcript: string,
   keyPoints: string[],
-  language: 'ar' | 'fr' | 'dz'
-): Promise<{ success: boolean; trialStatus?: TrialStatus; error?: string }> {
+  language: 'ar' | 'fr' | 'dz',
+  audioDuration?: number,
+  processedAt?: string
+): Promise<{ success: boolean; trialStatus?: TrialStatus; error?: string; message?: string }> {
   try {
     const response = await fetch('/api/save-summary', {
       method: 'POST',
@@ -129,6 +131,8 @@ export async function saveSummary(
         transcript,
         keyPoints,
         language,
+        audioDuration,
+        processedAt,
       }),
     });
 
@@ -136,14 +140,15 @@ export async function saveSummary(
 
     if (!response.ok) {
       if (response.status === 403) {
-        // Trial expired
+        // Trial expired or limit reached
         return {
           success: false,
           trialStatus: data.trialStatus,
-          error: 'Trial expired'
+          error: data.error || 'Trial expired',
+          message: data.message
         };
       }
-      return { success: false, error: data.error || 'Failed to save summary' };
+      return { success: false, error: data.error || 'Failed to save summary', message: data.message };
     }
 
     return { 

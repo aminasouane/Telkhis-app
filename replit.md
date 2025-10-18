@@ -2,7 +2,7 @@
 
 ## Overview
 
-Takhleesly (تلخيصلي) is a multi-language web application for transcribing audio lectures and generating AI-powered summaries. It supports Arabic, French, and Algerian dialect, allowing users to record audio directly or upload files. The application leverages OpenAI's Whisper for transcription and GPT-4 for intelligent summarization. A key feature is a "soft authentication" trial system, offering guests 10 free summaries or 7 days, with seamless data migration upon signup. The project aims to provide an accessible and efficient summarization tool for academic and professional use, with robust multi-language support and user-friendly design.
+Takhleesly (تلخيصلي) is a multi-language web application for transcribing audio lectures and generating AI-powered summaries. It supports Arabic, French, and Algerian dialect, allowing users to record audio directly or upload files. The application leverages OpenAI's Whisper for transcription and GPT-4 for intelligent summarization. A key feature is a "soft authentication" trial system, offering guests **1 free summary per day for 7 days** (max 5 minutes per recording), with seamless data migration upon signup. The project aims to provide an accessible and efficient summarization tool for academic and professional use, with robust multi-language support and user-friendly design.
 
 ## User Preferences
 
@@ -26,7 +26,7 @@ Preferred communication style: Simple, everyday language.
 - **Screen Separation**: Dedicated Home page for recording/upload and History page for session management.
 - **Session Management**: Sessions (id, user_id, title, date, language, content, transcript, key_points) are stored in a Supabase database. User-scoped queries ensure data security.
 - **Authentication**: Supabase Auth with email/password and Google OAuth. All pages require authentication, redirecting to `/login` if not authenticated.
-- **Trial System**: Guest users get 10 free summaries or 7 days; data migrates upon signup. Trial checks and increments are handled securely server-side.
+- **Trial System**: Guest users get **1 free summary per day for 7 days** with a maximum recording duration of **5 minutes** per session. Trial checks (daily limit, duration limit, and period expiry) are enforced server-side before AI processing. Data migrates upon signup.
 - **Print Feature**: Print-friendly styling with automatic print trigger via URL parameter `?print=true`.
 
 ### Backend Architecture
@@ -57,7 +57,11 @@ Preferred communication style: Simple, everyday language.
 **Security Architecture**:
 - **Backend-Mediated Design**: All Supabase operations use `SUPABASE_SERVICE_ROLE_KEY` on server only
 - **Zero Frontend Exposure**: Frontend has no direct Supabase access for sensitive operations
-- **Trial Enforcement**: Checks happen BEFORE AI processing, not after
+- **Trial Enforcement**: 
+  - **Daily Limit**: Users can create only 1 summary per day (tracked via `last_summary_date` in subscriptions table)
+  - **Duration Limit**: Audio recordings must be ≤ 5 minutes (300 seconds)
+  - **Period Limit**: Trial expires after 7 days from first use
+  - All checks happen BEFORE AI processing to prevent wasted API calls
 - **Atomic Operations**: Summary save + trial increment use PostgreSQL RPC function to prevent race conditions
 - **Authorization**: Every request verifies user ownership
 - **RLS Policies**: Row Level Security enforces data isolation at database level
@@ -67,8 +71,15 @@ Preferred communication style: Simple, everyday language.
 **Database**: PostgreSQL (via Neon serverless) with Drizzle ORM.
 - **Supabase**: Primary database for users, subscriptions, summaries, and settings.
   - Tables: `users`, `subscriptions`, `summaries`, `settings`.
+  - **subscriptions** table includes:
+    - `trial_summaries_used`: Total summaries created (incremented atomically)
+    - `trial_summaries_limit`: Set to 1 for daily limit enforcement
+    - `last_summary_date`: DATE field tracking the last day a summary was created
+    - `trial_end_date`: Trial expiration date (7 days from first use)
+  - **summaries** table includes:
+    - `audio_duration`: INTEGER field storing recording duration in seconds
   - Relations: User IDs are foreign keys in `subscriptions`, `summaries`, and `settings`, with CASCADE DELETE.
-  - Indexed columns for query optimization.
+  - Indexed columns for query optimization (including `last_summary_date`).
   - RLS policies enforce user data ownership.
 
 ## External Dependencies
