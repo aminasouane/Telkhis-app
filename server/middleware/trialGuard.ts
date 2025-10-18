@@ -39,13 +39,15 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
   const trialEndDate = subscription.trial_end_date ? new Date(subscription.trial_end_date) : null;
   const now = new Date();
   
-  // Calculate days remaining
-  const daysRemaining = trialEndDate 
-    ? Math.max(0, Math.ceil((trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-    : 0;
+  // Calculate days remaining (using UTC to avoid timezone issues)
+  let daysRemaining = 0;
+  if (trialEndDate) {
+    const diffMs = trialEndDate.getTime() - now.getTime();
+    daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  }
 
   // Check if trial is expired by date
-  const isExpiredByDate = trialEndDate ? trialEndDate < now : false;
+  const isExpiredByDate = trialEndDate ? trialEndDate <= now : false;
 
   // Check daily limit: can the user create a summary today?
   const lastSummaryDate = subscription.last_summary_date;

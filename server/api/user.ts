@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase-admin";
 
+const TRIAL_DAYS = 7;
+const TRIAL_SUMMARIES_LIMIT = 10;
+
 /**
  * Upsert user data (for authenticated users)
  */
@@ -12,6 +15,16 @@ export async function upsertUser(req: Request, res: Response) {
       return res.status(400).json({ error: "User ID and email are required" });
     }
 
+    // Check if user already exists
+    const { data: existingUser } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    const isNewUser = !existingUser;
+
+    // Upsert user record
     const { data, error } = await supabaseAdmin
       .from('users')
       .upsert({
@@ -27,6 +40,28 @@ export async function upsertUser(req: Request, res: Response) {
     if (error) {
       console.error('Error upserting user:', error);
       return res.status(500).json({ error: "Failed to upsert user" });
+    }
+
+    // Create trial subscription for new authenticated users
+    if (isNewUser) {
+      const trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DAYS);
+
+      const { error: subscriptionError } = await supabaseAdmin
+        .from('subscriptions')
+        .insert({
+          user_id: userId,
+          plan_name: 'trial',
+          status: 'active',
+          trial_end_date: trialEndDate.toISOString(),
+          trial_summaries_used: 0,
+          trial_summaries_limit: TRIAL_SUMMARIES_LIMIT
+        });
+
+      if (subscriptionError) {
+        console.error('Error creating trial subscription:', subscriptionError);
+        // Don't fail the whole request if subscription creation fails
+      }
     }
 
     res.json({ user: data });
