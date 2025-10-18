@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { format } from "date-fns";
+import ShareModal from "./ShareModal";
 
 interface SummaryCardProps {
   summary: string;
@@ -30,6 +31,8 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [shareType, setShareType] = useState<"text" | "pdf">("text");
+  const [pdfBlobForShare, setPdfBlobForShare] = useState<Blob | undefined>();
   const summaryContentRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -132,53 +135,13 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
   };
 
   const handleShare = () => {
+    setShareType("text");
     setIsShareDialogOpen(true);
   };
 
-  const handleShareText = async () => {
-    const textToShare = keyPoints
-      ? `${summary}\n\nالنقاط الرئيسية:\n${keyPoints.map((p) => `• ${p}`).join("\n")}`
-      : summary;
-    
-    const shareTitle = title || "ملخص المحاضرة";
-    
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: shareTitle,
-          text: textToShare,
-        });
-        
-        setIsShareDialogOpen(false);
-        toast({
-          title: "تمت المشاركة بنجاح",
-          description: "تم مشاركة التلخيص",
-        });
-      } catch (error: any) {
-        if (error.name !== 'AbortError') {
-          toast({
-            title: "خطأ في المشاركة",
-            description: "فشلت عملية المشاركة",
-            variant: "destructive",
-          });
-        }
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(textToShare);
-        setIsShareDialogOpen(false);
-        toast({
-          title: "تم النسخ إلى الحافظة",
-          description: "تم نسخ التلخيص، يمكنك لصقه في أي تطبيق",
-        });
-      } catch (error) {
-        toast({
-          title: "خطأ في النسخ",
-          description: "فشل نسخ التلخيص إلى الحافظة",
-          variant: "destructive",
-        });
-      }
-    }
+  const handleShareText = () => {
+    setShareType("text");
+    setIsShareDialogOpen(true);
   };
 
   const handleSharePDF = async () => {
@@ -211,41 +174,17 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
       pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio);
       
       const pdfBlob = pdf.output('blob');
-      const pdfFile = new File([pdfBlob], getFilename("pdf"), { type: 'application/pdf' });
-
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        try {
-          await navigator.share({
-            title: title || "ملخص المحاضرة",
-            files: [pdfFile],
-          });
-          
-          setIsShareDialogOpen(false);
-          toast({
-            title: "تمت المشاركة بنجاح",
-            description: "تم مشاركة ملف PDF",
-          });
-        } catch (error: any) {
-          if (error.name !== 'AbortError') {
-            pdf.save(getFilename("pdf"));
-            setIsShareDialogOpen(false);
-            toast({
-              title: "تم الحفظ",
-              description: "تم حفظ الملف، يمكنك مشاركته يدوياً",
-            });
-          }
-        }
-      } else {
-        pdf.save(getFilename("pdf"));
-        setIsShareDialogOpen(false);
-        toast({
-          title: "تم الحفظ",
-          description: "تم حفظ الملف، يمكنك مشاركته يدوياً",
-        });
-      }
+      setPdfBlobForShare(pdfBlob);
+      setShareType("pdf");
+      setIsShareDialogOpen(true);
+      
+      toast({
+        title: "جاهز للمشاركة",
+        description: "اختر المنصة لمشاركة ملف PDF",
+      });
     } catch (error) {
       toast({
-        title: "خطأ في المشاركة",
+        title: "خطأ في إنشاء PDF",
         description: "فشل إنشاء ملف PDF",
         variant: "destructive",
       });
@@ -347,47 +286,17 @@ export default function SummaryCard({ summary, keyPoints, language, title, date 
             </DialogContent>
           </Dialog>
 
-          <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>مشاركة التلخيص</DialogTitle>
-                <DialogDescription>
-                  اختر طريقة المشاركة المناسبة لك
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-3 py-4">
-                <Button
-                  variant="outline"
-                  onClick={handleShareText}
-                  data-testid="button-share-text"
-                  className="justify-start gap-3 h-auto py-4 hover-elevate active-elevate-2"
-                >
-                  <Share2 className="h-5 w-5" />
-                  <div className="text-right flex-1">
-                    <div className="font-medium">مشاركة كنص</div>
-                    <div className="text-sm text-muted-foreground">
-                      {typeof navigator !== 'undefined' && 'share' in navigator ? "مشاركة عبر التطبيقات المتاحة" : "نسخ إلى الحافظة"}
-                    </div>
-                  </div>
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleSharePDF}
-                  disabled={isSharing}
-                  data-testid="button-share-pdf"
-                  className="justify-start gap-3 h-auto py-4 hover-elevate active-elevate-2"
-                >
-                  <FileDown className="h-5 w-5" />
-                  <div className="text-right flex-1">
-                    <div className="font-medium">مشاركة كملف PDF</div>
-                    <div className="text-sm text-muted-foreground">
-                      {isSharing ? "جاري الإنشاء..." : "مشاركة أو حفظ ملف PDF"}
-                    </div>
-                  </div>
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <ShareModal
+            open={isShareDialogOpen}
+            onOpenChange={setIsShareDialogOpen}
+            title={title || "ملخص المحاضرة"}
+            text={keyPoints
+              ? `${summary}\n\nالنقاط الرئيسية:\n${keyPoints.map((p) => `• ${p}`).join("\n")}`
+              : summary}
+            shareType={shareType}
+            pdfBlob={pdfBlobForShare}
+            pdfFilename={getFilename("pdf")}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-4" ref={summaryContentRef}>
