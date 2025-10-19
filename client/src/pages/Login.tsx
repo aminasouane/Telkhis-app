@@ -5,25 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
 
 export default function Login() {
   const [, navigate] = useLocation();
-  const { signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth();
+  const { signInWithEmail, signInWithGoogle } = useAuth();
   const { toast } = useToast();
   
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
-  const [signupName, setSignupName] = useState("");
-  const [signupLoading, setSignupLoading] = useState(false);
-  
   const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -47,28 +40,6 @@ export default function Login() {
     }
     
     setLoginLoading(false);
-  };
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSignupLoading(true);
-
-    const { error } = await signUpWithEmail(signupEmail, signupPassword, signupName);
-    
-    if (error) {
-      toast({
-        title: "خطأ في إنشاء الحساب",
-        description: error.message || "حاول مرة أخرى",
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "تم إنشاء الحساب بنجاح",
-        description: "يمكنك الآن تسجيل الدخول",
-      });
-    }
-    
-    setSignupLoading(false);
   };
 
   const handleGoogleSignIn = async () => {

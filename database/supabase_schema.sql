@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   end_date TIMESTAMP WITH TIME ZONE,
   payment_provider TEXT CHECK (payment_provider IN ('stripe', 'in-app', 'manual')),
+  stripe_customer_id TEXT UNIQUE,
+  stripe_subscription_id TEXT UNIQUE,
+  stripe_price_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

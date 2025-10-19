@@ -62,6 +62,9 @@ WHERE u.email = 'test@takhleesly.com';
 - `status`: TEXT (active, expired, cancelled)
 - `start_date`, `end_date`: TIMESTAMP
 - `payment_provider`: TEXT (stripe, in-app, manual)
+- `stripe_customer_id`: TEXT (فريد) - معرف العميل في Stripe
+- `stripe_subscription_id`: TEXT (فريد) - معرف الاشتراك في Stripe
+- `stripe_price_id`: TEXT - معرف السعر في Stripe
 
 ### summaries (التلخيصات)
 - `id`: UUID (مفتاح أساسي)
