@@ -63,19 +63,47 @@ export async function createGuestSession(req: Request, res: Response) {
     }
 
     // Create user record in users table
+    // Use upsert to handle race conditions (duplicate device_id)
     const { data: newUser, error: userError } = await supabaseAdmin
       .from('users')
-      .insert({
+      .upsert({
         id: authData.user.id,
         device_id: deviceId,
         user_type: 'guest',
         subscription_type: 'free'
+      }, {
+        onConflict: 'device_id',
+        ignoreDuplicates: false
       })
       .select()
       .single();
 
     if (userError) {
       console.error('Error creating guest user record:', userError);
+      // If duplicate error, try to fetch existing user
+      if (userError.code === '23505') {
+        const { data: existingByDeviceId } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .eq('device_id', deviceId)
+          .single();
+        
+        if (existingByDeviceId) {
+          // Return existing user session
+          const { data: subscription } = await supabaseAdmin
+            .from('subscriptions')
+            .select('trial_end_date, trial_summaries_used, trial_summaries_limit')
+            .eq('user_id', existingByDeviceId.id)
+            .eq('status', 'active')
+            .single();
+
+          return res.json({
+            userId: existingByDeviceId.id,
+            isGuest: true,
+            trial: subscription || null
+          });
+        }
+      }
       return res.status(500).json({ error: "Failed to create guest user" });
     }
 
