@@ -78,11 +78,17 @@ export default function Subscribe() {
         return;
       }
 
-      const status = await getTrialStatus(currentUserId);
-      if (status && !status.isExpired && status.daysRemaining > 0) {
-        // Trial is still active, redirect to home
-        navigate("/");
-      } else {
+      try {
+        const status = await getTrialStatus(currentUserId);
+        if (status && !status.isExpired && status.daysRemaining > 0) {
+          // Trial is still active, redirect to home
+          navigate("/");
+        } else {
+          setCheckingTrial(false);
+        }
+      } catch (error) {
+        console.error("Error checking trial status:", error);
+        // On error, allow access to subscribe page (fail open)
         setCheckingTrial(false);
       }
     };
