@@ -37,3 +37,38 @@ The project uses PostgreSQL (via Neon serverless) with Drizzle ORM, primarily th
 - **jsPDF** and **html2canvas**: For PDF generation and HTML content capture.
 - **Clipboard API**: For copy-to-clipboard functionality.
 - **date-fns**: For date and time formatting.
+
+## Recent Changes (October 19, 2025)
+
+### Trial Status Bug Fix
+**Problem**: Subscribe page appeared immediately for users with active trial periods, even though they had 7 days remaining.
+
+**Root Causes**:
+1. `server/middleware/trialGuard.ts` returned `isExpired: true` when no subscription record was found (affecting new users)
+2. `/api/trial-status` didn't provide explicit `isTrialActive` flag for frontend
+3. Subscribe page had no trial status validation before rendering content
+
+**Solutions Implemented**:
+1. **Backend Fix** (`server/middleware/trialGuard.ts` lines 29-51):
+   - When subscription not found → return active 7-day trial instead of marking as expired
+   - Prevents premature expiration for newly created users
+   - Trial subscription is created asynchronously by `/api/user/upsert`
+
+2. **API Enhancement** (`server/api/trial-status.ts` lines 16-24):
+   - Added `isTrialActive` boolean: `!isExpired && daysRemaining > 0`
+   - Added `hasActiveSubscription` boolean (false for trial users, true for paid)
+   - Provides clear flags for frontend decision-making
+
+3. **Frontend Guard** (`client/src/pages/Subscribe.tsx` lines 77-102):
+   - Added useEffect to check trial status on page load
+   - Users with active trial automatically redirected to home page
+   - Error handling prevents infinite loading state (fail-open approach)
+   - Loading indicator shown during trial status verification
+
+**Tested Scenarios**:
+- ✅ New user with no subscription → Granted access, trial starts
+- ✅ User with active trial (days > 0) → Access granted, redirected from /subscribe
+- ✅ User with expired trial (days = 0) → Shown Subscribe page
+- ✅ Direct navigation to /subscribe with active trial → Auto-redirected to home
+
+**Impact**: Subscribe page now only displays after trial genuinely expires (all 7 days used).
