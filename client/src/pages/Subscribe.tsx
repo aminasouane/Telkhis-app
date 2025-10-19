@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Sparkles, Zap, Crown } from "lucide-react";
+import { Check, Sparkles, Zap, Crown, Loader2 } from "lucide-react";
+import { getTrialStatus } from "@/services/trialService";
 
 interface PricingPlan {
   id: string;
@@ -62,9 +63,43 @@ const plans: PricingPlan[] = [
 
 export default function Subscribe() {
   const [, navigate] = useLocation();
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, guestUserId, loading: authLoading } = useAuth();
   const [selectedPlan, setSelectedPlan] = useState<string>("yearly");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [checkingTrial, setCheckingTrial] = useState(true);
+  
+  const currentUserId = isGuest ? guestUserId : user?.id;
+
+  // Check trial status - redirect to home if trial is still active
+  useEffect(() => {
+    const checkTrial = async () => {
+      if (!currentUserId) {
+        setCheckingTrial(false);
+        return;
+      }
+
+      const status = await getTrialStatus(currentUserId);
+      if (status && !status.isExpired && status.daysRemaining > 0) {
+        // Trial is still active, redirect to home
+        navigate("/");
+      } else {
+        setCheckingTrial(false);
+      }
+    };
+
+    if (!authLoading && currentUserId) {
+      checkTrial();
+    }
+  }, [currentUserId, authLoading, navigate]);
+
+  // Show loading while checking auth or trial
+  if (authLoading || checkingTrial) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const handleSubscribe = async (planId: string) => {
     setIsProcessing(true);
