@@ -9,6 +9,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import Home from "@/pages/Home";
 import HistoryScreen from "@/pages/HistoryScreen";
 import Login from "@/pages/Login";
+import Subscribe from "@/pages/Subscribe";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/history" component={HistoryScreen} />
       <Route path="/login" component={Login} />
+      <Route path="/subscribe" component={Subscribe} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -30,8 +30,7 @@ export default function TrialExpiredModal({
   };
 
   const handleSubscribe = () => {
-    // TODO: Navigate to subscription page when implemented
-    navigate("/login?returnTo=/");
+    navigate("/subscribe");
   };
 
   return (
