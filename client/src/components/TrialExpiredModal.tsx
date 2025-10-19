@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, BarChart3 } from "lucide-react";
 
 interface TrialExpiredModalProps {
   open: boolean;
@@ -61,9 +61,12 @@ export default function TrialExpiredModal({
         </DialogHeader>
         
         <div className="bg-muted/50 p-4 rounded-lg mt-4" dir="rtl">
-          <p className="text-sm text-muted-foreground">
-            📊 استخدامك: {summariesUsed} من {summariesLimit} تلخيصات
-          </p>
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              استخدامك: {summariesUsed} من {summariesLimit} تلخيصات
+            </p>
+          </div>
         </div>
 
         <DialogFooter className="flex-row gap-2 sm:gap-2 mt-4">
