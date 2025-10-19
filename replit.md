@@ -147,10 +147,16 @@ This design prevents attackers from bypassing limits via:
 ## Recent Fixes (October 2025)
 
 **Trial Subscription Display Issue** (Fixed):
-- **Problem**: Subscription page appeared immediately after first login for authenticated users, despite active trial period
-- **Root Cause**: Trial subscription was only created for guest users, not for authenticated users who signed up/logged in
-- **Solution**: 
+- **Problem**: Subscription modal appeared immediately after first login for authenticated users, despite active trial period
+- **Root Causes**: 
+  1. Trial subscription was only created for guest users, not authenticated users
+  2. Frontend only checked trial status for guest users
+  3. Trial end date was set to exact time instead of end of day
+  4. Date comparison used `<=` which expired trials at start of last day
+- **Solutions**: 
   - Modified `/api/user/upsert` to automatically create trial subscription for new authenticated users
-  - Fixed date comparison logic to use `<=` instead of `<` for more accurate expiry checking
+  - Updated `Home.tsx` to check trial status for ALL users (not just guests)
+  - Set `trial_end_date` to end of 7th day (23:59:59) instead of exact signup time
+  - Changed date comparison to use `<` instead of `<=` to give full last day access
   - Improved days remaining calculation with explicit UTC handling
-- **Impact**: All new users now receive 7-day trial regardless of authentication method
+- **Impact**: All new users now receive full 7-day trial (ending at 23:59:59 on day 7) regardless of authentication method
