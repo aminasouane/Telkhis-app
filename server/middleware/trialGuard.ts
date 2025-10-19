@@ -24,14 +24,25 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
     .single();
 
   if (error || !subscription) {
+    // If no subscription found, user might be newly created
+    // Return trial active with default values
+    // The subscription should be created by /api/user/upsert or /api/guest-session
+    const now = new Date();
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + 7);
+    trialEndDate.setHours(23, 59, 59, 999);
+    
+    const diffMs = trialEndDate.getTime() - now.getTime();
+    const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    
     return {
       userId,
-      isExpired: true,
+      isExpired: false, // Allow new users to use the service
       summariesUsed: 0,
       summariesLimit: 1,
-      daysRemaining: 0,
-      expiryDate: null,
-      canSummaryToday: false,
+      daysRemaining,
+      expiryDate: trialEndDate.toISOString(),
+      canSummaryToday: true,
       lastSummaryDate: null
     };
   }
