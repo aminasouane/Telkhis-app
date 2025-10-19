@@ -47,7 +47,8 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
   }
 
   // Check if trial is expired by date
-  const isExpiredByDate = trialEndDate ? trialEndDate <= now : false;
+  // Use < instead of <= to give users the full last day
+  const isExpiredByDate = trialEndDate ? trialEndDate < now : false;
 
   // Check daily limit: can the user create a summary today?
   const lastSummaryDate = subscription.last_summary_date;

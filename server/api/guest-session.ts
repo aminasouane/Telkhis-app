@@ -80,8 +80,10 @@ export async function createGuestSession(req: Request, res: Response) {
     }
 
     // Create trial subscription
+    // Set trial to end at the end of the 7th day (23:59:59)
     const trialEndDate = new Date();
     trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DAYS);
+    trialEndDate.setHours(23, 59, 59, 999);
 
     const { error: subscriptionError } = await supabaseAdmin
       .from('subscriptions')

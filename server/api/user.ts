@@ -44,8 +44,10 @@ export async function upsertUser(req: Request, res: Response) {
 
     // Create trial subscription for new authenticated users
     if (isNewUser) {
+      // Set trial to end at the end of the 7th day (23:59:59)
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DAYS);
+      trialEndDate.setHours(23, 59, 59, 999);
 
       const { error: subscriptionError } = await supabaseAdmin
         .from('subscriptions')

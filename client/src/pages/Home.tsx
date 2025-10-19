@@ -46,17 +46,17 @@ export default function Home() {
   // Get current user ID (guest or authenticated)
   const currentUserId = isGuest ? guestUserId : user?.id;
 
-  // Check trial status for guest users
+  // Check trial status for all users (guest and authenticated)
   useEffect(() => {
-    if (isGuest && guestUserId) {
+    if (currentUserId) {
       checkTrialStatus();
     }
-  }, [isGuest, guestUserId]);
+  }, [currentUserId]);
 
   const checkTrialStatus = async () => {
-    if (!guestUserId) return;
+    if (!currentUserId) return;
     
-    const status = await getTrialStatus(guestUserId);
+    const status = await getTrialStatus(currentUserId);
     if (status) {
       setTrialInfo({
         used: status.summariesUsed,
