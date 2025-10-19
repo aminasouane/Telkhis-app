@@ -2,7 +2,9 @@
 
 ## Overview
 
-Takhleesly (تلخيصلي) is a multi-language web application for transcribing audio lectures and generating AI-powered summaries. It supports Arabic, French, and Algerian dialect, allowing users to record audio directly or upload files. The application leverages OpenAI's Whisper for transcription and GPT-4 for intelligent summarization. A key feature is a "soft authentication" trial system, offering guests **1 free summary per day for 7 days** (max 5 minutes per recording), with seamless data migration upon signup. The project aims to provide an accessible and efficient summarization tool for academic and professional use, with robust multi-language support and user-friendly design.
+Takhleesly (تلخيصلي) is a multi-language web application for transcribing audio lectures and generating AI-powered summaries. It supports Arabic, French, and Algerian dialect, allowing users to record audio directly or upload files. The application leverages OpenAI's Whisper for transcription and GPT-4 for intelligent summarization. 
+
+**Current Status**: The application features a complete trial system with **7-day free access (1 summary per day, max 5 minutes per recording)**. A subscription page UI is ready for Stripe integration. Email verification is temporarily disabled pending payment gateway implementation. The project implements a freemium model where trial users access the app for free, then must subscribe via Stripe to continue using the service.
 
 ## User Preferences
 
@@ -23,10 +25,20 @@ Preferred communication style: Simple, everyday language.
 - **Multi-language Support**: Arabic (Classical), French (Academic), and Algerian dialect (converted to Classical Arabic for clarity). Dynamic RTL/LTR switching.
 - **Live Summary Feature**: Real-time transcription and partial summarization during recording (updates every 15 seconds).
 - **Save & Share Feature**: Export summaries as TXT or PDF (with RTL support) and copy to clipboard. Native Web Share API integration with fallbacks.
-- **Screen Separation**: Dedicated Home page for recording/upload and History page for session management.
+- **Screen Separation**: Dedicated Home page for recording/upload, History page for session management, and Subscribe page for payment/upgrade.
 - **Session Management**: Sessions (id, user_id, title, date, language, content, transcript, key_points) are stored in a Supabase database. User-scoped queries ensure data security.
-- **Authentication**: Supabase Auth with email/password and Google OAuth. All pages require authentication, redirecting to `/login` if not authenticated.
-- **Trial System**: **All new users** (both guest and authenticated) get **1 free summary per day for 7 days** with a maximum recording duration of **5 minutes** per session. Trial subscription is automatically created upon first login/signup. Trial checks (daily limit, duration limit, and period expiry) are enforced server-side before AI processing. Guest data migrates upon signup.
+- **Authentication & Authorization**: 
+  - Supabase Auth with email/password and Google OAuth
+  - **Login page** is for existing paid users only (no signup tab)
+  - **Email verification temporarily disabled** pending Stripe integration
+  - Guest mode allows trial access without account creation
+- **Trial System & Subscription Flow**: 
+  - **All new users** start as guests with **7-day free trial** (1 summary/day, 5 min/recording)
+  - Trial subscription auto-created with `trial_end_date` set to 23:59:59 on day 7
+  - **After trial expires**: Users redirected to `/subscribe` page
+  - **Subscription page** displays pricing plans (UI ready, Stripe integration pending)
+  - **Future flow**: Stripe Checkout → Webhook creates Supabase account → User gains full access
+  - Guest data automatically migrates to paid account after payment
 - **Print Feature**: Print-friendly styling with automatic print trigger via URL parameter `?print=true`.
 
 ### Backend Architecture
@@ -95,12 +107,17 @@ Preferred communication style: Simple, everyday language.
     - `trial_summaries_used`: Total summaries created (incremented atomically)
     - `trial_summaries_limit`: Set to 1 for daily limit enforcement
     - `last_summary_date`: DATE field tracking the last day a summary was created
-    - `trial_end_date`: Trial expiration date (7 days from first use)
+    - `trial_end_date`: Trial expiration date (7 days from first use, ends at 23:59:59)
+    - **Stripe fields (ready for integration)**:
+      - `stripe_customer_id`: TEXT UNIQUE - Stripe customer ID (cus_xxx)
+      - `stripe_subscription_id`: TEXT UNIQUE - Stripe subscription ID (sub_xxx)
+      - `stripe_price_id`: TEXT - Stripe price ID (price_xxx)
   - **summaries** table includes:
     - `audio_duration`: INTEGER field storing recording duration in seconds
   - Relations: User IDs are foreign keys in `subscriptions`, `summaries`, and `settings`, with CASCADE DELETE.
-  - Indexed columns for query optimization (including `last_summary_date`).
+  - Indexed columns for query optimization (including `last_summary_date`, `stripe_customer_id`, `stripe_subscription_id`).
   - RLS policies enforce user data ownership.
+  - **Migration script** available: `database/migrations/add_stripe_fields.sql`
 
 ## External Dependencies
 
@@ -144,9 +161,59 @@ This design prevents attackers from bypassing limits via:
 - Replay attacks (5-minute freshness window)
 - Live endpoint bypass (both endpoints equally protected)
 
+## 🚀 Next Steps: Stripe Integration
+
+The application is **ready for Stripe integration**. All infrastructure is in place:
+
+### Completed Preparation:
+- ✅ Database schema updated with Stripe fields (`stripe_customer_id`, `stripe_subscription_id`, `stripe_price_id`)
+- ✅ Migration script ready: `database/migrations/add_stripe_fields.sql`
+- ✅ Subscribe page UI complete (`/subscribe`) with pricing plans
+- ✅ Trial system fully functional with automatic expiry and redirection
+- ✅ Email verification disabled (will re-enable post-payment via webhook)
+- ✅ Login page simplified (signup removed, existing users only)
+- ✅ Guest-to-paid migration infrastructure ready
+
+### Required for Stripe Integration:
+
+**1. Stripe Account Setup**:
+- Create Stripe account at https://dashboard.stripe.com
+- Get API keys:
+  - `VITE_STRIPE_PUBLIC_KEY` (starts with `pk_`) - Public key for frontend
+  - `STRIPE_SECRET_KEY` (starts with `sk_`) - Secret key for backend
+- Create product(s) in Stripe Dashboard with pricing:
+  - Monthly plan: $9.99/month
+  - Yearly plan: $99.99/year
+- Get `STRIPE_PRICE_ID` for each plan (starts with `price_`)
+
+**2. Implementation Steps**:
+1. **Install Stripe Blueprint**: Use `blueprint:javascript_stripe` integration
+2. **Add API Endpoints**:
+   - `POST /api/create-checkout-session`: Creates Stripe Checkout session
+   - `POST /api/stripe-webhook`: Handles payment events
+3. **Webhook Events to Handle**:
+   - `checkout.session.completed`: Create Supabase user account after successful payment
+   - `customer.subscription.updated`: Update subscription status
+   - `customer.subscription.deleted`: Handle cancellations
+4. **Update Subscribe Page**: Connect UI to Stripe Checkout API
+5. **Test Flow**:
+   - Trial user → Trial expires → Subscribe page → Stripe Checkout → Webhook creates account → User logs in → Full access
+
+**3. Security Considerations**:
+- Webhook signature verification (Stripe provides `STRIPE_WEBHOOK_SECRET`)
+- Server-side validation of all payment data
+- Atomic database operations (user creation + subscription + guest data migration)
+- Proper error handling and rollback on failures
+
+### Files Ready for Stripe Integration:
+- `client/src/pages/Subscribe.tsx` - UI ready, needs Stripe Elements integration
+- `database/migrations/add_stripe_fields.sql` - Run this migration first
+- `server/routes.ts` - Add Stripe endpoints here
+- Reference blueprint code available in `blueprint:javascript_stripe`
+
 ## Recent Fixes (October 2025)
 
-**Trial Subscription Display Issue** (Fixed):
+### Trial Subscription Display Issue (Fixed - October 19, 2025):
 - **Problem**: Subscription modal appeared immediately after first login for authenticated users, despite active trial period
 - **Root Causes**: 
   1. Trial subscription was only created for guest users, not authenticated users
@@ -160,3 +227,16 @@ This design prevents attackers from bypassing limits via:
   - Changed date comparison to use `<` instead of `<=` to give full last day access
   - Improved days remaining calculation with explicit UTC handling
 - **Impact**: All new users now receive full 7-day trial (ending at 23:59:59 on day 7) regardless of authentication method
+
+### Authentication & Subscription Flow Restructure (October 19, 2025):
+- **Changes Made**:
+  1. **Login Page Simplified**: Removed signup tab - now only for existing paid users
+  2. **Email Verification Disabled**: Temporarily disabled pending Stripe integration
+  3. **Subscribe Page Created**: New `/subscribe` route with pricing UI (Monthly $9.99, Yearly $99.99)
+  4. **Database Schema Updated**: Added Stripe fields to subscriptions table
+  5. **Trial Flow Updated**: TrialExpiredModal now redirects to `/subscribe` instead of `/login`
+  6. **Documentation Added**: Complete Stripe integration guide in replit.md
+- **Current User Flow**:
+  - New visitors → Guest mode (7-day trial) → Trial expires → `/subscribe` page → (Stripe integration pending)
+  - Existing users → `/login` → Full access (if active subscription)
+- **Ready for**: Stripe API integration to enable actual payments and account creation
