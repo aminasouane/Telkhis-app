@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase-admin";
-import { checkTrialStatus, incrementTrialUsage } from "../middleware/trialGuard";
+import { checkTrialStatus, incrementTrialMinutes } from "../middleware/trialGuard";
 
 interface SaveSummaryRequest {
   userId: string;
@@ -87,37 +87,29 @@ export async function saveSummary(req: Request, res: Response) {
       });
     }
 
-    // Check audio duration limit (5 minutes = 300 seconds)
-    // NOTE: This is a secondary check. Primary enforcement happens in /api/process-audio
-    // to prevent wasting OpenAI API calls on oversized files
-    const MAX_DURATION_SECONDS = 300;
-    if (audioDuration > MAX_DURATION_SECONDS) {
-      return res.status(403).json({ 
-        error: "Audio too long",
-        message: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
-        maxDuration: MAX_DURATION_SECONDS,
-        actualDuration: audioDuration
-      });
-    }
-
     // Check trial status BEFORE saving (enforced server-side)
     const trialStatus = await checkTrialStatus(userId);
     
-    // Check if trial period expired (7 days)
+    // Check if trial has expired (30 minutes used)
     if (trialStatus.isExpired) {
       return res.status(403).json({ 
-        error: "Trial period expired",
-        message: "انتهت الفترة التجريبية. يرجى الاشتراك لمتابعة الاستخدام.",
+        error: "Trial expired",
+        message: "انتهت التجربة المجانية (30 دقيقة). يرجى الاشتراك لمتابعة الاستخدام.",
         trialStatus 
       });
     }
 
-    // Check if daily limit reached
-    if (!trialStatus.canSummaryToday) {
+    // Convert audio duration from seconds to minutes (rounded to 2 decimals)
+    const audioMinutes = Math.round((audioDuration / 60) * 100) / 100;
+
+    // Check if this summary would exceed trial limit
+    if (trialStatus.minutesUsed + audioMinutes > trialStatus.minutesLimit) {
       return res.status(403).json({ 
-        error: "Daily limit reached",
-        message: "لقد استخدمت التلخيص المجاني اليوم. يمكنك المحاولة غدًا.",
-        trialStatus 
+        error: "Trial limit exceeded",
+        message: `هذا التسجيل (${audioMinutes} دقيقة) سيتجاوز حد التجربة المجانية (${trialStatus.minutesRemaining} دقيقة متبقية). يرجى الاشتراك لمتابعة الاستخدام.`,
+        trialStatus,
+        audioMinutes,
+        minutesRemaining: trialStatus.minutesRemaining
       });
     }
 
@@ -142,14 +134,15 @@ export async function saveSummary(req: Request, res: Response) {
       return res.status(500).json({ error: "Failed to save summary" });
     }
 
-    // Atomically increment trial usage (will fail if concurrent updates)
-    const { error: incrementError } = await supabaseAdmin.rpc('increment_trial_usage', {
-      p_user_id: userId
+    // Atomically increment trial minutes (will fail if concurrent updates)
+    const { error: incrementError } = await supabaseAdmin.rpc('increment_trial_minutes', {
+      p_user_id: userId,
+      p_minutes: audioMinutes
     });
 
     // If RPC doesn't exist, fall back to manual update
     if (incrementError) {
-      await incrementTrialUsage(userId);
+      await incrementTrialMinutes(userId, audioMinutes);
     }
 
     // Get updated trial status

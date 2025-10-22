@@ -12,7 +12,7 @@ export async function getTrialStatus(req: Request, res: Response) {
     const trialStatus = await checkTrialStatus(userId);
     
     // Add explicit flags for frontend convenience
-    const isTrialActive = !trialStatus.isExpired && trialStatus.daysRemaining > 0;
+    const isTrialActive = !trialStatus.isExpired && trialStatus.minutesRemaining > 0;
     const hasActiveSubscription = false; // Will be true when user has paid subscription
     
     res.json({ 

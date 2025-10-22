@@ -8,26 +8,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, BarChart3 } from "lucide-react";
+import { AlertCircle, Clock } from "lucide-react";
 
 interface TrialExpiredModalProps {
   open: boolean;
-  summariesUsed: number;
-  summariesLimit: number;
-  daysRemaining: number;
+  minutesUsed: number;
+  minutesLimit: number;
 }
 
 export default function TrialExpiredModal({
   open,
-  summariesUsed,
-  summariesLimit,
-  daysRemaining
+  minutesUsed,
+  minutesLimit
 }: TrialExpiredModalProps) {
   const [, navigate] = useLocation();
-
-  const handleSignIn = () => {
-    navigate("/login?returnTo=/");
-  };
 
   const handleSubscribe = () => {
     navigate("/subscribe");
@@ -39,51 +33,32 @@ export default function TrialExpiredModal({
         <DialogHeader>
           <div className="flex items-center gap-2 mb-2">
             <AlertCircle className="h-6 w-6 text-primary" />
-            <DialogTitle className="text-xl">انتهت الفترة التجريبية</DialogTitle>
+            <DialogTitle className="text-xl">انتهت التجربة المجانية</DialogTitle>
           </div>
           <DialogDescription className="text-base leading-relaxed" dir="rtl">
-            {summariesUsed >= summariesLimit ? (
-              <>
-                لقد استخدمت جميع التلخيصات المتاحة في الفترة التجريبية ({summariesLimit} تلخيصات).
-                <br />
-                <br />
-                سجل الدخول أو اشترك للاستمرار في استخدام تلخيصلي.
-              </>
-            ) : (
-              <>
-                انتهت مدة التجربة المجانية ({daysRemaining === 0 ? 'اليوم' : `منذ ${Math.abs(daysRemaining)} يوم`}).
-                <br />
-                <br />
-                سجل الدخول أو اشترك للاستمرار في استخدام تلخيصلي.
-              </>
-            )}
+            لقد استخدمت كامل التجربة المجانية ({minutesLimit} دقيقة صوت).
+            <br />
+            <br />
+            اشترك الآن لمواصلة تلخيص المحاضرات بدون حدود.
           </DialogDescription>
         </DialogHeader>
         
         <div className="bg-muted/50 p-4 rounded-lg mt-4" dir="rtl">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <Clock className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              استخدامك: {summariesUsed} من {summariesLimit} تلخيصات
+              استخدامك: {(minutesUsed || 0).toFixed(1)} من {minutesLimit || 30} دقيقة
             </p>
           </div>
         </div>
 
-        <DialogFooter className="flex-row gap-2 sm:gap-2 mt-4">
-          <Button
-            onClick={handleSignIn}
-            variant="outline"
-            className="flex-1"
-            data-testid="button-signin-trial"
-          >
-            تسجيل الدخول
-          </Button>
+        <DialogFooter className="mt-4">
           <Button
             onClick={handleSubscribe}
-            className="flex-1"
+            className="w-full"
             data-testid="button-subscribe-trial"
           >
-            الاشتراك
+            الاشتراك الآن
           </Button>
         </DialogFooter>
       </DialogContent>

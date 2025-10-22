@@ -4,19 +4,17 @@ import { supabaseAdmin } from "../supabase-admin";
 export interface TrialInfo {
   userId: string;
   isExpired: boolean;
-  summariesUsed: number;
-  summariesLimit: number;
-  daysRemaining: number;
-  expiryDate: string | null;
-  canSummaryToday: boolean;
-  lastSummaryDate: string | null;
+  minutesUsed: number;
+  minutesLimit: number;
+  minutesRemaining: number;
+  canUseService: boolean;
 }
 
 export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
   // Get user's active subscription with trial info
   const { data: subscription, error } = await supabaseAdmin
     .from('subscriptions')
-    .select('trial_end_date, trial_summaries_used, trial_summaries_limit, last_summary_date')
+    .select('trial_minutes_used, trial_minutes_limit')
     .eq('user_id', userId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -25,79 +23,48 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
 
   if (error || !subscription) {
     // If no subscription found, user might be newly created
-    // Return trial active with default values
+    // Return trial active with default values (30 minutes limit)
     // The subscription should be created by /api/user/upsert or /api/guest-session
-    const now = new Date();
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + 7);
-    trialEndDate.setHours(23, 59, 59, 999);
-    
-    const diffMs = trialEndDate.getTime() - now.getTime();
-    const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-    
     return {
       userId,
       isExpired: false, // Allow new users to use the service
-      summariesUsed: 0,
-      summariesLimit: 1,
-      daysRemaining,
-      expiryDate: trialEndDate.toISOString(),
-      canSummaryToday: true,
-      lastSummaryDate: null
+      minutesUsed: 0,
+      minutesLimit: 30.0,
+      minutesRemaining: 30.0,
+      canUseService: true
     };
   }
 
-  const trialEndDate = subscription.trial_end_date ? new Date(subscription.trial_end_date) : null;
-  const now = new Date();
-  
-  // Calculate days remaining (using UTC to avoid timezone issues)
-  let daysRemaining = 0;
-  if (trialEndDate) {
-    const diffMs = trialEndDate.getTime() - now.getTime();
-    daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-  }
+  const minutesUsed = subscription.trial_minutes_used || 0;
+  const minutesLimit = subscription.trial_minutes_limit || 30.0;
+  const minutesRemaining = Math.max(0, minutesLimit - minutesUsed);
 
-  // Check if trial is expired by date
-  // Use < instead of <= to give users the full last day
-  const isExpiredByDate = trialEndDate ? trialEndDate < now : false;
-
-  // Check daily limit: can the user create a summary today?
-  const lastSummaryDate = subscription.last_summary_date;
-  const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
-  const canSummaryToday = !lastSummaryDate || lastSummaryDate !== today;
-
-  // Trial is expired if trial period ended (7 days passed)
-  // Note: Daily limit is checked separately via canSummaryToday
-  const isExpired = isExpiredByDate;
+  // Trial is expired if user has used >= 30 minutes
+  const isExpired = minutesUsed >= minutesLimit;
 
   return {
     userId,
     isExpired,
-    summariesUsed: subscription.trial_summaries_used || 0,
-    summariesLimit: 1, // Daily limit: 1 summary per day
-    daysRemaining,
-    expiryDate: trialEndDate?.toISOString() || null,
-    canSummaryToday,
-    lastSummaryDate: lastSummaryDate || null
+    minutesUsed,
+    minutesLimit,
+    minutesRemaining,
+    canUseService: !isExpired
   };
 }
 
-export async function incrementTrialUsage(userId: string): Promise<void> {
+export async function incrementTrialMinutes(userId: string, minutesToAdd: number): Promise<void> {
   const { data: currentSub } = await supabaseAdmin
     .from('subscriptions')
-    .select('trial_summaries_used')
+    .select('trial_minutes_used')
     .eq('user_id', userId)
     .eq('status', 'active')
     .single();
 
   if (currentSub) {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-    
     await supabaseAdmin
       .from('subscriptions')
       .update({ 
-        trial_summaries_used: (currentSub.trial_summaries_used || 0) + 1,
-        last_summary_date: today,
+        trial_minutes_used: (currentSub.trial_minutes_used || 0) + minutesToAdd,
         updated_at: new Date().toISOString()
       })
       .eq('user_id', userId)

@@ -1,8 +1,7 @@
 import { Request, Response } from "express";
 import { supabaseAdmin } from "../supabase-admin";
 
-const TRIAL_DAYS = 7;
-const TRIAL_SUMMARIES_LIMIT = 10;
+const TRIAL_MINUTES_LIMIT = 30.0; // 30 minutes audio trial
 
 interface GuestSessionRequest {
   deviceId: string;
@@ -28,7 +27,7 @@ export async function createGuestSession(req: Request, res: Response) {
       // Return existing guest session
       const { data: subscription } = await supabaseAdmin
         .from('subscriptions')
-        .select('trial_end_date, trial_summaries_used, trial_summaries_limit')
+        .select('trial_minutes_used, trial_minutes_limit')
         .eq('user_id', existingUser.id)
         .eq('status', 'active')
         .single();
@@ -92,7 +91,7 @@ export async function createGuestSession(req: Request, res: Response) {
           // Return existing user session
           const { data: subscription } = await supabaseAdmin
             .from('subscriptions')
-            .select('trial_end_date, trial_summaries_used, trial_summaries_limit')
+            .select('trial_minutes_used, trial_minutes_limit')
             .eq('user_id', existingByDeviceId.id)
             .eq('status', 'active')
             .single();
@@ -107,21 +106,15 @@ export async function createGuestSession(req: Request, res: Response) {
       return res.status(500).json({ error: "Failed to create guest user" });
     }
 
-    // Create trial subscription
-    // Set trial to end at the end of the 7th day (23:59:59)
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + TRIAL_DAYS);
-    trialEndDate.setHours(23, 59, 59, 999);
-
+    // Create trial subscription with 30-minute audio limit
     const { error: subscriptionError } = await supabaseAdmin
       .from('subscriptions')
       .insert({
         user_id: newUser.id,
         plan_name: 'trial',
         status: 'active',
-        trial_end_date: trialEndDate.toISOString(),
-        trial_summaries_used: 0,
-        trial_summaries_limit: TRIAL_SUMMARIES_LIMIT
+        trial_minutes_used: 0,
+        trial_minutes_limit: TRIAL_MINUTES_LIMIT
       });
 
     if (subscriptionError) {
@@ -132,9 +125,8 @@ export async function createGuestSession(req: Request, res: Response) {
       userId: newUser.id,
       isGuest: true,
       trial: {
-        trial_end_date: trialEndDate.toISOString(),
-        trial_summaries_used: 0,
-        trial_summaries_limit: TRIAL_SUMMARIES_LIMIT
+        trial_minutes_used: 0,
+        trial_minutes_limit: TRIAL_MINUTES_LIMIT
       }
     });
   } catch (error: any) {

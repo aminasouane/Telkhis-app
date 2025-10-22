@@ -80,7 +80,7 @@ export default function Subscribe() {
 
       try {
         const status = await getTrialStatus(currentUserId);
-        if (status && !status.isExpired && status.daysRemaining > 0) {
+        if (status && !status.isExpired && status.minutesRemaining > 0) {
           // Trial is still active, redirect to home
           navigate("/");
         } else {
@@ -143,7 +143,7 @@ export default function Subscribe() {
       <div className="container py-12 text-center">
         <div className="mx-auto max-w-3xl space-y-4">
           <Badge variant="secondary" className="mb-4" data-testid="badge-trial-ended">
-            انتهت الفترة التجريبية
+            انتهت التجربة المجانية (30 دقيقة)
           </Badge>
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
             اختر الخطة المناسبة لك

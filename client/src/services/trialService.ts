@@ -4,18 +4,17 @@ export interface GuestSessionResponse {
   userId: string;
   isGuest: boolean;
   trial: {
-    trial_end_date: string;
-    trial_summaries_used: number;
-    trial_summaries_limit: number;
+    trial_minutes_used: number;
+    trial_minutes_limit: number;
   };
 }
 
 export interface TrialStatus {
   isExpired: boolean;
-  summariesUsed: number;
-  summariesLimit: number;
-  daysRemaining: number;
-  expiryDate: string | null;
+  minutesUsed: number;
+  minutesLimit: number;
+  minutesRemaining: number;
+  canUseService: boolean;
 }
 
 /**
@@ -82,22 +81,12 @@ export async function getTrialStatus(userId: string): Promise<TrialStatus | null
 
     const { trialStatus } = await response.json();
     
-    const now = new Date();
-    const expiryDate = trialStatus.expiryDate ? new Date(trialStatus.expiryDate) : null;
-    
-    // Calculate days remaining
-    let daysRemaining = 0;
-    if (expiryDate) {
-      const diffTime = expiryDate.getTime() - now.getTime();
-      daysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    }
-    
     return {
       isExpired: trialStatus.isExpired,
-      summariesUsed: trialStatus.summariesUsed,
-      summariesLimit: trialStatus.summariesLimit,
-      daysRemaining,
-      expiryDate: expiryDate?.toISOString() || null
+      minutesUsed: trialStatus.minutesUsed || 0,
+      minutesLimit: trialStatus.minutesLimit || 30,
+      minutesRemaining: trialStatus.minutesRemaining || 30,
+      canUseService: trialStatus.canUseService !== undefined ? trialStatus.canUseService : !trialStatus.isExpired
     };
   } catch (error) {
     console.error('Error getting trial status:', error);

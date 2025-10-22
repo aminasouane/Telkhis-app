@@ -39,7 +39,7 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
   const [showTrialModal, setShowTrialModal] = useState(false);
-  const [trialInfo, setTrialInfo] = useState({ used: 0, limit: 10, daysRemaining: 7 });
+  const [trialInfo, setTrialInfo] = useState({ minutesUsed: 0, minutesLimit: 30.0 });
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
 
@@ -59,9 +59,8 @@ export default function Home() {
     const status = await getTrialStatus(currentUserId);
     if (status) {
       setTrialInfo({
-        used: status.summariesUsed,
-        limit: status.summariesLimit,
-        daysRemaining: status.daysRemaining
+        minutesUsed: status.minutesUsed,
+        minutesLimit: status.minutesLimit
       });
       
       if (status.isExpired) {
@@ -165,9 +164,8 @@ export default function Home() {
     } else if (result.trialStatus) {
       // Update trial info after successful save
       setTrialInfo({
-        used: result.trialStatus.summariesUsed,
-        limit: result.trialStatus.summariesLimit,
-        daysRemaining: result.trialStatus.daysRemaining
+        minutesUsed: result.trialStatus.minutesUsed,
+        minutesLimit: result.trialStatus.minutesLimit
       });
     }
   };
@@ -425,9 +423,8 @@ export default function Home() {
 
       <TrialExpiredModal
         open={showTrialModal}
-        summariesUsed={trialInfo.used}
-        summariesLimit={trialInfo.limit}
-        daysRemaining={trialInfo.daysRemaining}
+        minutesUsed={trialInfo.minutesUsed}
+        minutesLimit={trialInfo.minutesLimit}
       />
     </div>
   );
