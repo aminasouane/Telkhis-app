@@ -186,6 +186,9 @@ export default function Home() {
       const formData = new FormData();
       formData.append("audio", audioBlob, filename);
       formData.append("language", language);
+      if (audioDuration) {
+        formData.append("audioDuration", audioDuration.toString());
+      }
 
       const response = await fetch("/api/process-audio", {
         method: "POST",

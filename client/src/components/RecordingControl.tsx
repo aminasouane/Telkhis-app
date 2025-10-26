@@ -66,6 +66,7 @@ export default function RecordingControl({
       const formData = new FormData();
       formData.append("audio", audioBlob, "live-recording.webm");
       formData.append("language", language);
+      formData.append("audioDuration", duration.toString());
 
       const response = await fetch("/api/process-audio-live", {
         method: "POST",
