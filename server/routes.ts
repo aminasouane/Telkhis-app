@@ -17,15 +17,8 @@ const upload = multer({
     fileSize: 25 * 1024 * 1024, // 25MB limit
   },
   fileFilter: (_req: any, file: any, cb: any) => {
-    const allowedMimes = [
-      "audio/mpeg",
-      "audio/mp3",
-      "audio/wav",
-      "audio/m4a",
-      "audio/ogg",
-      "audio/webm",
-    ];
-    if (allowedMimes.includes(file.mimetype) || file.mimetype.startsWith("audio/")) {
+    // Allow all audio mimetypes including webm with codecs
+    if (file.mimetype.startsWith("audio/")) {
       cb(null, true);
     } else {
       cb(new Error("Invalid file type. Only audio files are allowed."));
