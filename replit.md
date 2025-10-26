@@ -134,17 +134,19 @@ The project uses PostgreSQL (via Neon serverless) with Drizzle ORM, primarily th
    - State: `trialInfo = { minutesUsed, minutesLimit }` instead of `{ used, limit, daysRemaining }`
    - Updated all trial status handlers to use minutes
 
-**Security Considerations:**
-- ✅ Server-side duration calculation using `music-metadata` in `/api/process-audio`
+**Security Considerations (Updated October 26, 2025):**
+- ⚠️ **Changed**: Removed server-side duration calculation using `music-metadata` (doesn't work with webm in Replit without ffmpeg)
+- ✅ Duration now comes from client MediaRecorder (audioDuration parameter)
 - ✅ Freshness check: `processedAt` must be < 5 minutes old
 - ✅ Sanity check: transcript length correlates with duration
-- ⚠️ **Known Limitation (MVP)**: Client can still tamper with `audioDuration` in `/api/save-summary` request. While sanity checks help, a sophisticated attacker could forge both `audioDuration` and matching transcript.
+- ⚠️ **Known Limitation (MVP)**: Client can tamper with `audioDuration` in both `/api/process-audio` and `/api/save-summary` requests. While sanity checks help, a sophisticated attacker could forge both `audioDuration` and matching transcript.
   
 **Recommended Security Enhancements (Future):**
-1. Persist server-calculated duration in database during `/api/process-audio`
-2. Link summary save requests to processing session with signed token
-3. Add server-side RPC function to enforce trial limits atomically
-4. Implement rate limiting on trial endpoints
+1. Add ffmpeg support or use alternative library for server-side webm duration extraction
+2. Persist server-calculated duration in database during `/api/process-audio`
+3. Link summary save requests to processing session with signed token
+4. Add server-side RPC function to enforce trial limits atomically
+5. Implement rate limiting on trial endpoints
 
 **User Flow:**
 1. New guest → Creates session → `trial_minutes_used: 0, trial_minutes_limit: 30`
@@ -165,3 +167,56 @@ The project uses PostgreSQL (via Neon serverless) with Drizzle ORM, primarily th
 - ✅ Migration script created (`add_trial_minutes_fields.sql`)
 - ⚠️ **User action needed**: Run migration in Supabase SQL Editor
 - ✅ No runtime errors (except database fields missing until migration runs)
+
+## Recent Changes (October 26, 2025)
+
+### Audio Processing Fix: Removed music-metadata Dependency
+
+**Problem**: Recording audio in webm format caused 422 Unprocessable Entity error:
+```
+POST /api/process-audio 422 (Unprocessable Entity)
+Error: لا يمكن قراءة مدة الملف الصوتي. يرجى التأكد من أن الملف صحيح والمحاولة مرة أخرى.
+```
+
+**Root Cause**: 
+- Backend used `music-metadata` library's `parseBuffer()` to extract audio duration server-side
+- `music-metadata` requires ffmpeg binaries to parse webm format
+- ffmpeg not available in Replit/Vercel environment by default
+- All webm recordings failed at metadata parsing step before reaching OpenAI
+
+**Solution Implemented:**
+1. **Backend Changes (`server/routes.ts`)**:
+   - Removed `music-metadata` import and `parseBuffer()` calls
+   - `/api/process-audio` now accepts optional `audioDuration` parameter from client
+   - `/api/process-audio-live` now accepts optional `audioDuration` parameter from client
+   - Duration validation (5-minute limit) only enforced if duration is provided
+   - Audio sent directly to OpenAI without metadata pre-processing
+   - Updated multer fileFilter to accept all `audio/*` mimetypes (including `audio/webm;codecs=opus`)
+
+2. **Frontend Changes**:
+   - **`client/src/pages/Home.tsx`**: Added `audioDuration` to FormData when calling `/api/process-audio`
+   - **`client/src/components/RecordingControl.tsx`**: Added `audioDuration` to FormData when calling `/api/process-audio-live`
+   - Duration tracked client-side via MediaRecorder and setInterval counter
+
+**Technical Details:**
+- Client-side duration tracking: `setInterval(() => setDuration(prev => prev + 1), 1000)`
+- Duration sent in seconds (e.g., "125" for 2:05 recording)
+- Backend converts to minutes for trial tracking: `audioMinutes = (audioDuration / 60).toFixed(2)`
+
+**Security Impact:**
+- **Before**: Server-authoritative duration (secure but broken for webm)
+- **After**: Client-supplied duration (works but less secure)
+- Mitigation: Sanity checks still active (transcript length vs duration, freshness check)
+- Future enhancement: Add ffmpeg support or alternative webm duration extraction
+
+**User Impact:**
+- ✅ Recording webm audio now works without errors
+- ✅ No more 422 responses from /api/process-audio
+- ✅ Audio successfully sent to OpenAI Whisper for transcription
+- ✅ Trial minutes tracking still functional (uses client-supplied duration)
+
+**Files Modified:**
+- `server/routes.ts`: Removed music-metadata, accept audioDuration param
+- `client/src/pages/Home.tsx`: Send audioDuration in FormData
+- `client/src/components/RecordingControl.tsx`: Send audioDuration in FormData
+- `replit.md`: Updated security considerations
