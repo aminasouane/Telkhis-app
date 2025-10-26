@@ -142,6 +142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const file = (req as any).file;
       const language = req.body.language || "ar"; // Default to Arabic
+      const audioDuration = req.body.audioDuration ? parseFloat(req.body.audioDuration) : null;
       
       if (!file) {
         return res.status(400).json({ error: "No audio file provided" });
@@ -153,37 +154,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid language selection" });
       }
 
-      // Calculate audio duration server-side (security: don't trust client)
-      let audioDuration: number;
-      try {
-        const metadata = await parseBuffer(file.buffer, {
-          mimeType: file.mimetype
-        });
-        
-        if (!metadata.format.duration) {
-          return res.status(422).json({
-            error: "لا يمكن قراءة مدة الملف الصوتي. يرجى التأكد من أن الملف صحيح والمحاولة مرة أخرى.",
-            errorCode: "METADATA_MISSING"
-          });
-        }
-        
-        audioDuration = Math.ceil(metadata.format.duration);
-        
-        // Enforce 5-minute (300 second) duration limit BEFORE AI processing
-        if (audioDuration > 300) {
-          return res.status(403).json({
-            error: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
-            errorCode: "DURATION_EXCEEDED",
-            duration: audioDuration,
-            maxDuration: 300
-          });
-        }
-      } catch (metadataError) {
-        console.error("Error parsing audio metadata:", metadataError);
-        // Hard fail if we can't parse metadata - security measure to prevent bypass
-        return res.status(422).json({
-          error: "فشل قراءة معلومات الملف الصوتي. يرجى التأكد من تنسيق الملف والمحاولة مرة أخرى.",
-          errorCode: "METADATA_PARSE_ERROR"
+      // Optional: Enforce 5-minute duration limit if duration is provided
+      if (audioDuration && audioDuration > 300) {
+        return res.status(403).json({
+          error: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
+          errorCode: "DURATION_EXCEEDED",
+          duration: audioDuration,
+          maxDuration: 300
         });
       }
 
@@ -202,14 +179,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 2: Summarize transcription with language context
       const { summary, keyPoints } = await summarizeText(transcription, language);
 
-      // Return results with duration (server-calculated, trusted value)
-      // Note: duration is now server-authoritative and should be used for all trial checks
+      // Return results with duration (from client if provided)
       res.json({
         transcription,
         summary,
         keyPoints,
-        audioDuration,
-        // Add a server timestamp for freshness validation
+        audioDuration: audioDuration || null,
         processedAt: new Date().toISOString(),
       });
     } catch (error: any) {
