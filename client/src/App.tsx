@@ -10,6 +10,7 @@ import Home from "@/pages/Home";
 import HistoryScreen from "@/pages/HistoryScreen";
 import Login from "@/pages/Login";
 import Subscribe from "@/pages/Subscribe";
+import Terms from "@/pages/Terms";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/history" component={HistoryScreen} />
       <Route path="/login" component={Login} />
       <Route path="/subscribe" component={Subscribe} />
+      <Route path="/terms" component={Terms} />
       <Route component={NotFound} />
     </Switch>
   );
