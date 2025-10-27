@@ -1,22 +1,69 @@
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, FileText, Mail } from "lucide-react";
+import { ArrowRight, FileText, Mail, Loader2 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
+import { getTrialStatus } from "@/services/trialService";
 
 export default function Terms() {
+  const { user, isGuest, guestUserId, loading: authLoading } = useAuth();
+  const [trialActive, setTrialActive] = useState(false);
+  const [checkingTrial, setCheckingTrial] = useState(true);
+  
+  const currentUserId = isGuest ? guestUserId : user?.id;
+
+  // Check trial status to determine navigation target
+  useEffect(() => {
+    const checkTrial = async () => {
+      if (!currentUserId) {
+        setTrialActive(false);
+        setCheckingTrial(false);
+        return;
+      }
+
+      try {
+        const status = await getTrialStatus(currentUserId);
+        setTrialActive(!!(status && !status.isExpired && status.minutesRemaining > 0));
+      } catch (error) {
+        console.error("Error checking trial status:", error);
+        setTrialActive(false);
+      } finally {
+        setCheckingTrial(false);
+      }
+    };
+
+    if (!authLoading) {
+      checkTrial();
+    }
+  }, [currentUserId, authLoading]);
+
+  // Determine navigation target based on trial status
+  const navigationTarget = trialActive ? "/" : "/subscribe";
+  const backButtonText = trialActive ? "العودة للرئيسية" : "العودة للاشتراك";
+  const ctaButtonText = trialActive ? "ابدأ الاستخدام" : "اشترك الآن";
+
+  if (authLoading || checkingTrial) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Header */}
         <div className="mb-8">
-          <Link href="/subscribe">
+          <Link href={navigationTarget}>
             <Button 
               variant="ghost" 
               className="mb-4"
-              data-testid="button-back-subscribe"
+              data-testid="button-back"
             >
               <ArrowRight className="ml-2 h-4 w-4" />
-              العودة للاشتراك
+              {backButtonText}
             </Button>
           </Link>
           
@@ -207,12 +254,12 @@ export default function Terms() {
           <p className="text-muted-foreground text-sm mb-4">
             آخر تحديث: أكتوبر 2025
           </p>
-          <Link href="/subscribe">
+          <Link href={navigationTarget}>
             <Button 
               size="lg" 
-              data-testid="button-subscribe-now"
+              data-testid="button-cta"
             >
-              اشترك الآن
+              {ctaButtonText}
             </Button>
           </Link>
         </div>
