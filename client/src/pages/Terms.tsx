@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, FileText } from "lucide-react";
+import { ArrowRight, FileText, Mail } from "lucide-react";
 
 export default function Terms() {
   return (
@@ -9,14 +9,14 @@ export default function Terms() {
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Header */}
         <div className="mb-8">
-          <Link href="/">
+          <Link href="/subscribe">
             <Button 
               variant="ghost" 
               className="mb-4"
-              data-testid="button-back-home"
+              data-testid="button-back-subscribe"
             >
               <ArrowRight className="ml-2 h-4 w-4" />
-              العودة للرئيسية
+              العودة للاشتراك
             </Button>
           </Link>
           
@@ -191,9 +191,10 @@ export default function Terms() {
               <p>
                 لأي استفسارات أو اقتراحات، يمكنك التواصل عبر البريد الإلكتروني:
               </p>
-              <p className="text-primary font-medium text-lg" data-testid="text-support-email">
-                📩 support@telkhisli.com
-              </p>
+              <div className="flex items-center gap-2 text-primary font-medium text-lg" data-testid="text-support-email">
+                <Mail className="h-5 w-5" />
+                <span>support@telkhisli.com</span>
+              </div>
               <p className="text-sm text-muted-foreground">
                 (يمكن تغييره لاحقًا إلى البريد الرسمي)
               </p>
@@ -206,12 +207,12 @@ export default function Terms() {
           <p className="text-muted-foreground text-sm mb-4">
             آخر تحديث: أكتوبر 2025
           </p>
-          <Link href="/">
+          <Link href="/subscribe">
             <Button 
               size="lg" 
-              data-testid="button-start-using"
+              data-testid="button-subscribe-now"
             >
-              ابدأ الاستخدام الآن
+              اشترك الآن
             </Button>
           </Link>
         </div>
