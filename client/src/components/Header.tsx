@@ -74,7 +74,9 @@ export default function Header() {
               )}
             </Button>
 
-            {user && userData && (
+            {/* Profile icon - only shown for users with active paid subscription */}
+            {/* Old condition (shows for all logged-in users): {user && userData && ( */}
+            {user && userData && subscription?.status === 'active' && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="gap-2" data-testid="button-user-menu">
