@@ -75,7 +75,8 @@ export default function Header() {
             </Button>
 
             {/* Profile icon - shown for authenticated users only (hidden for guests) */}
-            {user && userData && userData.user_type !== 'guest' && (
+            {/* Strict whitelist: only show for authenticated user types (excludes undefined, null, guest) */}
+            {user && userData && ['free', 'premium', 'pro_plus'].includes(userData.user_type || '') && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   {subscription?.status === 'active' ? (
