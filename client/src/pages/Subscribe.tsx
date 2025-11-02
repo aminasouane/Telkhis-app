@@ -4,69 +4,28 @@ import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Sparkles, Zap, Crown, Loader2 } from "lucide-react";
+import { Check, Sparkles, Zap, GraduationCap, Crown, Loader2, AlertCircle } from "lucide-react";
 import { getTrialStatus } from "@/services/trialService";
+import { getAllPlans, type SubscriptionPlan } from "@shared/plans";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
 
-interface PricingPlan {
-  id: string;
-  name: string;
-  nameAr: string;
-  price: number;
-  currency: string;
-  interval: string;
-  intervalAr: string;
-  features: string[];
-  icon: any;
-  popular?: boolean;
-  priceId?: string; // سيتم استخدامه عند دمج Stripe
-}
+const plans: SubscriptionPlan[] = getAllPlans();
 
-const plans: PricingPlan[] = [
-  {
-    id: "monthly",
-    name: "Monthly",
-    nameAr: "الاشتراك الشهري",
-    price: 9.99,
-    currency: "USD",
-    interval: "month",
-    intervalAr: "شهر",
-    icon: Sparkles,
-    features: [
-      "تلخيصات غير محدودة",
-      "دعم جميع اللغات (عربي، فرنسي، جزائري)",
-      "تسجيلات حتى 60 دقيقة",
-      "حفظ التاريخ الكامل",
-      "تصدير PDF و TXT",
-      "دعم فني على مدار الساعة",
-    ],
-  },
-  {
-    id: "yearly",
-    name: "Yearly",
-    nameAr: "الاشتراك السنوي",
-    price: 99.99,
-    currency: "USD",
-    interval: "year",
-    intervalAr: "سنة",
-    icon: Crown,
-    popular: true,
-    features: [
-      "كل مميزات الاشتراك الشهري",
-      "وفر 17% (شهرين مجاناً)",
-      "أولوية في المعالجة",
-      "ميزات تجريبية مبكرة",
-      "دعم فني مخصص",
-      "ضمان استرجاع المال لمدة 30 يوماً",
-    ],
-  },
-];
+// Icon mapping for plans
+const planIcons: Record<string, any> = {
+  basic: Sparkles,
+  student: GraduationCap,
+  professional: Crown,
+};
 
 export default function Subscribe() {
   const [, navigate] = useLocation();
   const { user, isGuest, guestUserId, loading: authLoading } = useAuth();
-  const [selectedPlan, setSelectedPlan] = useState<string>("yearly");
+  const [selectedPlan, setSelectedPlan] = useState<string>("student");
   const [isProcessing, setIsProcessing] = useState(false);
   const [checkingTrial, setCheckingTrial] = useState(true);
+  const { toast } = useToast();
   
   const currentUserId = isGuest ? guestUserId : user?.id;
 
@@ -111,15 +70,69 @@ export default function Subscribe() {
     setIsProcessing(true);
     setSelectedPlan(planId);
 
-    // TODO: عند دمج Stripe، سيتم استدعاء API هنا:
-    // 1. إنشاء Stripe Checkout Session
-    // 2. توجيه المستخدم إلى صفحة الدفع
-    // 3. معالجة الدفع عبر Webhook
-    
-    // مؤقتاً: عرض رسالة توضيحية
-    alert("سيتم دمج بوابة الدفع قريباً عبر Stripe");
-    
-    setIsProcessing(false);
+    try {
+      // Ensure user is authenticated
+      if (!user || isGuest) {
+        toast({
+          title: "خطأ",
+          description: "يرجى تسجيل الدخول أولاً لإتمام عملية الاشتراك",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+        navigate("/login");
+        return;
+      }
+
+      // Get Supabase session token for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast({
+          title: "خطأ في المصادقة",
+          description: "يرجى تسجيل الدخول مرة أخرى",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      // Create Chargily checkout session
+      const response = await fetch("/api/chargily/create-checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          planId,
+          locale: "ar", // Default to Arabic
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "فشل إنشاء جلسة الدفع");
+      }
+
+      const data = await response.json();
+
+      // Redirect to Chargily payment page
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error("لم يتم إرجاع رابط الدفع");
+      }
+    } catch (error: any) {
+      console.error("Error creating checkout:", error);
+      
+      toast({
+        title: "فشل إنشاء جلسة الدفع",
+        description: error.message || "حدث خطأ. يرجى المحاولة مرة أخرى.",
+        variant: "destructive",
+      });
+      
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -156,9 +169,9 @@ export default function Subscribe() {
 
       {/* Pricing Cards */}
       <div className="container pb-16">
-        <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-2">
+        <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-3">
           {plans.map((plan) => {
-            const Icon = plan.icon;
+            const Icon = planIcons[plan.id] || Sparkles;
             const isSelected = selectedPlan === plan.id;
             
             return (
@@ -169,10 +182,10 @@ export default function Subscribe() {
                 } ${isSelected ? "ring-2 ring-primary" : ""}`}
                 data-testid={`card-plan-${plan.id}`}
               >
-                {plan.popular && (
+                {plan.badge && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <Badge className="bg-primary px-4 py-1" data-testid="badge-popular">
-                      الأكثر شعبية
+                      {plan.badgeAr}
                     </Badge>
                   </div>
                 )}
@@ -182,22 +195,30 @@ export default function Subscribe() {
                     <Icon className="h-8 w-8 text-primary" />
                   </div>
                   <CardTitle className="text-2xl">{plan.nameAr}</CardTitle>
+                  <CardDescription className="text-sm mt-2">
+                    {plan.descriptionAr}
+                  </CardDescription>
                   <CardDescription>
                     <div className="mt-4 flex items-baseline justify-center gap-1">
-                      <span className="text-4xl font-bold text-foreground">
-                        ${plan.price}
+                      <span className="text-3xl font-bold text-foreground">
+                        {plan.priceDZD.toLocaleString('ar-DZ')} د.ج
                       </span>
-                      <span className="text-muted-foreground">/ {plan.intervalAr}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      (~${plan.price} USD)
+                    </div>
+                    <div className="text-sm text-primary font-medium mt-3">
+                      {plan.lectures} محاضرة × {plan.lecturesDuration} دقيقة
                     </div>
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent>
-                  <ul className="space-y-3" data-testid={`list-features-${plan.id}`}>
-                    {plan.features.map((feature, index) => (
+                  <ul className="space-y-2" data-testid={`list-features-${plan.id}`}>
+                    {plan.featuresAr.map((feature, index) => (
                       <li key={index} className="flex items-start gap-2">
-                        <Check className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                        <span className="text-sm">{feature}</span>
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <span className="text-xs">{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -212,7 +233,14 @@ export default function Subscribe() {
                     disabled={isProcessing}
                     data-testid={`button-subscribe-${plan.id}`}
                   >
-                    {isProcessing && isSelected ? "جاري المعالجة..." : "اشترك الآن"}
+                    {isProcessing && isSelected ? (
+                      <>
+                        <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                        جاري التحويل...
+                      </>
+                    ) : (
+                      "اشترك الآن"
+                    )}
                   </Button>
                 </CardFooter>
               </Card>

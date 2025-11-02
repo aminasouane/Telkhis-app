@@ -31,9 +31,83 @@ The frontend is built with React, TypeScript, and Vite, using Wouter for routing
 The backend uses Node.js with Express.js, providing RESTful endpoints for health checks, audio processing (live and batch), and secure guest/user management. It employs Multer for in-memory audio file handling. The audio processing pipeline involves pre-processing validation (e.g., duration limits), transcription via OpenAI Whisper, and summarization via GPT-4o-mini. The system incorporates a multi-layered security architecture with pre-AI validation, trusted metadata, and defense-in-depth for summary persistence, including freshness and sanity checks, and atomic trial enforcement. Client-side audio duration is used for trial tracking.
 
 ### Data Storage
-The project uses PostgreSQL (via Neon serverless) with Drizzle ORM, primarily through Supabase. Tables include `users`, `subscriptions`, `summaries`, and `settings`. The `subscriptions` table tracks trial usage, limits, and expiration, and is prepared with fields for Stripe integration. All sensitive Supabase operations are mediated by the backend using `SUPABASE_SERVICE_ROLE_KEY`, enforcing RLS policies for data isolation.
+The project uses PostgreSQL (via Neon serverless) with Drizzle ORM, primarily through Supabase. Tables include `users`, `subscriptions`, `summaries`, `settings`, and `payments`. The `subscriptions` table tracks trial usage, limits, expiration, and payment provider information (Chargily/Stripe). The `payments` table logs all payment transactions with complete metadata for audit trails. All sensitive Supabase operations are mediated by the backend using `SUPABASE_SERVICE_ROLE_KEY`, enforcing RLS policies for data isolation.
+
+## Subscription Plans
+
+### Payment Integration
+The application uses **Chargily Pay** for processing subscription payments in Algeria. Three subscription tiers are available:
+
+1. **الخطة الأساسية (Basic Plan)** - 67,400 DZD (~$4.99)
+   - 5 محاضرات × 45 دقيقة
+   - Total: 225 minutes of audio processing
+   - Target: New users trying the service
+
+2. **خطة الطالب (Student Plan)** - 256,500 DZD (~$19.00) ⭐ Most Popular
+   - 30 محاضرة × 45 دقيقة
+   - Total: 1,350 minutes of audio processing
+   - Target: University students, Master's and PhD students
+
+3. **خطة المحترف (Professional Plan)** - 472,400 DZD (~$34.99)
+   - 60 محاضرة × 45 دقيقة
+   - Total: 2,700 minutes of audio processing
+   - Target: Professors, researchers, and heavy users
+
+### Payment Flow
+1. User selects a subscription plan from `/subscribe`
+2. Frontend requests checkout with **JWT authentication** (Bearer token from Supabase session)
+3. Backend creates Chargily checkout session via `POST /api/chargily/create-checkout` (protected by `requireAuth` middleware)
+4. User is redirected to Chargily payment page (EDAHABIA/CIB)
+5. After successful payment, Chargily sends webhook to `/api/chargily/webhook`
+6. Backend validates webhook signature and activates subscription
+7. User is redirected to `/success` page
+8. Subscription and payment records are created in database
+
+### Security Architecture
+**Authentication & Authorization:**
+- **JWT-Based Authentication**: All payment endpoints require valid Supabase JWT tokens
+- **requireAuth Middleware** (`server/middleware/auth.ts`): Validates Bearer tokens and extracts authenticated user ID
+- **No Client-Supplied User IDs**: User identity is derived server-side from verified JWT, preventing privilege escalation attacks
+- **Frontend Token Handling**: Authorization header sent with every authenticated request: `Authorization: Bearer <access_token>`
+
+**Payment Security:**
+- **Webhook Signature Verification**: All Chargily webhooks validated using signature-based authentication
+- **Server-Side User Verification**: User ID extracted from authenticated session only, not from request body
+- **Atomic Database Operations**: Subscription activation uses database transactions to prevent inconsistent states
+
+### Environment Variables
+Required for Chargily integration:
+- `CHARGILY_API_KEY`: Secret API key from Chargily Dashboard
+- `CHARGILY_MODE`: "test" or "live" (defaults to "test")
+- `VITE_APP_URL`: Base URL for success/failure/webhook URLs
+
+Required for authentication middleware:
+- `VITE_SUPABASE_URL`: Supabase project URL (for JWT verification)
+- `VITE_SUPABASE_ANON_KEY`: Supabase anon/public key (for JWT verification)
+
+### Database Schema
+**subscriptions table:**
+- `chargily_customer_id`: Chargily customer identifier
+- `chargily_checkout_id`: Checkout session identifier
+- `chargily_product_id`: Product identifier (if using products)
+- `chargily_price_id`: Price identifier (if using prices)
+- `payment_provider`: "chargily" | "stripe" | "in-app" | "manual"
+
+**payments table:**
+- Tracks all payment transactions
+- Stores Chargily checkout ID and customer ID
+- Includes payment status, amount, currency, and metadata
+- Links to user and subscription records
 
 ## External Dependencies
+
+### Payment Gateway
+- **Chargily Pay**: Algeria's leading e-payment gateway for processing subscriptions
+    - **Supported Methods**: EDAHABIA (Algérie Poste), CIB (SATIM), International Cards
+    - **Currency**: DZD (Algerian Dinar)
+    - **Integration**: Via `@chargily/chargily-pay` SDK (V2 API)
+    - **Webhook**: Signature verification for payment confirmation
+    - **Mode**: Test/Live mode support
 
 ### AI/ML Services
 - **OpenAI API**:

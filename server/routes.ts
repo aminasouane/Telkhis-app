@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
+import bodyParser from "body-parser";
 import { transcribeAudio, summarizeText } from "./openai";
 import { createGuestSession } from "./api/guest-session";
 import { saveSummary } from "./api/save-summary";
@@ -8,6 +9,8 @@ import { getSummaries, getSummaryById, deleteSummary } from "./api/summaries";
 import { migrateGuest } from "./api/migrate-guest";
 import { getTrialStatus } from "./api/trial-status";
 import { upsertUser, getUserSettings, updateUserSettings } from "./api/user";
+import { handleCreateCheckout } from "./api/chargily-checkout";
+import { handleChargilyWebhook } from "./api/chargily-webhook";
 
 // Configure multer for memory storage
 const upload = multer({
@@ -44,6 +47,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/user/upsert", upsertUser);
   app.get("/api/user/settings", getUserSettings);
   app.post("/api/user/settings", updateUserSettings);
+
+  // Chargily Pay endpoints (with authentication)
+  const { requireAuth } = await import("./middleware/auth");
+  app.post("/api/chargily/create-checkout", requireAuth, handleCreateCheckout);
+  
+  // Webhook endpoint with raw body capture for signature verification
+  app.post(
+    "/api/chargily/webhook",
+    bodyParser.json({
+      verify: (req: Request, _res, buf: Buffer) => {
+        (req as any).rawBody = buf;
+      },
+    }),
+    handleChargilyWebhook
+  );
 
   // Live summary endpoint - processes audio chunks during recording
   app.post("/api/process-audio-live", upload.single("audio"), async (req: Request, res) => {
