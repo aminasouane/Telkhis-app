@@ -22,14 +22,34 @@ export default function Header() {
   const [, navigate] = useLocation();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [isLoadingUserData, setIsLoadingUserData] = useState(false);
 
   useEffect(() => {
+    // Clear stale data immediately and set loading state
+    setUserData(null);
+    setSubscription(null);
+    setIsLoadingUserData(true);
+
     if (user) {
-      getUserData(user.id).then(setUserData);
-      getUserSubscription(user.id).then(setSubscription);
+      // Capture current user ID to prevent race conditions
+      const currentUserId = user.id;
+      
+      Promise.all([
+        getUserData(currentUserId),
+        getUserSubscription(currentUserId)
+      ]).then(([data, sub]) => {
+        // Only update state if user hasn't changed during fetch
+        if (user && user.id === currentUserId) {
+          setUserData(data);
+          setSubscription(sub);
+        }
+        setIsLoadingUserData(false);
+      }).catch(() => {
+        setIsLoadingUserData(false);
+      });
     } else {
-      setUserData(null);
-      setSubscription(null);
+      // No user - loading complete
+      setIsLoadingUserData(false);
     }
   }, [user]);
 
@@ -46,6 +66,17 @@ export default function Header() {
       pro_plus: 'برو بلس'
     };
     return labels[type as keyof typeof labels] || 'مجاني';
+  };
+
+  // Helper function to check if user is authenticated (not guest)
+  const isAuthenticatedUser = (): boolean => {
+    if (!userData || !userData.user_type) return false;
+    
+    // Normalize to lowercase for case-insensitive comparison
+    const userType = userData.user_type.toLowerCase();
+    const allowedTypes = ['free', 'premium', 'pro_plus'];
+    
+    return allowedTypes.includes(userType);
   };
 
   return (
@@ -75,8 +106,8 @@ export default function Header() {
             </Button>
 
             {/* Profile icon - shown for authenticated users only (hidden for guests) */}
-            {/* Strict whitelist: only show for authenticated user types (excludes undefined, null, guest) */}
-            {user && userData && ['free', 'premium', 'pro_plus'].includes(userData.user_type || '') && (
+            {/* Only show after data loads and for verified authenticated user types */}
+            {user && !isLoadingUserData && isAuthenticatedUser() && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   {subscription?.status === 'active' ? (
@@ -87,7 +118,7 @@ export default function Header() {
                       </Badge>
                       <User className="h-4 w-4" />
                       <span className="hidden sm:inline" data-testid="text-user-name">
-                        {userData.name || user.email?.split('@')[0]}
+                        {userData?.name || user.email?.split('@')[0]}
                       </span>
                     </Button>
                   ) : (
@@ -108,7 +139,7 @@ export default function Header() {
                     <>
                       <DropdownMenuLabel>
                         <div className="flex flex-col gap-1">
-                          <span>{userData.name || user.email?.split('@')[0]}</span>
+                          <span>{userData?.name || user.email?.split('@')[0]}</span>
                           <span className="text-xs font-normal text-muted-foreground" dir="ltr">
                             {user.email}
                           </span>
