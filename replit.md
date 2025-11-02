@@ -11,6 +11,11 @@ Preferred communication style: Simple, everyday language.
 ### Frontend
 The frontend is built with React, TypeScript, and Vite, using Wouter for routing. UI components are based on Radix UI with shadcn/ui patterns, inspired by Material Design 3, featuring a cyan primary color and RTL-first design with Arabic typography. State management utilizes TanStack Query for server state and React Context for UI, theme, language, and authentication. Key features include a progressive disclosure workflow, multi-language support with dynamic RTL/LTR switching, a live summary, save/share functionalities (TXT, PDF, Web Share API), and distinct pages for home, history, subscription, and terms of use. Session management and user authentication are handled via Supabase Auth, with a usage-based trial system (30 minutes audio).
 
+**Header Component**: Profile icon visibility follows a three-tier logic:
+- Guest users (`user_type === 'guest'`): Icon hidden
+- Authenticated users without subscription: Simple User icon with logout-only dropdown
+- Authenticated users with active subscription: Full menu with badge, name, and user info
+
 ### Backend
 The backend uses Node.js with Express.js, providing RESTful endpoints for health checks, audio processing (live and batch), and secure guest/user management. It employs Multer for in-memory audio file handling. The audio processing pipeline involves pre-processing validation (e.g., duration limits), transcription via OpenAI Whisper, and summarization via GPT-4o-mini. The system incorporates a multi-layered security architecture with pre-AI validation, trusted metadata, and defense-in-depth for summary persistence, including freshness and sanity checks, and atomic trial enforcement. Client-side audio duration is used for trial tracking.
 
