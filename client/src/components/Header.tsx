@@ -74,35 +74,58 @@ export default function Header() {
               )}
             </Button>
 
-            {/* Profile icon - only shown for users with active paid subscription */}
-            {/* Old condition (shows for all logged-in users): {user && userData && ( */}
-            {user && userData && subscription?.status === 'active' && (
+            {/* Profile icon - shown for authenticated users only (hidden for guests) */}
+            {user && userData && userData.user_type !== 'guest' && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="gap-2" data-testid="button-user-menu">
-                    <Badge variant="secondary" data-testid="badge-subscription">
-                      {getSubscriptionBadge()}
-                    </Badge>
-                    <User className="h-4 w-4" />
-                    <span className="hidden sm:inline" data-testid="text-user-name">
-                      {userData.name || user.email?.split('@')[0]}
-                    </span>
-                  </Button>
+                  {subscription?.status === 'active' ? (
+                    // Full profile menu for subscribed users
+                    <Button variant="ghost" className="gap-2" data-testid="button-user-menu">
+                      <Badge variant="secondary" data-testid="badge-subscription">
+                        {getSubscriptionBadge()}
+                      </Badge>
+                      <User className="h-4 w-4" />
+                      <span className="hidden sm:inline" data-testid="text-user-name">
+                        {userData.name || user.email?.split('@')[0]}
+                      </span>
+                    </Button>
+                  ) : (
+                    // Simple logout button for authenticated users without subscription
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      data-testid="button-user-menu"
+                      className="hover-elevate active-elevate-2"
+                    >
+                      <User className="h-5 w-5" />
+                    </Button>
+                  )}
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col gap-1">
-                      <span>{userData.name || user.email?.split('@')[0]}</span>
-                      <span className="text-xs font-normal text-muted-foreground" dir="ltr">
-                        {user.email}
-                      </span>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut} data-testid="button-logout">
-                    <LogOut className="ml-2 h-4 w-4" />
-                    <span>تسجيل الخروج</span>
-                  </DropdownMenuItem>
+                  {subscription?.status === 'active' ? (
+                    // Full menu for subscribed users
+                    <>
+                      <DropdownMenuLabel>
+                        <div className="flex flex-col gap-1">
+                          <span>{userData.name || user.email?.split('@')[0]}</span>
+                          <span className="text-xs font-normal text-muted-foreground" dir="ltr">
+                            {user.email}
+                          </span>
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleSignOut} data-testid="button-logout">
+                        <LogOut className="ml-2 h-4 w-4" />
+                        <span>تسجيل الخروج</span>
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    // Simple logout option for authenticated users without subscription
+                    <DropdownMenuItem onClick={handleSignOut} data-testid="button-logout">
+                      <LogOut className="ml-2 h-4 w-4" />
+                      <span>تسجيل الخروج</span>
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
