@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "./AuthProvider";
@@ -23,23 +23,47 @@ export default function Header() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [isLoadingUserData, setIsLoadingUserData] = useState(false);
+  const cachedUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Clear stale data immediately and set loading state
-    setUserData(null);
-    setSubscription(null);
+    // If no user (logout), clear data immediately
+    if (!user) {
+      setUserData(null);
+      setSubscription(null);
+      setIsLoadingUserData(false);
+      cachedUserIdRef.current = null;
+      return;
+    }
+
+    // If user ID changed (different user), clear stale data immediately
+    if (cachedUserIdRef.current && user.id !== cachedUserIdRef.current) {
+      setUserData(null);
+      setSubscription(null);
+    }
+
+    // Update cached user ID
+    cachedUserIdRef.current = user.id;
+
+    // User exists - set loading state (keep previous data for SAME user to avoid flicker)
     setIsLoadingUserData(true);
 
-    if (user) {
-      // Capture current user ID to prevent race conditions
-      const currentUserId = user.id;
+    // Add debounce to prevent flickering during rapid auth state changes
+    const timer = setTimeout(() => {
+      // Check if user is still logged in using the ref (not closure)
+      const currentCachedId = cachedUserIdRef.current;
+      if (!currentCachedId) {
+        // User logged out during debounce
+        setIsLoadingUserData(false);
+        return;
+      }
       
       Promise.all([
-        getUserData(currentUserId),
-        getUserSubscription(currentUserId)
+        getUserData(currentCachedId),
+        getUserSubscription(currentCachedId)
       ]).then(([data, sub]) => {
-        // Only update state if user hasn't changed during fetch
-        if (user && user.id === currentUserId) {
+        // Only update state if the cached user ID hasn't changed during fetch
+        // This prevents updating with stale data after logout or user switch
+        if (cachedUserIdRef.current === currentCachedId) {
           setUserData(data);
           setSubscription(sub);
         }
@@ -47,10 +71,10 @@ export default function Header() {
       }).catch(() => {
         setIsLoadingUserData(false);
       });
-    } else {
-      // No user - loading complete
-      setIsLoadingUserData(false);
-    }
+    }, 300);
+
+    // Cleanup timer on unmount or user change
+    return () => clearTimeout(timer);
   }, [user]);
 
   const handleSignOut = async () => {
@@ -106,8 +130,9 @@ export default function Header() {
             </Button>
 
             {/* Profile icon - shown for authenticated users only (hidden for guests) */}
-            {/* Only show after data loads and for verified authenticated user types */}
-            {user && !isLoadingUserData && isAuthenticatedUser() && (
+            {/* Show when userData exists (cached or fresh) - debounce keeps icon visible during refresh */}
+            {/* userData must exist to verify user_type; subscription can be null for non-subscribed users */}
+            {user && userData && isAuthenticatedUser() && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   {subscription?.status === 'active' ? (
