@@ -92,12 +92,17 @@ Required for authentication middleware:
 - `chargily_product_id`: Product identifier (if using products)
 - `chargily_price_id`: Price identifier (if using prices)
 - `payment_provider`: "chargily" | "stripe" | "in-app" | "manual"
+- `transaction_id`: Chargily transaction ID for payment tracking (NEW)
+- `payment_method`: Payment method used (CIB, EDAHABIA, BaridiMob, etc.) (NEW)
+- `payment_status`: Current payment status (pending, paid, failed, refunded) (NEW)
 
 **payments table:**
 - Tracks all payment transactions
 - Stores Chargily checkout ID and customer ID
 - Includes payment status, amount, currency, and metadata
 - Links to user and subscription records
+
+**Note:** New payment tracking fields require running the SQL migration: `database/migrations/add_payment_tracking_fields.sql`
 
 ## External Dependencies
 
