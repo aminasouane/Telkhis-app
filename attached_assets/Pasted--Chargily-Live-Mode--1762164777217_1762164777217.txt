@@ -1,0 +1,142 @@
+💬 رسالة للمطور — نظام روابط الدفع المباشرة (Chargily Live Mode)
+
+الموضوع: تكامل نظام روابط الدفع المباشرة (Direct Payment Links) في تطبيق تلخيصلي
+
+مرحبًا 👋
+
+✅ تم الآن إكمال تطوير نظام الدفع الجديد الذي يعتمد على روابط الدفع المباشرة من Chargily بدلًا من API checkout السابق.
+هذا النظام أكثر أمانًا وسرعة وبساطة، ومناسب تمامًا لاشتراكات دفعة لمرة واحدة بدون مدة محددة في تطبيق تلخيصلي.
+
+📦 أهم التحديثات المنفذة
+
+API جديد:
+
+GET /api/payment-link/:planId للحصول على رابط الدفع حسب الخطة.
+
+GET /api/payment-links/status للتحقق من تكوين الروابط.
+
+يعتمد على متغيرات البيئة (Replit Secrets) بدلًا من الروابط الصلبة.
+
+واجهة المستخدم (Frontend):
+
+تم تحديث Subscribe.tsx لاستخدام روابط الدفع المباشرة.
+
+تم تحسين التحقق من الـ Authentication.
+
+إضافة صفحتين جديدتين:
+
+/payment/success — صفحة نجاح الدفع.
+
+/payment/failed — صفحة فشل الدفع.
+
+Webhook محسّن (server/api/chargily-webhook.ts):
+
+يدعم اشتراكات دائمة (end_date = null).
+
+تحققات أمنية إضافية (التحقق من الحقول المطلوبة).
+
+معالجة بيانات افتراضية لتفادي أخطاء قاعدة البيانات.
+
+وثائق مرفقة:
+
+PAYMENT_LINKS_SETUP.md — دليل تفصيلي لإنشاء روابط الدفع.
+
+SETUP_CHECKLIST.md — قائمة تحقق شاملة للإعداد.
+
+🚨 الخطوات المطلوبة للتفعيل النهائي
+⚙️ 1. تنفيذ Database Migrations
+
+في Supabase SQL Editor، نفّذ الملفات التالية بالترتيب:
+
+1. database/migrations/add_trial_minutes_fields.sql
+2. database/migrations/add_chargily_integration.sql
+3. database/migrations/add_payment_tracking_fields.sql
+
+🔐 2. إضافة روابط الدفع في Replit Secrets
+
+في تبويب Tools → Secrets أضف القيم التالية:
+
+CHARGILY_LINK_BASIC = [رابط الخطة الأساسية]
+CHARGILY_LINK_STUDENT = [رابط خطة الطالب]
+CHARGILY_LINK_PROFESSIONAL = [رابط الخطة المحترفة]
+CHARGILY_MODE = live
+
+
+راجع ملف PAYMENT_LINKS_SETUP.md للحصول على تفاصيل إنشاء الروابط من Chargily.
+
+🌐 3. تكوين Webhook في Chargily Dashboard
+
+من لوحة Chargily:
+
+انتقل إلى: Developers → Webhooks → Add Endpoint
+
+أضف الرابط:
+
+https://your-app.replit.app/api/chargily/webhook
+
+
+فعّل الأحداث:
+
+checkout.paid
+
+checkout.failed
+
+🔍 4. التحقق من التكوين
+
+اختبر الرابط التالي بعد إضافة المتغيرات:
+
+https://your-app.replit.app/api/payment-links/status
+
+
+يجب أن يُظهر النتيجة التالية:
+
+{
+  "basic": { "configured": true },
+  "student": { "configured": true },
+  "professional": { "configured": true },
+  "allConfigured": true
+}
+
+💡 ملاحظات ختامية
+
+نظام الدفع الآن يعتمد على دفعة واحدة (One-time Payment) بدون تجديد تلقائي أو مدة انتهاء.
+
+كل معاملة ناجحة تُحدِّث تلقائيًا الحقول التالية:
+
+transaction_id
+
+payment_method
+
+payment_status = "paid"
+
+subscription_status = "active"
+
+end_date = null
+
+🧪 اختبار الدفع الحي (Live Payment Test)
+
+افتح تطبيق تلخيصلي على Replit بعد التفعيل الكامل.
+
+اضغط على زر "اشترك الآن" في واجهة الاشتراك.
+
+تأكد أن المستخدم يُوجَّه إلى صفحة الدفع الرسمية من Chargily (يُفترض أن تبدأ بـ https://pay.chargily.com/checkout/…).
+
+أكمِل عملية دفع حقيقية باستخدام بطاقة CIB أو EDAHABIA.
+
+بعد نجاح العملية:
+
+يجب إعادة التوجيه إلى /payment/success.
+
+تحقق من قاعدة البيانات في Supabase:
+
+payment_status = "paid"
+
+subscription_status = "active"
+
+transaction_id و payment_method تم ملؤهما.
+
+تحقق من الـ Logs في Replit لضمان وصول Webhook ومعالجته بنجاح.
+
+جرّب أيضًا عملية فشل اختبارية (إلغاء الدفع يدويًا) وتأكد من ظهور صفحة /payment/failed.
+
+بعد نجاح هذا الاختبار، يعتبر نظام الدفع في تلخيصلي مفعلًا بشكل كامل في الوضع الحي (Live Mode) وجاهز لاستقبال المستخدمين الحقيقيين 🎉
