@@ -52,6 +52,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { getLatestPayment } = await import("./api/payment-status");
   app.get("/api/payment/latest", getLatestPayment);
 
+  // Payment link endpoint (for direct Chargily links)
+  const { getPaymentLink, checkPaymentLinksStatus } = await import("./api/payment-link");
+  app.get("/api/payment-link/:planId", getPaymentLink);
+  app.get("/api/payment-links/status", checkPaymentLinksStatus);
+
   // Chargily Pay endpoints (with authentication)
   const { requireAuth } = await import("./middleware/auth");
   app.post("/api/chargily/create-checkout", requireAuth, handleCreateCheckout);

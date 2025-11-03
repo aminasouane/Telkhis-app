@@ -100,8 +100,8 @@ async function activateSubscription(data: {
 
     // Calculate subscription dates
     const startDate = new Date();
-    const endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + 1); // 1 month subscription
+    // For one-time payment: no end date (lifetime subscription)
+    const endDate = null;
 
     // 1. Create or update subscription
     const { data: subscription, error: subError } = await supabaseAdmin
@@ -111,7 +111,7 @@ async function activateSubscription(data: {
         plan_name: plan.nameAr,
         status: "active",
         start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
+        end_date: endDate, // NULL for lifetime subscription
         payment_provider: "chargily",
         payment_status: "paid",
         transaction_id: data.transactionId || data.checkoutId,

@@ -83,50 +83,27 @@ export default function Subscribe() {
         return;
       }
 
-      // Get Supabase session token for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        toast({
-          title: "خطأ في المصادقة",
-          description: "يرجى تسجيل الدخول مرة أخرى",
-          variant: "destructive",
-        });
-        setIsProcessing(false);
-        return;
-      }
-
-      // Create Chargily checkout session
-      const response = await fetch("/api/chargily/create-checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          planId,
-          locale: "ar", // Default to Arabic
-        }),
-      });
+      // Get payment link for the selected plan
+      const response = await fetch(`/api/payment-link/${planId}`);
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "فشل إنشاء جلسة الدفع");
+        throw new Error(error.message || "فشل الحصول على رابط الدفع");
       }
 
       const data = await response.json();
 
-      // Redirect to Chargily payment page
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      // Redirect directly to Chargily payment link
+      if (data.paymentLink) {
+        window.location.href = data.paymentLink;
       } else {
-        throw new Error("لم يتم إرجاع رابط الدفع");
+        throw new Error("رابط الدفع غير متوفر. يرجى التواصل مع الدعم.");
       }
     } catch (error: any) {
-      console.error("Error creating checkout:", error);
+      console.error("Error getting payment link:", error);
       
       toast({
-        title: "فشل إنشاء جلسة الدفع",
+        title: "فشل الحصول على رابط الدفع",
         description: error.message || "حدث خطأ. يرجى المحاولة مرة أخرى.",
         variant: "destructive",
       });

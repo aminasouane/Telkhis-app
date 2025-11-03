@@ -11,6 +11,8 @@ import HistoryScreen from "@/pages/HistoryScreen";
 import Login from "@/pages/Login";
 import Subscribe from "@/pages/Subscribe";
 import Success from "@/pages/Success";
+import PaymentSuccess from "@/pages/PaymentSuccess";
+import PaymentFailed from "@/pages/PaymentFailed";
 import Terms from "@/pages/Terms";
 import NotFound from "@/pages/not-found";
 
@@ -22,6 +24,8 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/subscribe" component={Subscribe} />
       <Route path="/success" component={Success} />
+      <Route path="/payment/success" component={PaymentSuccess} />
+      <Route path="/payment/failed" component={PaymentFailed} />
       <Route path="/terms" component={Terms} />
       <Route component={NotFound} />
     </Switch>
