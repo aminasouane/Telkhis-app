@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/components/AuthProvider";
+import { queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Sparkles, ArrowRight, Home } from "lucide-react";
@@ -45,6 +46,10 @@ export default function PaymentSuccess() {
             setPaymentInfo(data.payment);
           }
         }
+
+        // Invalidate auth and subscription cache to reflect new subscription
+        queryClient.invalidateQueries({ queryKey: ['/api/trial-status'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/summaries'] });
       } catch (error) {
         console.error("Error fetching payment info:", error);
       } finally {
@@ -103,10 +108,10 @@ export default function PaymentSuccess() {
           </div>
           <div className="space-y-2">
             <CardTitle className="text-3xl font-bold text-green-600 dark:text-green-500">
-              تم الدفع بنجاح! 🎉
+              تم الدفع بنجاح
             </CardTitle>
             <CardDescription className="text-lg">
-              تم تفعيل اشتراكك بنجاح. يمكنك الآن الاستمتاع بجميع المزايا!
+              تم تفعيل اشتراكك بنجاح. يمكنك الآن الاستمتاع بجميع المزايا
             </CardDescription>
           </div>
         </CardHeader>

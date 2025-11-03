@@ -71,7 +71,7 @@ export default function Subscribe() {
     setSelectedPlan(planId);
 
     try {
-      // Ensure user is authenticated
+      // Ensure user is authenticated before proceeding
       if (!user || isGuest) {
         toast({
           title: "خطأ",
@@ -83,15 +83,25 @@ export default function Subscribe() {
         return;
       }
 
-      // Get payment link for the selected plan
+      // Get payment link for the selected plan (single fetch)
       const response = await fetch(`/api/payment-link/${planId}`);
+      const data = await response.json();
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "فشل الحصول على رابط الدفع");
+        throw new Error(data.message || "فشل الحصول على رابط الدفع");
       }
 
-      const data = await response.json();
+      // Final auth check before redirect (in case token expired during fetch)
+      if (!user || isGuest) {
+        toast({
+          title: "انتهت الجلسة",
+          description: "يرجى تسجيل الدخول مرة أخرى",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+        navigate("/login");
+        return;
+      }
 
       // Redirect directly to Chargily payment link
       if (data.paymentLink) {

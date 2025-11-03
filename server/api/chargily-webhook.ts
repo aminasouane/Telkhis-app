@@ -98,6 +98,17 @@ async function activateSubscription(data: {
       return;
     }
 
+    // Validate required fields before database write
+    if (!data.userId) {
+      console.error("[Webhook] Missing user ID in metadata");
+      throw new Error("Missing user ID");
+    }
+
+    if (!data.checkoutId) {
+      console.error("[Webhook] Missing checkout ID");
+      throw new Error("Missing checkout ID");
+    }
+
     // Calculate subscription dates
     const startDate = new Date();
     // For one-time payment: no end date (lifetime subscription)
@@ -114,9 +125,9 @@ async function activateSubscription(data: {
         end_date: endDate, // NULL for lifetime subscription
         payment_provider: "chargily",
         payment_status: "paid",
-        transaction_id: data.transactionId || data.checkoutId,
-        payment_method: data.paymentMethod,
-        chargily_customer_id: data.customerId,
+        transaction_id: data.transactionId || data.checkoutId || null,
+        payment_method: data.paymentMethod || null,
+        chargily_customer_id: data.customerId || null,
         chargily_checkout_id: data.checkoutId,
       }, {
         onConflict: "user_id",
@@ -141,17 +152,19 @@ async function activateSubscription(data: {
       .insert({
         user_id: data.userId,
         subscription_id: subscription.id,
-        amount: data.amount / 100, // Convert from smallest unit
-        currency: data.currency.toUpperCase(),
+        amount: data.amount ? data.amount / 100 : 0, // Convert from smallest unit
+        currency: data.currency ? data.currency.toUpperCase() : "DZD",
         status: "paid",
         chargily_checkout_id: data.checkoutId,
-        chargily_customer_id: data.customerId,
+        chargily_customer_id: data.customerId || null,
         plan_name: plan.nameAr,
         paid_at: new Date().toISOString(),
         metadata: {
           plan_id: data.planId,
           lectures: plan.lectures,
           total_minutes: plan.totalMinutes,
+          transaction_id: data.transactionId || null,
+          payment_method: data.paymentMethod || null,
         },
       });
 

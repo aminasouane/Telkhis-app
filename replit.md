@@ -54,14 +54,20 @@ The application uses **Chargily Pay** for processing subscription payments in Al
    - Target: Professors, researchers, and heavy users
 
 ### Payment Flow
+**Using Direct Payment Links (Recommended)**
 1. User selects a subscription plan from `/subscribe`
-2. Frontend requests checkout with **JWT authentication** (Bearer token from Supabase session)
-3. Backend creates Chargily checkout session via `POST /api/chargily/create-checkout` (protected by `requireAuth` middleware)
-4. User is redirected to Chargily payment page (EDAHABIA/CIB)
+2. Frontend requests payment link via `GET /api/payment-link/:planId`
+3. User is redirected directly to Chargily payment page (pre-configured link)
+4. User completes payment via EDAHABIA/CIB cards
 5. After successful payment, Chargily sends webhook to `/api/chargily/webhook`
-6. Backend validates webhook signature and activates subscription
-7. User is redirected to `/success` page
-8. Subscription and payment records are created in database
+6. Backend validates webhook signature and activates **permanent subscription** (no end_date)
+7. User is redirected to `/payment/success` with subscription details
+8. On failure, user is redirected to `/payment/failed` with retry options
+
+**Legacy API Checkout (Not Recommended)**
+- Previous method using `/api/chargily/create-checkout` with JWT authentication
+- Requires additional API calls and more complex setup
+- Use direct payment links instead for simpler integration
 
 ### Security Architecture
 **Authentication & Authorization:**
@@ -76,14 +82,18 @@ The application uses **Chargily Pay** for processing subscription payments in Al
 - **Atomic Database Operations**: Subscription activation uses database transactions to prevent inconsistent states
 
 ### Environment Variables
-Required for Chargily integration:
-- `CHARGILY_API_KEY`: Secret API key from Chargily Dashboard
+**Required for Direct Payment Links (Recommended):**
+- `CHARGILY_LINK_BASIC`: Direct payment link for Basic Plan ($4.99)
+- `CHARGILY_LINK_STUDENT`: Direct payment link for Student Plan ($19.00)
+- `CHARGILY_LINK_PROFESSIONAL`: Direct payment link for Professional Plan ($34.99)
+- `CHARGILY_API_KEY`: Secret API key from Chargily Dashboard (for webhook verification)
 - `CHARGILY_MODE`: "test" or "live" (defaults to "test")
-- `VITE_APP_URL`: Base URL for success/failure/webhook URLs
 
-Required for authentication middleware:
+**Required for authentication middleware:**
 - `VITE_SUPABASE_URL`: Supabase project URL (for JWT verification)
 - `VITE_SUPABASE_ANON_KEY`: Supabase anon/public key (for JWT verification)
+
+**Setup Guide:** See `PAYMENT_LINKS_SETUP.md` for complete instructions on creating and configuring payment links
 
 ### Database Schema
 **subscriptions table:**
