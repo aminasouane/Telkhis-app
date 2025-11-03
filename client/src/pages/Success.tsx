@@ -5,20 +5,58 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Sparkles, ArrowRight } from "lucide-react";
 
+interface PaymentInfo {
+  id: string;
+  amount: number;
+  currency: string;
+  planName: string;
+  paidAt: string;
+  plan: {
+    id: string;
+    nameAr: string;
+    price: number;
+    priceDZD: number;
+    lectures: number;
+    totalMinutes: number;
+  } | null;
+}
+
 export default function Success() {
   const [, navigate] = useLocation();
-  const { user } = useAuth();
+  const { user, guestUserId } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [countdown, setCountdown] = useState(5);
+  const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
 
   useEffect(() => {
-    // Simulate processing time (webhook might take a moment)
-    const loadingTimer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
+    const fetchPaymentInfo = async () => {
+      try {
+        const userId = user?.id || guestUserId;
+        if (!userId) {
+          setIsLoading(false);
+          return;
+        }
 
-    return () => clearTimeout(loadingTimer);
-  }, []);
+        // Fetch latest payment info
+        const response = await fetch(`/api/payment/latest?userId=${userId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.payment) {
+            setPaymentInfo(data.payment);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching payment info:", error);
+      } finally {
+        // Wait at least 2 seconds for better UX
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 2000);
+      }
+    };
+
+    fetchPaymentInfo();
+  }, [user, guestUserId]);
 
   // Auto-redirect countdown
   useEffect(() => {
@@ -72,6 +110,27 @@ export default function Success() {
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {/* Payment Details */}
+          {paymentInfo?.plan && (
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+              <div className="text-center space-y-2">
+                <h3 className="font-semibold text-lg">{paymentInfo.plan.nameAr}</h3>
+                <div className="flex items-center justify-center gap-3 text-muted-foreground">
+                  <span className="text-xl font-bold text-foreground">
+                    ${paymentInfo.plan.price}
+                  </span>
+                  <span className="text-sm">•</span>
+                  <span className="text-sm">
+                    تم الدفع بمبلغ {paymentInfo.plan.priceDZD.toLocaleString('ar-DZ')} د.ج
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {paymentInfo.plan.lectures} محاضرة × {Math.floor(paymentInfo.plan.totalMinutes / paymentInfo.plan.lectures)} دقيقة
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="bg-muted/50 rounded-lg p-6 space-y-4">
             <h3 className="font-semibold text-lg flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
