@@ -200,12 +200,15 @@ export default function Subscribe() {
                   </CardDescription>
                   <CardDescription>
                     <div className="mt-4 flex items-baseline justify-center gap-1">
-                      <span className="text-3xl font-bold text-foreground">
-                        {plan.priceDZD.toLocaleString('ar-DZ')} د.ج
+                      <span className="text-4xl font-bold text-foreground">
+                        ${plan.price}
                       </span>
                     </div>
+                    <div className="text-sm text-muted-foreground mt-2">
+                      يُخصم ما يعادله بالدينار الجزائري
+                    </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      (~${plan.price} USD)
+                      ({plan.priceDZD.toLocaleString('ar-DZ')} د.ج تقريباً)
                     </div>
                     <div className="text-sm text-primary font-medium mt-3">
                       {plan.lectures} محاضرة × {plan.lecturesDuration} دقيقة
@@ -285,6 +288,16 @@ export default function Subscribe() {
                   </p>
                 </CardContent>
               </Card>
+            </div>
+          </div>
+
+          {/* Payment Notice */}
+          <div className="text-center pt-8">
+            <div className="inline-flex items-center gap-2 rounded-lg bg-muted px-4 py-3">
+              <AlertCircle className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                💳 الأسعار المعروضة بالدولار تقريبية — الدفع الفعلي يتم بالدينار الجزائري حسب سعر الصرف في منصة الدفع
+              </p>
             </div>
           </div>
 
