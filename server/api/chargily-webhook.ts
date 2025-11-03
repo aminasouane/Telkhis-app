@@ -87,6 +87,8 @@ async function activateSubscription(data: {
   customerId?: string;
   amount: number;
   currency: string;
+  transactionId?: string;
+  paymentMethod?: string;
 }) {
   try {
     const plan = getPlanById(data.planId as any);
@@ -111,6 +113,9 @@ async function activateSubscription(data: {
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
         payment_provider: "chargily",
+        payment_status: "paid",
+        transaction_id: data.transactionId || data.checkoutId,
+        payment_method: data.paymentMethod,
         chargily_customer_id: data.customerId,
         chargily_checkout_id: data.checkoutId,
       }, {

@@ -189,6 +189,8 @@ async function handleCheckoutPaid(checkoutData: any) {
       customerId: checkoutData.customer_id,
       amount: checkoutData.amount,
       currency: checkoutData.currency,
+      transactionId: checkoutData.transaction_id || checkoutData.id,
+      paymentMethod: checkoutData.payment_method,
     },
   };
 }

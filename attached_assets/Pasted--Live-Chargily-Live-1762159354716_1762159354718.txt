@@ -1,0 +1,108 @@
+💌 النسخة النهائية للرسالة (باستخدام مفاتيح Live)
+
+الموضوع:
+دمج نظام الدفع الجزائري (Chargily – Live Mode) في تطبيق تلخيصلي
+
+🎯 الهدف
+
+تفعيل نظام الاشتراك المدفوع داخل تطبيق تلخيصلي بنسخته الحية، بحيث يمكن للمستخدم:
+
+اختيار خطة (👨‍🎓 الطالب – ⚙️ الاحترافية – 🧠 المحترف) من صفحة /subscribe
+
+الدفع عبر بوابة جزائرية (CIB / Eddahabia / BaridiMob / CCP)
+
+العودة إلى /success بعد الدفع الناجح
+
+تفعيل الاشتراك تلقائيًا في قاعدة البيانات بعد التأكيد
+
+🧩 إعداد البيئة (.env – مفاتيح Live)
+PAYMENT_PROVIDER=chargily
+PAYMENT_API_URL=https://pay.chargily.net/api/v2
+PAYMENT_API_KEY=sk_live_xxxxxxxxxxxxxxxxxxxxxx
+SUCCESS_URL=https://telkhisli.vercel.app/success
+FAILURE_URL=https://telkhisli.vercel.app/subscribe
+
+VITE_PAYMENT_PUBLIC_KEY=pk_live_xxxxxxxxxxxxxxxxxxxxxx
+
+
+⚠️ هذه المفاتيح خاصة بالوضع الحي (Live Mode) — تأكد من حذف أو تعطيل مفاتيح الاختبار القديمة (sk_test_, pk_test_).
+
+🗄️ تهيئة قاعدة البيانات (Supabase)
+
+نفّذ الكود التالي مرة واحدة في SQL Editor لتفعيل أعمدة الدفع:
+
+ALTER TABLE subscriptions
+ADD COLUMN transaction_id TEXT,
+ADD COLUMN payment_method TEXT,
+ADD COLUMN payment_status TEXT DEFAULT 'pending',
+ADD COLUMN payment_provider TEXT DEFAULT 'chargily';
+
+⚙️ نقاط التحقق الأساسية
+1️⃣ Endpoint بدء الدفع /api/payment/init
+
+يتحقق من المستخدم عبر requireAuth.
+
+ينشئ اشتراك بحالة pending.
+
+يرسل الطلب إلى Chargily مع:
+
+مبلغ الخطة (بالدينار)
+
+بريد المستخدم
+
+رقم الهاتف
+
+success/failure URLs
+
+يعيد checkout_url إلى الواجهة.
+
+2️⃣ Webhook /api/payment-webhook
+
+يتحقق من توقيع X-Signature.
+
+يحدّث الاشتراك إلى active عند الدفع الناجح.
+
+يفعّل حالة المستخدم في جدول users.
+
+💳 الواجهة الأمامية (/subscribe)
+
+زر “اشترك الآن” ينفذ:
+
+const handleSubscribe = async (planId) => {
+  const res = await fetch("/api/payment/init", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan_id: planId }),
+  });
+  const data = await res.json();
+  window.location.href = data.checkout_url;
+};
+
+✅ صفحة النجاح (/success)
+
+رسالة تأكيد:
+
+🎉 تم تفعيل اشتراكك بنجاح!
+يمكنك الآن تلخيص حتى [عدد المحاضرات] من التسجيلات الصوتية.
+
+🔒 اعتبارات الأمان
+
+لا تمرر user_id من الواجهة الأمامية.
+
+تحقق من توقيع Webhook (X-Signature) لكل إشعار.
+
+امنع أي تحديث اشتراك إلا إذا كان مصدره Chargily الرسمي.
+
+🧠 نصائح بعد التحويل إلى Live Mode
+
+اختبر الدفع الحقيقي بمبلغ رمزي (مثلاً 100 دج) للتحقق من المسار الكامل.
+
+راقب سجل الـ webhook في Chargily Dashboard → Webhooks Logs.
+
+فعّل إشعارات البريد الإلكتروني عند كل معاملة جديدة.
+
+احفظ مفاتيح Live في بيئة آمنة (لا تُشاركها أبدًا في الكود أو GitHub).
+
+💡 النتيجة النهائية
+
+المستخدم يختار خطة → ينتقل إلى بوابة الدفع الآمنة → يدفع فعليًا → يعود إلى /success → يُفعَّل اشتراكه تلقائيًا 🎯
