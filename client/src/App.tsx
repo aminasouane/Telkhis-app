@@ -13,7 +13,9 @@ import Subscribe from "@/pages/Subscribe";
 import Success from "@/pages/Success";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentFailed from "@/pages/PaymentFailed";
-import Terms from "@/pages/Terms";
+import AboutUs from "@/pages/AboutUs";
+import TermsAndConditions from "@/pages/TermsAndConditions";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -26,7 +28,9 @@ function Router() {
       <Route path="/success" component={Success} />
       <Route path="/payment/success" component={PaymentSuccess} />
       <Route path="/payment/failed" component={PaymentFailed} />
-      <Route path="/terms" component={Terms} />
+      <Route path="/about" component={AboutUs} />
+      <Route path="/terms" component={TermsAndConditions} />
+      <Route path="/privacy" component={PrivacyPolicy} />
       <Route component={NotFound} />
     </Switch>
   );

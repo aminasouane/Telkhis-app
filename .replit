@@ -14,62 +14,6 @@ run = ["npm", "run", "start"]
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 33735
-externalPort = 8000
-
-[[ports]]
-localPort = 34127
-externalPort = 6800
-
-[[ports]]
-localPort = 35029
-externalPort = 5173
-
-[[ports]]
-localPort = 35921
-externalPort = 4200
-
-[[ports]]
-localPort = 36739
-externalPort = 8099
-
-[[ports]]
-localPort = 37465
-externalPort = 3002
-
-[[ports]]
-localPort = 37527
-externalPort = 8081
-
-[[ports]]
-localPort = 39973
-externalPort = 8080
-
-[[ports]]
-localPort = 40855
-externalPort = 3001
-
-[[ports]]
-localPort = 44233
-externalPort = 8008
-
-[[ports]]
-localPort = 44997
-externalPort = 5000
-
-[[ports]]
-localPort = 45379
-externalPort = 3000
-
-[[ports]]
-localPort = 46127
-externalPort = 3003
-
-[[ports]]
-localPort = 46635
-externalPort = 6000
-
 [env]
 PORT = "5000"
 SUPABASE_URL = "https://gsgrmojedoqvqccehnxl.supabase.co"

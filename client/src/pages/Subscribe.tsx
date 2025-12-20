@@ -289,25 +289,12 @@ export default function Subscribe() {
           </div>
 
           {/* Contact Support */}
-          <div className="text-center pt-8 border-t space-y-4">
+          <div className="text-center pt-8 border-t">
             <p className="text-sm text-muted-foreground">
               هل لديك أسئلة؟{" "}
               <Button variant="ghost" className="px-1 h-auto" data-testid="button-contact">
                 تواصل معنا
               </Button>
-            </p>
-            
-            {/* Terms Link */}
-            <p className="text-xs text-muted-foreground">
-              باشتراكك، أنت توافق على{" "}
-              <Link href="/terms">
-                <a 
-                  className="text-primary underline hover:text-primary/80 transition-colors"
-                  data-testid="link-terms"
-                >
-                  شروط الاستخدام
-                </a>
-              </Link>
             </p>
           </div>
         </div>

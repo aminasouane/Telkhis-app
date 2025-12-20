@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/components/AuthProvider";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import RecordingControl from "@/components/RecordingControl";
 import FileUpload from "@/components/FileUpload";
 import TranscriptionCard from "@/components/TranscriptionCard";
@@ -423,6 +424,8 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      <Footer />
 
       <TrialExpiredModal
         open={showTrialModal}
