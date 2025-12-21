@@ -128,8 +128,10 @@ The application uses **Chargily Pay** for processing subscription payments in Al
 - **whisper.cpp (Local)**:
     - **Model**: `small` (466MB) - multilingual, better Arabic support
     - **Languages**: Arabic (ar), French (fr), Algerian dialect (dz → ar)
-    - **Integration**: Via `nodejs-whisper` npm package
-    - **Requirements**: FFmpeg, FFprobe for audio processing
+    - **Integration**: Direct binary execution via child_process.spawn
+    - **Bootstrap**: Auto clone → build → download model on first use
+    - **Requirements**: FFmpeg, FFprobe, Make, G++ for building
+    - **Audio Prep**: Auto-converts to WAV (16kHz, mono, PCM 16-bit)
     - **Limits**: 30 minutes max audio duration
 - **OpenAI API**:
     - **GPT-4o-mini**: Language-specific text summarization and key point extraction.
