@@ -139,3 +139,44 @@ The application uses **Chargily Pay** for processing subscription payments in Al
 - **jsPDF** and **html2canvas**: For PDF generation and HTML content capture.
 - **Clipboard API**: For copy-to-clipboard functionality.
 - **date-fns**: For date and time formatting.
+
+## Subscription Architecture
+
+### Subscription State Machine
+The application uses a unified subscription state system with three states:
+
+1. **trial_active**: User has unused trial capacity
+   - Less than 1 summary created AND less than 30 minutes used AND within 7 days
+   
+2. **trial_expired**: Trial capacity exhausted or expired
+   - 1 or more summaries created OR 30+ minutes used OR more than 7 days since first use
+   
+3. **subscribed**: User has an active paid subscription
+   - Future state - activated via `activateSubscription()` after payment confirmation
+
+### Key Files
+- **client/src/types/subscription.ts**: TypeScript types (SubscriptionStatus, SubscriptionState, SubscriptionInfo, UsagePermission)
+- **client/src/services/subscriptionStateService.ts**: Core state logic (getSubscriptionState, getUsagePermissions, activateSubscription)
+- **client/src/components/SubscriptionProvider.tsx**: React Context provider with hooks
+- **client/src/services/localTrialService.ts**: localStorage-based trial tracking
+- **client/src/config/trialConfig.ts**: Trial configuration constants
+
+### Provider Hooks
+- `useSubscription()`: Full subscription context access
+- `useSubscriptionState()`: Current state only
+- `useSummaryPermission()`: Permission object for summary creation
+- `useCanCreateSummary()`: Boolean shorthand for quick checks
+
+### Permission Checking Flow
+1. `processAudio()` calls `getUsagePermissions(userId)` synchronously
+2. Service reads trial data from localStorage (sync, no loading state issues)
+3. Returns `{ allowed: boolean, reason?: string, remaining?: { summaries, minutes } }`
+4. If not allowed: show expired modal, block processing
+5. If allowed: process audio, then call `recordUsage()` to update counters
+
+### Integration Ready
+The skeleton is designed for easy Supabase/payment integration:
+- `SubscriptionInfo` type ready for backend subscription data
+- `activateSubscription(planId, paymentData)` stub for payment confirmation
+- Service layer abstracted - swap localStorage for API calls
+- Provider handles state refresh and UI updates
