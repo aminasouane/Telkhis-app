@@ -125,8 +125,13 @@ The application uses **Chargily Pay** for processing subscription payments in Al
     - **Mode**: Test/Live mode support
 
 ### AI/ML Services
+- **whisper.cpp (Local)**:
+    - **Model**: `small` (466MB) - multilingual, better Arabic support
+    - **Languages**: Arabic (ar), French (fr), Algerian dialect (dz → ar)
+    - **Integration**: Via `nodejs-whisper` npm package
+    - **Requirements**: FFmpeg, FFprobe for audio processing
+    - **Limits**: 30 minutes max audio duration
 - **OpenAI API**:
-    - **Whisper-1**: Multi-language audio transcription.
     - **GPT-4o-mini**: Language-specific text summarization and key point extraction.
 
 ### Database Services
