@@ -1,19 +1,21 @@
-import { nodewhisper } from "nodejs-whisper";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { randomUUID } from "crypto";
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
-const MODELS_DIR = path.join(process.cwd(), "whisper-models");
+const WHISPER_DIR = path.join(process.cwd(), "whisper.cpp");
+const MODELS_DIR = path.join(WHISPER_DIR, "models");
+const WHISPER_BINARY = path.join(WHISPER_DIR, "main");
 const MODEL_NAME = "small";
+const MODEL_FILE = `ggml-${MODEL_NAME}.bin`;
+const MODEL_PATH = path.join(MODELS_DIR, MODEL_FILE);
 const MAX_AUDIO_DURATION_SECONDS = 30 * 60;
 
-let modelInitialized = false;
-let ffmpegAvailable = false;
+let isInitialized = false;
 let initializationPromise: Promise<void> | null = null;
 
 async function checkFfmpegAvailable(): Promise<boolean> {
@@ -54,8 +56,57 @@ async function getAudioDuration(filePath: string): Promise<number> {
   }
 }
 
+async function cloneWhisperCpp(): Promise<void> {
+  if (fs.existsSync(WHISPER_DIR)) {
+    console.log("[whisper.cpp] Repository already exists");
+    return;
+  }
+
+  console.log("[whisper.cpp] Cloning whisper.cpp repository...");
+  await execAsync(`git clone --depth 1 https://github.com/ggerganov/whisper.cpp "${WHISPER_DIR}"`);
+  console.log("[whisper.cpp] Clone complete");
+}
+
+async function buildWhisperCpp(): Promise<void> {
+  if (fs.existsSync(WHISPER_BINARY)) {
+    console.log("[whisper.cpp] Binary already exists");
+    return;
+  }
+
+  console.log("[whisper.cpp] Building whisper.cpp (this may take a few minutes)...");
+  await execAsync(`cd "${WHISPER_DIR}" && make -j4`, { timeout: 600000 });
+  
+  if (!fs.existsSync(WHISPER_BINARY)) {
+    throw new Error("Build failed: whisper binary not found after make");
+  }
+  console.log("[whisper.cpp] Build complete");
+}
+
+async function downloadModel(): Promise<void> {
+  if (fs.existsSync(MODEL_PATH)) {
+    console.log(`[whisper.cpp] Model ${MODEL_NAME} already exists`);
+    return;
+  }
+
+  console.log(`[whisper.cpp] Downloading model: ${MODEL_NAME}...`);
+  const downloadScript = path.join(MODELS_DIR, "download-ggml-model.sh");
+  
+  if (!fs.existsSync(downloadScript)) {
+    throw new Error("Model download script not found");
+  }
+
+  await execAsync(`cd "${MODELS_DIR}" && bash download-ggml-model.sh ${MODEL_NAME}`, { 
+    timeout: 600000 
+  });
+
+  if (!fs.existsSync(MODEL_PATH)) {
+    throw new Error(`Model download failed: ${MODEL_FILE} not found`);
+  }
+  console.log(`[whisper.cpp] Model ${MODEL_NAME} downloaded successfully`);
+}
+
 export async function ensureModelReady(): Promise<void> {
-  if (modelInitialized) {
+  if (isInitialized) {
     return;
   }
 
@@ -65,7 +116,7 @@ export async function ensureModelReady(): Promise<void> {
 
   initializationPromise = (async () => {
     try {
-      ffmpegAvailable = await checkFfmpegAvailable();
+      const ffmpegAvailable = await checkFfmpegAvailable();
       if (!ffmpegAvailable) {
         throw new Error("FFmpeg is not available. Audio transcription requires FFmpeg.");
       }
@@ -78,22 +129,90 @@ export async function ensureModelReady(): Promise<void> {
         throw new Error("FFprobe is not available. Audio duration verification requires FFprobe.");
       }
 
-      if (!fs.existsSync(MODELS_DIR)) {
-        fs.mkdirSync(MODELS_DIR, { recursive: true });
+      try {
+        await execAsync("make --version");
+        console.log(`[whisper.cpp] Make: available`);
+      } catch {
+        throw new Error("Make is not available. Building whisper.cpp requires Make.");
       }
 
-      console.log(`[whisper.cpp] Model directory: ${MODELS_DIR}`);
-      console.log(`[whisper.cpp] Using model: ${MODEL_NAME}`);
-      console.log(`[whisper.cpp] Model will be auto-downloaded on first use`);
+      try {
+        await execAsync("g++ --version");
+        console.log(`[whisper.cpp] G++: available`);
+      } catch {
+        throw new Error("G++ is not available. Building whisper.cpp requires G++.");
+      }
 
-      modelInitialized = true;
+      await cloneWhisperCpp();
+      await buildWhisperCpp();
+      await downloadModel();
+
+      isInitialized = true;
+      console.log("[whisper.cpp] Initialization complete - ready for transcription");
     } catch (error) {
       console.error("[whisper.cpp] Failed to initialize:", error);
+      initializationPromise = null;
       throw error;
     }
   })();
 
   return initializationPromise;
+}
+
+function runWhisperBinary(wavPath: string, language: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      "-m", MODEL_PATH,
+      "-f", wavPath,
+      "-l", language,
+      "--no-timestamps",
+      "-otxt"
+    ];
+
+    console.log(`[whisper.cpp] Running: ${WHISPER_BINARY} ${args.join(" ")}`);
+
+    const process = spawn(WHISPER_BINARY, args, {
+      cwd: WHISPER_DIR,
+      timeout: 300000
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    process.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    process.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    process.on("close", (code) => {
+      if (code !== 0) {
+        console.error(`[whisper.cpp] Process exited with code ${code}`);
+        console.error(`[whisper.cpp] stderr: ${stderr}`);
+        reject(new Error(`Whisper process failed with code ${code}: ${stderr}`));
+        return;
+      }
+
+      const txtFile = wavPath + ".txt";
+      if (fs.existsSync(txtFile)) {
+        const text = fs.readFileSync(txtFile, "utf-8").trim();
+        try {
+          fs.unlinkSync(txtFile);
+        } catch {}
+        resolve(text);
+      } else if (stdout.trim()) {
+        resolve(stdout.trim());
+      } else {
+        reject(new Error("No transcription output found"));
+      }
+    });
+
+    process.on("error", (error) => {
+      reject(new Error(`Failed to spawn whisper process: ${error.message}`));
+    });
+  });
 }
 
 export async function transcribeWithWhisperCpp(
@@ -127,43 +246,10 @@ export async function transcribeWithWhisperCpp(
     console.log(`[whisper.cpp] Transcribing: ${filename}`);
     console.log(`[whisper.cpp] Language: ${whisperLanguage}`);
 
-    const result = await nodewhisper(tempWavPath, {
-      modelName: MODEL_NAME,
-      autoDownloadModelName: MODEL_NAME,
-      removeWavFileAfterTranscription: true,
-      withCuda: false,
-      whisperOptions: {
-        outputInText: true,
-        outputInSrt: false,
-        outputInVtt: false,
-        outputInCsv: false,
-        outputInJson: false,
-        translateToEnglish: false,
-        language: whisperLanguage,
-        wordTimestamps: false,
-      },
-    });
-
+    const text = await runWhisperBinary(tempWavPath, whisperLanguage);
+    
     console.log(`[whisper.cpp] Transcription complete`);
-
-    if (typeof result === "string") {
-      return result.trim();
-    }
-
-    if (Array.isArray(result)) {
-      const resultArray = result as Array<{ speech?: string; text?: string }>;
-      return resultArray
-        .map((segment) => segment.speech || segment.text || "")
-        .join(" ")
-        .trim();
-    }
-
-    if (result && typeof result === "object" && "text" in result) {
-      return (result as { text: string }).text.trim();
-    }
-
-    console.warn("[whisper.cpp] Unexpected result format:", typeof result);
-    return String(result || "").trim();
+    return text;
   } catch (error: any) {
     console.error("[whisper.cpp] Transcription error:", error);
     throw new Error(`Whisper transcription failed: ${error.message}`);
@@ -179,14 +265,15 @@ export async function transcribeWithWhisperCpp(
 }
 
 export function isWhisperCppAvailable(): boolean {
-  return modelInitialized;
+  return isInitialized;
 }
 
 export function getWhisperCppConfig() {
   return {
     modelName: MODEL_NAME,
     modelsDir: MODELS_DIR,
+    whisperDir: WHISPER_DIR,
     maxDurationSeconds: MAX_AUDIO_DURATION_SECONDS,
-    initialized: modelInitialized,
+    initialized: isInitialized,
   };
 }
