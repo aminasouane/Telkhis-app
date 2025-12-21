@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Clock, FileText, Calendar } from "lucide-react";
+import { Sparkles, Clock, FileText, Calendar } from "lucide-react";
 import { type TrialStatus } from "@/services/localTrialService";
 import { TRIAL_CONFIG } from "@/config/trialConfig";
 
@@ -23,22 +23,22 @@ export default function TrialExpiredModal({
 }: TrialExpiredModalProps) {
   const [, navigate] = useLocation();
 
-  const handleSubscribe = () => {
-    navigate("/subscribe");
+  const handleContinue = () => {
+    navigate("/history");
   };
 
   const getExpiryReason = () => {
-    if (!trialStatus) return "انتهت التجربة المجانية";
+    if (!trialStatus) return null;
     
     switch (trialStatus.reason) {
       case "summaries_exhausted":
-        return `لقد استخدمت تلخيصك المجاني (${TRIAL_CONFIG.MAX_SUMMARIES} تلخيص)`;
+        return `لقد استخدمت تلخيصك المجاني`;
       case "time_expired":
         return `لقد استخدمت كامل الوقت المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة)`;
       case "days_expired":
-        return `انتهت صلاحية التجربة المجانية (${TRIAL_CONFIG.VALIDITY_DAYS} أيام)`;
+        return `انتهت صلاحية التجربة (${TRIAL_CONFIG.VALIDITY_DAYS} أيام)`;
       default:
-        return "انتهت التجربة المجانية";
+        return null;
     }
   };
 
@@ -47,14 +47,18 @@ export default function TrialExpiredModal({
       <DialogContent className="sm:max-w-md" dir="rtl">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-2">
-            <AlertCircle className="h-6 w-6 text-primary" />
-            <DialogTitle className="text-xl">انتهت التجربة المجانية</DialogTitle>
+            <Sparkles className="h-6 w-6 text-primary" />
+            <DialogTitle className="text-xl">انتهت تجربتك المجانية</DialogTitle>
           </div>
           <DialogDescription className="text-base leading-relaxed" dir="rtl">
-            {getExpiryReason()}
-            <br />
-            <br />
-            اشترك الآن لمواصلة تلخيص المحاضرات بدون حدود.
+            نأمل أن تكون قد استفدت من تلخيصلي. يمكنك الترقية قريبًا لمتابعة استخدام جميع الميزات.
+            {getExpiryReason() && (
+              <>
+                <br />
+                <br />
+                <span className="text-sm">{getExpiryReason()}</span>
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
         
@@ -75,7 +79,7 @@ export default function TrialExpiredModal({
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                الأيام المتبقية: {trialStatus.daysRemaining}
+                الأيام المتبقية: {Math.max(0, trialStatus.daysRemaining)}
               </p>
             </div>
           </div>
@@ -83,13 +87,19 @@ export default function TrialExpiredModal({
 
         <DialogFooter className="mt-4">
           <Button
-            onClick={handleSubscribe}
+            onClick={handleContinue}
+            variant="outline"
             className="w-full"
-            data-testid="button-subscribe-trial"
+            data-testid="button-continue-trial"
           >
-            الاشتراك الآن
+            <Sparkles className="h-4 w-4 ml-2" />
+            سيتم فتح الاشتراك قريبًا — متابعة التصفح
           </Button>
         </DialogFooter>
+        
+        <p className="text-xs text-muted-foreground text-center">
+          سنُعلمك فور توفر خطط الاشتراك. شكرًا لاستخدامك تلخيصلي!
+        </p>
       </DialogContent>
     </Dialog>
   );

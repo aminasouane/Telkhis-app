@@ -10,6 +10,7 @@ import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
 import TrialExpiredModal from "@/components/TrialExpiredModal";
+import TrialExpiredExperience from "@/components/TrialExpiredExperience";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -295,18 +296,7 @@ export default function Home() {
               </Alert>
 
               {trialStatus?.isExpired ? (
-                <div className="flex flex-col items-center gap-4 py-12 text-center">
-                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-                    <Info className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <p className="text-lg font-medium">انتهت التجربة المجانية</p>
-                  <p className="text-sm text-muted-foreground max-w-md">
-                    لقد استخدمت التلخيص المجاني الخاص بك. اشترك الآن لمواصلة تلخيص المحاضرات.
-                  </p>
-                  <Button onClick={() => navigate("/subscribe")} data-testid="button-subscribe-inline">
-                    الاشتراك الآن
-                  </Button>
-                </div>
+                <TrialExpiredExperience trialStatus={trialStatus} />
               ) : isProcessing ? (
                 <div className="flex flex-col items-center gap-4 py-12">
                   <div className="h-16 w-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -402,10 +392,11 @@ export default function Home() {
                   {trialStatus?.isExpired && (
                     <Button
                       size="sm"
-                      onClick={() => navigate("/subscribe")}
-                      data-testid="button-subscribe-from-result"
+                      variant="outline"
+                      onClick={() => navigate("/history")}
+                      data-testid="button-subscription-coming-from-result"
                     >
-                      الاشتراك الآن
+                      سيتم فتح الاشتراك قريبًا
                     </Button>
                   )}
                 </div>
