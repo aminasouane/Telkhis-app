@@ -21,13 +21,13 @@ const planIcons: Record<string, any> = {
 
 export default function Subscribe() {
   const [, navigate] = useLocation();
-  const { user, isGuest, guestUserId, loading: authLoading } = useAuth();
+  const { appUserId, loading: authLoading } = useAuth();
   const [selectedPlan, setSelectedPlan] = useState<string>("student");
   const [isProcessing, setIsProcessing] = useState(false);
   const [checkingTrial, setCheckingTrial] = useState(true);
   const { toast } = useToast();
   
-  const currentUserId = isGuest ? guestUserId : user?.id;
+  const currentUserId = appUserId;
 
   // Check trial status - redirect to home if trial is still active
   useEffect(() => {
@@ -71,36 +71,12 @@ export default function Subscribe() {
     setSelectedPlan(planId);
 
     try {
-      // Ensure user is authenticated before proceeding
-      if (!user || isGuest) {
-        toast({
-          title: "خطأ",
-          description: "يرجى تسجيل الدخول أولاً لإتمام عملية الاشتراك",
-          variant: "destructive",
-        });
-        setIsProcessing(false);
-        navigate("/login");
-        return;
-      }
-
-      // Get payment link for the selected plan (single fetch)
+      // Get payment link for the selected plan
       const response = await fetch(`/api/payment-link/${planId}`);
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.message || "فشل الحصول على رابط الدفع");
-      }
-
-      // Final auth check before redirect (in case token expired during fetch)
-      if (!user || isGuest) {
-        toast({
-          title: "انتهت الجلسة",
-          description: "يرجى تسجيل الدخول مرة أخرى",
-          variant: "destructive",
-        });
-        setIsProcessing(false);
-        navigate("/login");
-        return;
       }
 
       // Redirect directly to Chargily payment link
@@ -131,11 +107,9 @@ export default function Subscribe() {
             <Zap className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold text-primary">تلخيصلي</span>
           </div>
-          {!isGuest && user && (
-            <Button variant="ghost" onClick={() => navigate("/")} data-testid="button-back-home">
-              العودة للرئيسية
-            </Button>
-          )}
+          <Button variant="ghost" onClick={() => navigate("/")} data-testid="button-back-home">
+            العودة للرئيسية
+          </Button>
         </div>
       </header>
 

@@ -11,13 +11,13 @@ import { getSummaries, deleteSummary } from "@/services/dbService";
 
 export default function HistoryScreen() {
   const [, navigate] = useLocation();
-  const { user, isGuest, guestUserId, loading: authLoading } = useAuth();
+  const { appUserId, loading: authLoading } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Get current user ID (guest or authenticated)
-  const currentUserId = isGuest ? guestUserId : user?.id;
+  // Use app user ID
+  const currentUserId = appUserId;
 
   // Load summaries from database
   useEffect(() => {

@@ -1,107 +1,11 @@
-import { useEffect, useState, useRef } from "react";
-import { useLocation } from "wouter";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "./AuthProvider";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Moon, Sun, LogOut, User } from "lucide-react";
-import { getUserData, getUserSubscription } from "@/services/dbService";
-import type { UserData, SubscriptionData } from "@/services/dbService";
+import { Moon, Sun } from "lucide-react";
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
-  const { user, signOut } = useAuth();
-  const [, navigate] = useLocation();
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
-  const [isLoadingUserData, setIsLoadingUserData] = useState(false);
-  const cachedUserIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    // If no user (logout), clear data immediately
-    if (!user) {
-      setUserData(null);
-      setSubscription(null);
-      setIsLoadingUserData(false);
-      cachedUserIdRef.current = null;
-      return;
-    }
-
-    // If user ID changed (different user), clear stale data immediately
-    if (cachedUserIdRef.current && user.id !== cachedUserIdRef.current) {
-      setUserData(null);
-      setSubscription(null);
-    }
-
-    // Update cached user ID
-    cachedUserIdRef.current = user.id;
-
-    // User exists - set loading state (keep previous data for SAME user to avoid flicker)
-    setIsLoadingUserData(true);
-
-    // Add debounce to prevent flickering during rapid auth state changes
-    const timer = setTimeout(() => {
-      // Check if user is still logged in using the ref (not closure)
-      const currentCachedId = cachedUserIdRef.current;
-      if (!currentCachedId) {
-        // User logged out during debounce
-        setIsLoadingUserData(false);
-        return;
-      }
-      
-      Promise.all([
-        getUserData(currentCachedId),
-        getUserSubscription(currentCachedId)
-      ]).then(([data, sub]) => {
-        // Only update state if the cached user ID hasn't changed during fetch
-        // This prevents updating with stale data after logout or user switch
-        if (cachedUserIdRef.current === currentCachedId) {
-          setUserData(data);
-          setSubscription(sub);
-        }
-        setIsLoadingUserData(false);
-      }).catch(() => {
-        setIsLoadingUserData(false);
-      });
-    }, 300);
-
-    // Cleanup timer on unmount or user change
-    return () => clearTimeout(timer);
-  }, [user]);
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/login");
-  };
-
-  const getSubscriptionBadge = () => {
-    const type = userData?.subscription_type || 'free';
-    const labels = {
-      free: 'مجاني',
-      premium: 'بريميوم',
-      pro_plus: 'برو بلس'
-    };
-    return labels[type as keyof typeof labels] || 'مجاني';
-  };
-
-  // Helper function to check if user is authenticated (not guest)
-  const isAuthenticatedUser = (): boolean => {
-    if (!userData || !userData.user_type) return false;
-    
-    // Normalize to lowercase for case-insensitive comparison
-    const userType = userData.user_type.toLowerCase();
-    const allowedTypes = ['free', 'premium', 'pro_plus'];
-    
-    return allowedTypes.includes(userType);
-  };
+  const { appUserId } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -128,64 +32,6 @@ export default function Header() {
                 <Sun className="h-5 w-5" />
               )}
             </Button>
-
-            {/* Profile icon - shown for authenticated users only (hidden for guests) */}
-            {/* Show when userData exists (cached or fresh) - debounce keeps icon visible during refresh */}
-            {/* userData must exist to verify user_type; subscription can be null for non-subscribed users */}
-            {user && userData && isAuthenticatedUser() && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  {subscription?.status === 'active' ? (
-                    // Full profile menu for subscribed users
-                    <Button variant="ghost" className="gap-2" data-testid="button-user-menu">
-                      <Badge variant="secondary" data-testid="badge-subscription">
-                        {getSubscriptionBadge()}
-                      </Badge>
-                      <User className="h-4 w-4" />
-                      <span className="hidden sm:inline" data-testid="text-user-name">
-                        {userData?.name || user.email?.split('@')[0]}
-                      </span>
-                    </Button>
-                  ) : (
-                    // Simple logout button for authenticated users without subscription
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      data-testid="button-user-menu"
-                      className="hover-elevate active-elevate-2"
-                    >
-                      <User className="h-5 w-5" />
-                    </Button>
-                  )}
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  {subscription?.status === 'active' ? (
-                    // Full menu for subscribed users
-                    <>
-                      <DropdownMenuLabel>
-                        <div className="flex flex-col gap-1">
-                          <span>{userData?.name || user.email?.split('@')[0]}</span>
-                          <span className="text-xs font-normal text-muted-foreground" dir="ltr">
-                            {user.email}
-                          </span>
-                        </div>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleSignOut} data-testid="button-logout">
-                        <LogOut className="ml-2 h-4 w-4" />
-                        <span>تسجيل الخروج</span>
-                      </DropdownMenuItem>
-                    </>
-                  ) : (
-                    // Simple logout option for authenticated users without subscription
-                    <DropdownMenuItem onClick={handleSignOut} data-testid="button-logout">
-                      <LogOut className="ml-2 h-4 w-4" />
-                      <span>تسجيل الخروج</span>
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           </div>
         </div>
       </div>

@@ -23,7 +23,7 @@ interface PaymentInfo {
 
 export default function Success() {
   const [, navigate] = useLocation();
-  const { user, guestUserId } = useAuth();
+  const { appUserId } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [countdown, setCountdown] = useState(5);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
@@ -31,7 +31,7 @@ export default function Success() {
   useEffect(() => {
     const fetchPaymentInfo = async () => {
       try {
-        const userId = user?.id || guestUserId;
+        const userId = appUserId;
         if (!userId) {
           setIsLoading(false);
           return;
@@ -56,7 +56,7 @@ export default function Success() {
     };
 
     fetchPaymentInfo();
-  }, [user, guestUserId]);
+  }, [appUserId]);
 
   // Auto-redirect countdown
   useEffect(() => {

@@ -33,7 +33,7 @@ interface ProcessingResult {
 
 export default function Home() {
   const [, navigate] = useLocation();
-  const { user, isGuest, guestUserId, loading: authLoading } = useAuth();
+  const { appUserId, loading: authLoading } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<ProcessingResult | null>(null);
   const [liveResult, setLiveResult] = useState<ProcessingResult | null>(null);
@@ -44,8 +44,8 @@ export default function Home() {
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
 
-  // Get current user ID (guest or authenticated)
-  const currentUserId = isGuest ? guestUserId : user?.id;
+  // Use app user ID
+  const currentUserId = appUserId;
 
   // Check trial status for all users (guest and authenticated)
   useEffect(() => {
@@ -172,9 +172,9 @@ export default function Home() {
   };
 
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm", audioDuration?: number) => {
-    // Check trial status for guests before processing
-    if (isGuest && guestUserId) {
-      const status = await getTrialStatus(guestUserId);
+    // Check trial status before processing
+    if (currentUserId) {
+      const status = await getTrialStatus(currentUserId);
       if (status && status.isExpired) {
         setShowTrialModal(true);
         return;
