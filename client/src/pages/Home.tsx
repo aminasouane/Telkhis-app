@@ -18,8 +18,9 @@ import { useLanguage } from "@/components/LanguageProvider";
 import { languageNames, type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History, Loader2 } from "lucide-react";
-import { getSummaryById } from "@/services/dbService";
-import { getTrialStatus, saveSummary as saveTrialSummary } from "@/services/trialService";
+import { getSummaryById, saveSummary as dbSaveSummary } from "@/services/dbService";
+import { getTrialStatus, canCreateSummary, recordSummaryUsage, type TrialStatus } from "@/services/localTrialService";
+import { TRIAL_CONFIG } from "@/config/trialConfig";
 import { getAudioDuration } from "@/utils/audioUtils";
 
 interface ProcessingResult {
@@ -40,35 +41,23 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
   const [showTrialModal, setShowTrialModal] = useState(false);
-  const [trialInfo, setTrialInfo] = useState({ minutesUsed: 0, minutesLimit: 30.0 });
+  const [trialStatus, setTrialStatus] = useState<TrialStatus | null>(null);
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
 
   // Use app user ID
   const currentUserId = appUserId;
 
-  // Check trial status for all users (guest and authenticated)
+  // Check trial status on load
   useEffect(() => {
     if (currentUserId) {
-      checkTrialStatus();
-    }
-  }, [currentUserId]);
-
-  const checkTrialStatus = async () => {
-    if (!currentUserId) return;
-    
-    const status = await getTrialStatus(currentUserId);
-    if (status) {
-      setTrialInfo({
-        minutesUsed: status.minutesUsed,
-        minutesLimit: status.minutesLimit
-      });
-      
+      const status = getTrialStatus(currentUserId);
+      setTrialStatus(status);
       if (status.isExpired) {
         setShowTrialModal(true);
       }
     }
-  };
+  }, [currentUserId]);
 
   // Load summary from URL parameter
   useEffect(() => {
@@ -123,50 +112,36 @@ export default function Home() {
   const saveSessionToDatabase = async (data: ProcessingResult) => {
     if (!currentUserId) return;
 
+    // audioDuration comes in SECONDS from getAudioDuration, convert to minutes
+    // If duration is missing, use the full trial limit to prevent bypass
+    const audioDurationSeconds = data.audioDuration || (TRIAL_CONFIG.MAX_AUDIO_MINUTES * 60);
+    const audioDurationMinutes = audioDurationSeconds / 60;
+    
+    // Record usage locally and update trial status
+    const newStatus = recordSummaryUsage(currentUserId, audioDurationMinutes);
+    setTrialStatus(newStatus);
+    
+    // Show modal if trial just expired after this usage
+    if (newStatus.isExpired) {
+      setShowTrialModal(true);
+    }
+
+    // Save to database
     const title = generateSessionTitle(data.summary);
-    
-    const result = await saveTrialSummary(
-      currentUserId,
+    const saved = await dbSaveSummary({
+      user_id: currentUserId,
       title,
-      data.summary,
-      data.transcription,
-      data.keyPoints,
-      data.language,
-      data.audioDuration,
-      data.processedAt
-    );
+      content: data.summary,
+      transcript: data.transcription,
+      key_points: data.keyPoints,
+      language: data.language,
+    });
     
-    if (!result.success) {
-      // Show custom message if available (for daily limit or duration limit)
-      if (result.message) {
-        toast({
-          title: "تنبيه",
-          description: result.message,
-          variant: "destructive",
-        });
-        
-        // If it's trial expired, show modal
-        if (result.error === 'Trial expired' || result.error === 'Trial period expired' || result.error === 'Daily limit reached') {
-          setShowTrialModal(true);
-        }
-        return;
-      }
-      
-      if (result.error === 'Trial expired') {
-        setShowTrialModal(true);
-        return;
-      }
-      
+    if (!saved) {
       toast({
         title: "خطأ في الحفظ",
-        description: result.error || "حدث خطأ أثناء حفظ التلخيص",
+        description: "حدث خطأ أثناء حفظ التلخيص",
         variant: "destructive",
-      });
-    } else if (result.trialStatus) {
-      // Update trial info after successful save
-      setTrialInfo({
-        minutesUsed: result.trialStatus.minutesUsed,
-        minutesLimit: result.trialStatus.minutesLimit
       });
     }
   };
@@ -174,8 +149,9 @@ export default function Home() {
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm", audioDuration?: number) => {
     // Check trial status before processing
     if (currentUserId) {
-      const status = await getTrialStatus(currentUserId);
-      if (status && status.isExpired) {
+      const { allowed, status } = canCreateSummary(currentUserId);
+      if (!allowed) {
+        setTrialStatus(status);
         setShowTrialModal(true);
         return;
       }
@@ -318,7 +294,20 @@ export default function Home() {
                 </AlertDescription>
               </Alert>
 
-              {isProcessing ? (
+              {trialStatus?.isExpired ? (
+                <div className="flex flex-col items-center gap-4 py-12 text-center">
+                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                    <Info className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="text-lg font-medium">انتهت التجربة المجانية</p>
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    لقد استخدمت التلخيص المجاني الخاص بك. اشترك الآن لمواصلة تلخيص المحاضرات.
+                  </p>
+                  <Button onClick={() => navigate("/subscribe")} data-testid="button-subscribe-inline">
+                    الاشتراك الآن
+                  </Button>
+                </div>
+              ) : isProcessing ? (
                 <div className="flex flex-col items-center gap-4 py-12">
                   <div className="h-16 w-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                   <p className="text-lg font-medium">جاري المعالجة...</p>
@@ -401,13 +390,24 @@ export default function Home() {
                     <History className="h-4 w-4 ml-2" />
                     السجل
                   </Button>
-                  <button
-                    onClick={handleNewRecording}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    data-testid="button-new-recording"
-                  >
-                    تسجيل جديد ←
-                  </button>
+                  {!trialStatus?.isExpired && (
+                    <button
+                      onClick={handleNewRecording}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      data-testid="button-new-recording"
+                    >
+                      تسجيل جديد ←
+                    </button>
+                  )}
+                  {trialStatus?.isExpired && (
+                    <Button
+                      size="sm"
+                      onClick={() => navigate("/subscribe")}
+                      data-testid="button-subscribe-from-result"
+                    >
+                      الاشتراك الآن
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -429,8 +429,7 @@ export default function Home() {
 
       <TrialExpiredModal
         open={showTrialModal}
-        minutesUsed={trialInfo.minutesUsed}
-        minutesLimit={trialInfo.minutesLimit}
+        trialStatus={trialStatus}
       />
     </div>
   );
