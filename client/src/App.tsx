@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import { AuthProvider } from "@/components/AuthProvider";
+import { SubscriptionProvider } from "@/components/SubscriptionProvider";
 import Home from "@/pages/Home";
 import HistoryScreen from "@/pages/HistoryScreen";
 import Login from "@/pages/Login";
@@ -42,10 +43,12 @@ function App() {
       <TooltipProvider>
         <ThemeProvider>
           <AuthProvider>
-            <LanguageProvider>
-              <Toaster />
-              <Router />
-            </LanguageProvider>
+            <SubscriptionProvider>
+              <LanguageProvider>
+                <Toaster />
+                <Router />
+              </LanguageProvider>
+            </SubscriptionProvider>
           </AuthProvider>
         </ThemeProvider>
       </TooltipProvider>

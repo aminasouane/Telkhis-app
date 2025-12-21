@@ -20,7 +20,8 @@ import { languageNames, type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History, Loader2 } from "lucide-react";
 import { getSummaryById, saveSummary as dbSaveSummary } from "@/services/dbService";
-import { getTrialStatus, canCreateSummary, recordSummaryUsage, type TrialStatus } from "@/services/localTrialService";
+import { useSubscription } from "@/components/SubscriptionProvider";
+import { getUsagePermissions } from "@/services/subscriptionStateService";
 import { TRIAL_CONFIG } from "@/config/trialConfig";
 import { getAudioDuration } from "@/utils/audioUtils";
 
@@ -41,24 +42,21 @@ export default function Home() {
   const [liveResult, setLiveResult] = useState<ProcessingResult | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
-  const [showTrialModal, setShowTrialModal] = useState(false);
-  const [trialStatus, setTrialStatus] = useState<TrialStatus | null>(null);
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
+  const { state: subscriptionState, permissions, loading: subscriptionLoading, recordUsage, refreshState } = useSubscription();
 
-  // Use app user ID
   const currentUserId = appUserId;
 
-  // Check trial status on load
+  const isExpired = subscriptionState?.status === "trial_expired";
+  const trialStatus = subscriptionState?.trialStatus || null;
+
   useEffect(() => {
-    if (currentUserId) {
-      const status = getTrialStatus(currentUserId);
-      setTrialStatus(status);
-      if (status.isExpired) {
-        setShowTrialModal(true);
-      }
+    if (subscriptionState?.status === "trial_expired") {
+      setShowExpiredModal(true);
     }
-  }, [currentUserId]);
+  }, [subscriptionState?.status]);
 
   // Load summary from URL parameter
   useEffect(() => {
@@ -118,14 +116,8 @@ export default function Home() {
     const audioDurationSeconds = data.audioDuration || (TRIAL_CONFIG.MAX_AUDIO_MINUTES * 60);
     const audioDurationMinutes = audioDurationSeconds / 60;
     
-    // Record usage locally and update trial status
-    const newStatus = recordSummaryUsage(currentUserId, audioDurationMinutes);
-    setTrialStatus(newStatus);
-    
-    // Show modal if trial just expired after this usage
-    if (newStatus.isExpired) {
-      setShowTrialModal(true);
-    }
+    // Record usage via subscription service and refresh state
+    recordUsage(audioDurationMinutes);
 
     // Save to database
     const title = generateSessionTitle(data.summary);
@@ -148,12 +140,12 @@ export default function Home() {
   };
 
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm", audioDuration?: number) => {
-    // Check trial status before processing
+    // Check permissions directly from service (sync, no loading dependency)
     if (currentUserId) {
-      const { allowed, status } = canCreateSummary(currentUserId);
-      if (!allowed) {
-        setTrialStatus(status);
-        setShowTrialModal(true);
+      const currentPermissions = getUsagePermissions(currentUserId);
+      if (!currentPermissions.allowed) {
+        setShowExpiredModal(true);
+        refreshState();
         return;
       }
     }
@@ -295,7 +287,7 @@ export default function Home() {
                 </AlertDescription>
               </Alert>
 
-              {trialStatus?.isExpired ? (
+              {isExpired ? (
                 <TrialExpiredExperience trialStatus={trialStatus} />
               ) : isProcessing ? (
                 <div className="flex flex-col items-center gap-4 py-12">
@@ -380,7 +372,7 @@ export default function Home() {
                     <History className="h-4 w-4 ml-2" />
                     السجل
                   </Button>
-                  {!trialStatus?.isExpired && (
+                  {!isExpired && (
                     <button
                       onClick={handleNewRecording}
                       className="text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -389,7 +381,7 @@ export default function Home() {
                       تسجيل جديد ←
                     </button>
                   )}
-                  {trialStatus?.isExpired && (
+                  {isExpired && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -419,7 +411,7 @@ export default function Home() {
       <Footer />
 
       <TrialExpiredModal
-        open={showTrialModal}
+        open={showExpiredModal}
         trialStatus={trialStatus}
       />
     </div>
