@@ -25,6 +25,19 @@ async function checkFfmpegAvailable(): Promise<boolean> {
   }
 }
 
+async function prepareAudioForWhisper(inputPath: string, outputPath: string): Promise<void> {
+  try {
+    console.log(`[whisper.cpp] Converting audio to WAV (16kHz, mono, PCM 16-bit)...`);
+    await execAsync(
+      `ffmpeg -y -i "${inputPath}" -ar 16000 -ac 1 -c:a pcm_s16le "${outputPath}" 2>&1`
+    );
+    console.log(`[whisper.cpp] Audio conversion successful`);
+  } catch (error: any) {
+    console.error("[whisper.cpp] Audio conversion failed:", error);
+    throw new Error("فشل تحويل الملف الصوتي. يرجى المحاولة بملف آخر.");
+  }
+}
+
 async function getAudioDuration(filePath: string): Promise<number> {
   try {
     const { stdout } = await execAsync(
@@ -93,15 +106,18 @@ export async function transcribeWithWhisperCpp(
   const tempId = randomUUID();
   const tempDir = path.join(os.tmpdir(), `whisper-${tempId}`);
   const tempInputPath = path.join(tempDir, filename);
+  const tempWavPath = path.join(tempDir, "audio.wav");
 
   try {
     fs.mkdirSync(tempDir, { recursive: true });
     fs.writeFileSync(tempInputPath, audioBuffer);
 
-    const duration = await getAudioDuration(tempInputPath);
+    await prepareAudioForWhisper(tempInputPath, tempWavPath);
+
+    const duration = await getAudioDuration(tempWavPath);
     if (duration > MAX_AUDIO_DURATION_SECONDS) {
       throw new Error(
-        `Audio duration (${Math.round(duration / 60)} minutes) exceeds maximum allowed (${MAX_AUDIO_DURATION_SECONDS / 60} minutes)`
+        `مدة الصوت (${Math.round(duration / 60)} دقيقة) تتجاوز الحد المسموح (${MAX_AUDIO_DURATION_SECONDS / 60} دقيقة)`
       );
     }
     console.log(`[whisper.cpp] Audio duration: ${Math.round(duration)} seconds`);
@@ -111,7 +127,7 @@ export async function transcribeWithWhisperCpp(
     console.log(`[whisper.cpp] Transcribing: ${filename}`);
     console.log(`[whisper.cpp] Language: ${whisperLanguage}`);
 
-    const result = await nodewhisper(tempInputPath, {
+    const result = await nodewhisper(tempWavPath, {
       modelName: MODEL_NAME,
       autoDownloadModelName: MODEL_NAME,
       removeWavFileAfterTranscription: true,
