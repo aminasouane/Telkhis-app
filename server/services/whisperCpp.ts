@@ -9,7 +9,7 @@ const execAsync = promisify(exec);
 
 const WHISPER_DIR = path.join(process.cwd(), "whisper.cpp");
 const MODELS_DIR = path.join(WHISPER_DIR, "models");
-const WHISPER_BINARY = path.join(WHISPER_DIR, "main");
+const WHISPER_BINARY = path.join(WHISPER_DIR, "build", "bin", "whisper-cli");
 const MODEL_NAME = "small";
 const MODEL_FILE = `ggml-${MODEL_NAME}.bin`;
 const MODEL_PATH = path.join(MODELS_DIR, MODEL_FILE);
@@ -73,11 +73,19 @@ async function buildWhisperCpp(): Promise<void> {
     return;
   }
 
-  console.log("[whisper.cpp] Building whisper.cpp (this may take a few minutes)...");
-  await execAsync(`cd "${WHISPER_DIR}" && make -j4`, { timeout: 600000 });
+  console.log("[whisper.cpp] Building whisper.cpp with cmake (this may take a few minutes)...");
+  
+  const buildDir = path.join(WHISPER_DIR, "build");
+  if (!fs.existsSync(buildDir)) {
+    fs.mkdirSync(buildDir, { recursive: true });
+  }
+  
+  await execAsync(`cd "${buildDir}" && cmake .. && cmake --build . --config Release -j4`, { 
+    timeout: 600000 
+  });
   
   if (!fs.existsSync(WHISPER_BINARY)) {
-    throw new Error("Build failed: whisper binary not found after make");
+    throw new Error("Build failed: whisper-cli binary not found after cmake build");
   }
   console.log("[whisper.cpp] Build complete");
 }
@@ -130,10 +138,10 @@ export async function ensureModelReady(): Promise<void> {
       }
 
       try {
-        await execAsync("make --version");
-        console.log(`[whisper.cpp] Make: available`);
+        await execAsync("cmake --version");
+        console.log(`[whisper.cpp] CMake: available`);
       } catch {
-        throw new Error("Make is not available. Building whisper.cpp requires Make.");
+        throw new Error("CMake is not available. Building whisper.cpp requires CMake.");
       }
 
       try {
