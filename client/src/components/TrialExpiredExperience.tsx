@@ -16,16 +16,29 @@ export default function TrialExpiredExperience({
 }: TrialExpiredExperienceProps) {
   const [, navigate] = useLocation();
 
+  const getTitle = () => {
+    if (!trialStatus) return "انتهت تجربتك المجانية";
+    
+    switch (trialStatus.state) {
+      case "USED_UP":
+        return "استهلكت رصيدك المجاني";
+      case "EXPIRED":
+        return "انتهت صلاحية التجربة";
+      default:
+        return "انتهت تجربتك المجانية";
+    }
+  };
+
   const getExpiryReason = () => {
     if (!trialStatus) return null;
     
     switch (trialStatus.reason) {
       case "summaries_exhausted":
-        return `لقد استخدمت تلخيصك المجاني`;
+        return `لقد استخدمت تلخيصك المجاني الوحيد`;
       case "time_expired":
         return `لقد استخدمت كامل الوقت المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة)`;
       case "days_expired":
-        return `انتهت صلاحية التجربة (${TRIAL_CONFIG.VALIDITY_DAYS} أيام)`;
+        return `انتهت صلاحية التجربة بعد ${TRIAL_CONFIG.VALIDITY_DAYS} أيام من أول استخدام`;
       default:
         return null;
     }
@@ -40,7 +53,7 @@ export default function TrialExpiredExperience({
           </div>
           
           <h1 className="text-2xl font-bold text-foreground">
-            انتهت تجربتك المجانية
+            {getTitle()}
           </h1>
           
           <p className="text-muted-foreground leading-relaxed">

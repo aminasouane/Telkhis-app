@@ -3,6 +3,8 @@ import { getOrCreateAppUserId } from "./appUserService";
 
 const TRIAL_STORAGE_KEY = "takhleesly_trial_data";
 
+export type TrialStateType = "ACTIVE" | "USED_UP" | "EXPIRED";
+
 export interface TrialData {
   appUserId: string;
   firstUseDate: string;
@@ -11,6 +13,7 @@ export interface TrialData {
 }
 
 export interface TrialStatus {
+  state: TrialStateType;
   isExpired: boolean;
   summariesUsed: number;
   summariesLimit: number;
@@ -69,18 +72,27 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   const summariesRemaining = Math.max(0, TRIAL_CONFIG.MAX_SUMMARIES - data.summariesUsed);
   const minutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - data.totalMinutesUsed);
   
-  const isDaysExpired = daysRemaining <= 0;
+  const isDaysExpired = daysPassed >= TRIAL_CONFIG.VALIDITY_DAYS;
   const isSummariesExhausted = summariesRemaining <= 0;
   const isTimeExhausted = minutesRemaining <= 0;
   
+  let state: TrialStateType;
   let reason: TrialStatus["reason"] = undefined;
-  if (isSummariesExhausted) reason = "summaries_exhausted";
-  else if (isTimeExhausted) reason = "time_expired";
-  else if (isDaysExpired) reason = "days_expired";
   
-  const isExpired = isDaysExpired || isSummariesExhausted || isTimeExhausted;
+  if (isDaysExpired) {
+    state = "EXPIRED";
+    reason = "days_expired";
+  } else if (isSummariesExhausted || isTimeExhausted) {
+    state = "USED_UP";
+    reason = isSummariesExhausted ? "summaries_exhausted" : "time_expired";
+  } else {
+    state = "ACTIVE";
+  }
+  
+  const isExpired = state !== "ACTIVE";
   
   return {
+    state,
     isExpired,
     summariesUsed: data.summariesUsed,
     summariesLimit: TRIAL_CONFIG.MAX_SUMMARIES,
