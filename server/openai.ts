@@ -1,4 +1,5 @@
-import OpenAI, { toFile } from "openai";
+import OpenAI from "openai";
+import { transcribeWithWhisperCpp, ensureModelReady } from "./services/whisperCpp";
 
 function getOpenAIClient(): OpenAI {
   if (!process.env.OPENAI_API_KEY) {
@@ -15,24 +16,15 @@ export async function transcribeAudio(
   mimetype: string,
   language: string = "ar"
 ): Promise<string> {
-  const openai = getOpenAIClient();
+  console.log(`[transcribeAudio] Using whisper.cpp for transcription`);
+  console.log(`[transcribeAudio] File: ${filename}, Language: ${language}`);
+  
+  const transcription = await transcribeWithWhisperCpp(audioBuffer, filename, language);
+  return transcription;
+}
 
-  // Convert buffer to file-like object using OpenAI's toFile helper
-  const audioFile = await toFile(audioBuffer, filename, {
-    type: mimetype,
-  });
-
-  // Map language codes to Whisper API language codes
-  // For Algerian dialect, we use Arabic since Whisper doesn't support dialects
-  const whisperLanguage = language === "dz" ? "ar" : language;
-
-  const transcription = await openai.audio.transcriptions.create({
-    file: audioFile,
-    model: "whisper-1",
-    language: whisperLanguage,
-  });
-
-  return transcription.text;
+export async function initializeWhisper(): Promise<void> {
+  await ensureModelReady();
 }
 
 export async function summarizeText(

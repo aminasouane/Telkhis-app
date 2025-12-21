@@ -3,13 +3,43 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { randomUUID } from "crypto";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 const MODELS_DIR = path.join(process.cwd(), "whisper-models");
 const MODEL_NAME = "small";
 const MAX_AUDIO_DURATION_SECONDS = 30 * 60;
 
 let modelInitialized = false;
+let ffmpegAvailable = false;
 let initializationPromise: Promise<void> | null = null;
+
+async function checkFfmpegAvailable(): Promise<boolean> {
+  try {
+    await execAsync("ffmpeg -version");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getAudioDuration(filePath: string): Promise<number> {
+  try {
+    const { stdout } = await execAsync(
+      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`
+    );
+    const duration = parseFloat(stdout.trim());
+    if (isNaN(duration) || duration <= 0) {
+      throw new Error("Invalid duration value returned from ffprobe");
+    }
+    return duration;
+  } catch (error: any) {
+    console.error("[whisper.cpp] Failed to determine audio duration:", error);
+    throw new Error(`Cannot verify audio duration: ${error.message}`);
+  }
+}
 
 export async function ensureModelReady(): Promise<void> {
   if (modelInitialized) {
@@ -22,6 +52,19 @@ export async function ensureModelReady(): Promise<void> {
 
   initializationPromise = (async () => {
     try {
+      ffmpegAvailable = await checkFfmpegAvailable();
+      if (!ffmpegAvailable) {
+        throw new Error("FFmpeg is not available. Audio transcription requires FFmpeg.");
+      }
+      console.log(`[whisper.cpp] FFmpeg: available`);
+
+      try {
+        await execAsync("ffprobe -version");
+        console.log(`[whisper.cpp] FFprobe: available`);
+      } catch {
+        throw new Error("FFprobe is not available. Audio duration verification requires FFprobe.");
+      }
+
       if (!fs.existsSync(MODELS_DIR)) {
         fs.mkdirSync(MODELS_DIR, { recursive: true });
       }
@@ -55,6 +98,14 @@ export async function transcribeWithWhisperCpp(
     fs.mkdirSync(tempDir, { recursive: true });
     fs.writeFileSync(tempInputPath, audioBuffer);
 
+    const duration = await getAudioDuration(tempInputPath);
+    if (duration > MAX_AUDIO_DURATION_SECONDS) {
+      throw new Error(
+        `Audio duration (${Math.round(duration / 60)} minutes) exceeds maximum allowed (${MAX_AUDIO_DURATION_SECONDS / 60} minutes)`
+      );
+    }
+    console.log(`[whisper.cpp] Audio duration: ${Math.round(duration)} seconds`);
+
     const whisperLanguage = language === "dz" ? "ar" : language;
 
     console.log(`[whisper.cpp] Transcribing: ${filename}`);
@@ -84,14 +135,15 @@ export async function transcribeWithWhisperCpp(
     }
 
     if (Array.isArray(result)) {
-      return result
-        .map((segment: any) => segment.speech || segment.text || "")
+      const resultArray = result as Array<{ speech?: string; text?: string }>;
+      return resultArray
+        .map((segment) => segment.speech || segment.text || "")
         .join(" ")
         .trim();
     }
 
     if (result && typeof result === "object" && "text" in result) {
-      return (result as any).text.trim();
+      return (result as { text: string }).text.trim();
     }
 
     console.warn("[whisper.cpp] Unexpected result format:", typeof result);
