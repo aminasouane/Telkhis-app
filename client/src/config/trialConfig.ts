@@ -6,7 +6,7 @@ export const TRIAL_CONFIG = {
   MAX_AUDIO_MINUTES: 30,
   
   // Maximum audio minutes allowed per day
-  DAILY_LIMIT_MINUTES: 5,
+  DAILY_LIMIT_MINUTES: 30,
   
   // Number of days the trial is valid from first use
   VALIDITY_DAYS: 7,
