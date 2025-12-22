@@ -1,4 +1,4 @@
-import { getTrialStatus, type TrialStatus } from "./localTrialService";
+import { getTrialStatus, canProcessAudio, recordUsage, type TrialStatus } from "./localTrialService";
 import type { 
   SubscriptionState, 
   SubscriptionInfo, 
@@ -55,7 +55,7 @@ export function getSubscriptionState(appUserId: string): SubscriptionState {
     // Days expired (7 days passed since first use)
     status = "trial_expired";
   } else if (trialStatus.state === "USED_UP") {
-    // Limits exhausted (summaries or minutes used up) but days remaining
+    // Minutes exhausted but days remaining
     status = "trial_used_up";
   } else {
     status = "trial_active";
@@ -68,16 +68,16 @@ export function getSubscriptionState(appUserId: string): SubscriptionState {
   };
 }
 
-export function getUsagePermissions(appUserId: string): UsagePermission {
+// Check if user can process audio of a specific duration
+export function getUsagePermissions(appUserId: string, audioDurationMinutes?: number): UsagePermission {
   const state = getSubscriptionState(appUserId);
   
   switch (state.status) {
     case "subscribed": {
       const sub = state.subscription!;
-      const hasMinutes = sub.minutesUsed < sub.minutesLimit;
-      const hasSummaries = sub.summariesUsed < sub.summariesLimit;
+      const minutesRemaining = sub.minutesLimit - sub.minutesUsed;
       
-      if (!hasMinutes) {
+      if (minutesRemaining <= 0) {
         return {
           allowed: false,
           state,
@@ -85,11 +85,14 @@ export function getUsagePermissions(appUserId: string): UsagePermission {
         };
       }
       
-      if (!hasSummaries) {
+      // If audioDuration provided, check if enough minutes
+      if (audioDurationMinutes !== undefined && minutesRemaining < audioDurationMinutes) {
+        const remainingFormatted = minutesRemaining.toFixed(1);
+        const requestedFormatted = audioDurationMinutes.toFixed(1);
         return {
           allowed: false,
           state,
-          reason: "لقد استخدمت كامل عدد التلخيصات المتاحة",
+          reason: `مدة الملف (${requestedFormatted} دقيقة) أكبر من الرصيد المتبقي (${remainingFormatted} دقيقة)`,
         };
       }
       
@@ -97,24 +100,26 @@ export function getUsagePermissions(appUserId: string): UsagePermission {
     }
     
     case "trial_active": {
+      // If audioDuration provided, check if enough minutes remaining
+      if (audioDurationMinutes !== undefined) {
+        const trialCheck = canProcessAudio(appUserId, audioDurationMinutes);
+        if (!trialCheck.allowed) {
+          return {
+            allowed: false,
+            state,
+            reason: trialCheck.reason,
+          };
+        }
+      }
       return { allowed: true, state };
     }
     
     case "trial_used_up": {
-      // Trial limits exhausted but days remaining
-      const reason = state.trialStatus?.reason;
-      let message = "استهلكت رصيدك المجاني";
-      
-      if (reason === "summaries_exhausted") {
-        message = "لقد استخدمت تلخيصك المجاني الوحيد";
-      } else if (reason === "time_expired") {
-        message = "لقد استخدمت كامل الوقت المجاني (30 دقيقة)";
-      }
-      
+      // Minutes exhausted but days remaining
       return {
         allowed: false,
         state,
-        reason: message,
+        reason: "لقد استخدمت كامل الوقت المجاني (30 دقيقة)",
       };
     }
     
@@ -129,8 +134,14 @@ export function getUsagePermissions(appUserId: string): UsagePermission {
   }
 }
 
+// Basic check without audio duration (for UI display)
 export function canCreateSummary(appUserId: string): boolean {
   return getUsagePermissions(appUserId).allowed;
+}
+
+// Check with specific audio duration (for processing)
+export function canProcessAudioFile(appUserId: string, audioDurationMinutes: number): UsagePermission {
+  return getUsagePermissions(appUserId, audioDurationMinutes);
 }
 
 export function recordSubscriptionUsage(
@@ -145,6 +156,12 @@ export function recordSubscriptionUsage(
     saveSubscriptionInfo(appUserId, subscription);
   }
   
+  return getSubscriptionState(appUserId);
+}
+
+// Record trial usage (called after successful processing)
+export function recordTrialUsage(appUserId: string, audioDurationMinutes: number): SubscriptionState {
+  recordUsage(appUserId, audioDurationMinutes);
   return getSubscriptionState(appUserId);
 }
 

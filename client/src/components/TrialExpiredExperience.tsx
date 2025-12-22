@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, FileText, Calendar, Sparkles } from "lucide-react";
+import { Clock, Calendar, Sparkles } from "lucide-react";
 import { type TrialStatus } from "@/services/localTrialService";
 import { TRIAL_CONFIG } from "@/config/trialConfig";
 
@@ -21,7 +21,7 @@ export default function TrialExpiredExperience({
     
     switch (trialStatus.state) {
       case "USED_UP":
-        // Limits exhausted (summaries or minutes) but days may remain
+        // Minutes exhausted but days may remain
         return "استهلكت رصيدك المجاني";
       case "EXPIRED":
         // 7 days passed since first use
@@ -35,9 +35,7 @@ export default function TrialExpiredExperience({
     if (!trialStatus) return null;
     
     switch (trialStatus.reason) {
-      case "summaries_exhausted":
-        return "لقد استخدمت تلخيصك المجاني الوحيد. اشترك للحصول على المزيد من التلخيصات.";
-      case "time_expired":
+      case "minutes_exhausted":
         return `لقد استخدمت كامل الوقت المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة). اشترك للحصول على وقت إضافي.`;
       case "days_expired":
         return `انتهت صلاحية التجربة المجانية بعد ${TRIAL_CONFIG.VALIDITY_DAYS} أيام من أول استخدام.`;
@@ -75,16 +73,16 @@ export default function TrialExpiredExperience({
               <p className="text-sm font-medium text-foreground mb-3">ملخص استخدامك:</p>
               
               <div className="flex items-center gap-3">
-                <FileText className="h-4 w-4 text-primary" />
+                <Clock className="h-4 w-4 text-primary" />
                 <span className="text-sm text-muted-foreground">
-                  التلخيصات: {trialStatus.summariesUsed} من {trialStatus.summariesLimit}
+                  الوقت المستخدم: {trialStatus.minutesUsed.toFixed(1)} من {trialStatus.minutesLimit} دقيقة
                 </span>
               </div>
               
               <div className="flex items-center gap-3">
                 <Clock className="h-4 w-4 text-primary" />
                 <span className="text-sm text-muted-foreground">
-                  الوقت: {trialStatus.minutesUsed.toFixed(1)} من {trialStatus.minutesLimit} دقيقة
+                  المتبقي: {trialStatus.minutesRemaining.toFixed(1)} دقيقة
                 </span>
               </div>
               

@@ -8,22 +8,18 @@ export type TrialStateType = "ACTIVE" | "USED_UP" | "EXPIRED";
 export interface TrialData {
   appUserId: string;
   firstUseDate: string;
-  summariesUsed: number;
   totalMinutesUsed: number;
 }
 
 export interface TrialStatus {
   state: TrialStateType;
   isExpired: boolean;
-  summariesUsed: number;
-  summariesLimit: number;
-  summariesRemaining: number;
   minutesUsed: number;
   minutesLimit: number;
   minutesRemaining: number;
   daysRemaining: number;
   canUseTrial: boolean;
-  reason?: "summaries_exhausted" | "time_expired" | "days_expired";
+  reason?: "minutes_exhausted" | "days_expired";
 }
 
 function getStorageKey(appUserId: string): string {
@@ -35,7 +31,14 @@ export function getTrialData(appUserId: string): TrialData | null {
     const key = getStorageKey(appUserId);
     const data = localStorage.getItem(key);
     if (!data) return null;
-    return JSON.parse(data);
+    
+    const parsed = JSON.parse(data);
+    // Migration: handle old format with summariesUsed
+    return {
+      appUserId: parsed.appUserId,
+      firstUseDate: parsed.firstUseDate,
+      totalMinutesUsed: parsed.totalMinutesUsed || 0,
+    };
   } catch {
     return null;
   }
@@ -48,7 +51,6 @@ export function initializeTrialData(appUserId: string): TrialData {
   const newData: TrialData = {
     appUserId,
     firstUseDate: new Date().toISOString(),
-    summariesUsed: 0,
     totalMinutesUsed: 0,
   };
 
@@ -69,9 +71,6 @@ export function getTrialStatus(appUserId: string): TrialStatus {
     return {
       state: "ACTIVE",
       isExpired: false,
-      summariesUsed: 0,
-      summariesLimit: TRIAL_CONFIG.MAX_SUMMARIES,
-      summariesRemaining: TRIAL_CONFIG.MAX_SUMMARIES,
       minutesUsed: 0,
       minutesLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES,
       minutesRemaining: TRIAL_CONFIG.MAX_AUDIO_MINUTES,
@@ -86,26 +85,21 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   const daysPassed = Math.floor((now.getTime() - firstUse.getTime()) / (1000 * 60 * 60 * 24));
   const daysRemaining = Math.max(0, TRIAL_CONFIG.VALIDITY_DAYS - daysPassed);
   
-  const summariesRemaining = Math.max(0, TRIAL_CONFIG.MAX_SUMMARIES - data.summariesUsed);
   const minutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - data.totalMinutesUsed);
   
   const isDaysExpired = daysPassed >= TRIAL_CONFIG.VALIDITY_DAYS;
-  const isSummariesExhausted = summariesRemaining <= 0;
-  const isTimeExhausted = minutesRemaining <= 0;
+  const isMinutesExhausted = minutesRemaining <= 0;
   
   let state: TrialStateType;
   let reason: TrialStatus["reason"] = undefined;
   
-  // Priority: days_expired takes precedence, then check usage limits
+  // Priority: days_expired takes precedence, then check minutes
   if (isDaysExpired) {
     state = "EXPIRED";
     reason = "days_expired";
-  } else if (isSummariesExhausted) {
+  } else if (isMinutesExhausted) {
     state = "USED_UP";
-    reason = "summaries_exhausted";
-  } else if (isTimeExhausted) {
-    state = "USED_UP";
-    reason = "time_expired";
+    reason = "minutes_exhausted";
   } else {
     state = "ACTIVE";
   }
@@ -115,9 +109,6 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   return {
     state,
     isExpired,
-    summariesUsed: data.summariesUsed,
-    summariesLimit: TRIAL_CONFIG.MAX_SUMMARIES,
-    summariesRemaining,
     minutesUsed: data.totalMinutesUsed,
     minutesLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES,
     minutesRemaining,
@@ -127,10 +118,43 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   };
 }
 
-export function recordSummaryUsage(appUserId: string, audioDurationMinutes: number): TrialStatus {
+// Check if a specific audio duration can be processed
+export function canProcessAudio(appUserId: string, audioDurationMinutes: number): { 
+  allowed: boolean; 
+  status: TrialStatus;
+  reason?: string;
+} {
+  const status = getTrialStatus(appUserId);
+  
+  // If trial is not active, return not allowed
+  if (!status.canUseTrial) {
+    let reason = "التجربة المجانية غير متاحة";
+    if (status.reason === "days_expired") {
+      reason = "انتهت صلاحية التجربة المجانية بعد 7 أيام";
+    } else if (status.reason === "minutes_exhausted") {
+      reason = "لقد استخدمت كامل الوقت المجاني (30 دقيقة)";
+    }
+    return { allowed: false, status, reason };
+  }
+  
+  // Check if enough minutes remaining for this specific audio
+  if (status.minutesRemaining < audioDurationMinutes) {
+    const remainingFormatted = status.minutesRemaining.toFixed(1);
+    const requestedFormatted = audioDurationMinutes.toFixed(1);
+    return {
+      allowed: false,
+      status,
+      reason: `مدة الملف (${requestedFormatted} دقيقة) أكبر من الرصيد المتبقي (${remainingFormatted} دقيقة)`,
+    };
+  }
+  
+  return { allowed: true, status };
+}
+
+// Record usage after successful processing
+export function recordUsage(appUserId: string, audioDurationMinutes: number): TrialStatus {
   const data = getTrialData(appUserId) || initializeTrialData(appUserId);
   
-  data.summariesUsed += 1;
   data.totalMinutesUsed += audioDurationMinutes;
   
   saveTrialData(data);
@@ -138,10 +162,16 @@ export function recordSummaryUsage(appUserId: string, audioDurationMinutes: numb
   return getTrialStatus(appUserId);
 }
 
+// Legacy function for backward compatibility
 export function canCreateSummary(appUserId: string): { allowed: boolean; status: TrialStatus } {
   const status = getTrialStatus(appUserId);
   return {
     allowed: status.canUseTrial,
     status,
   };
+}
+
+// Legacy function - renamed from recordSummaryUsage
+export function recordSummaryUsage(appUserId: string, audioDurationMinutes: number): TrialStatus {
+  return recordUsage(appUserId, audioDurationMinutes);
 }

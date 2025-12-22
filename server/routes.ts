@@ -4,6 +4,7 @@ import multer from "multer";
 import bodyParser from "body-parser";
 import { transcribeAudio } from "./openai";
 import { summarizeWithGrok } from "./services/summarizeWithGrok";
+import { validateAndGetDuration } from "./utils/audioDuration";
 import { createGuestSession } from "./api/guest-session";
 import { saveSummary } from "./api/save-summary";
 import { getSummaries, getSummaryById, deleteSummary } from "./api/summaries";
@@ -188,7 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const file = (req as any).file;
       const language = req.body.language || "ar"; // Default to Arabic
-      const audioDuration = req.body.audioDuration ? parseFloat(req.body.audioDuration) : null;
+      const clientDuration = req.body.audioDuration ? parseFloat(req.body.audioDuration) : null;
       
       if (!file) {
         return res.status(400).json({ error: "No audio file provided" });
@@ -200,8 +201,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid language selection" });
       }
 
-      // Optional: Enforce 5-minute duration limit if duration is provided
-      if (audioDuration && audioDuration > 300) {
+      // Get authoritative duration from server (with client as fallback)
+      const durationResult = await validateAndGetDuration(
+        file.buffer,
+        file.mimetype,
+        clientDuration
+      );
+      const audioDuration = durationResult.duration;
+      
+      console.log(`[process-audio] Duration: ${audioDuration.toFixed(2)}s (source: ${durationResult.source})`);
+
+      // Enforce 5-minute duration limit using server-validated duration
+      if (audioDuration > 300) {
         return res.status(403).json({
           error: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
           errorCode: "DURATION_EXCEEDED",
@@ -228,12 +239,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         language: language as "ar" | "fr" | "dz",
       });
 
-      // Return results with duration (from client if provided)
+      // Return results with server-validated duration (authoritative for usage tracking)
       res.json({
         transcription,
         summary: grokResult.summary,
         keyPoints: grokResult.keyPoints || [],
-        audioDuration: audioDuration || null,
+        audioDuration: audioDuration, // Server-validated duration in seconds
+        durationSource: durationResult.source, // For debugging
         processedAt: new Date().toISOString(),
       });
     } catch (error: any) {

@@ -3,9 +3,10 @@ import { useAuth } from "./AuthProvider";
 import { 
   getSubscriptionState, 
   getUsagePermissions,
-  recordSubscriptionUsage as recordUsage,
+  canProcessAudioFile,
+  recordSubscriptionUsage,
+  recordTrialUsage,
 } from "@/services/subscriptionStateService";
-import { recordSummaryUsage as recordTrialUsage } from "@/services/localTrialService";
 import type { SubscriptionState, UsagePermission } from "@/types/subscription";
 
 interface SubscriptionContextType {
@@ -14,6 +15,7 @@ interface SubscriptionContextType {
   loading: boolean;
   refreshState: () => void;
   recordUsage: (audioDurationMinutes: number) => SubscriptionState | null;
+  checkCanProcessAudio: (audioDurationMinutes: number) => UsagePermission | null;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -32,6 +34,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
 
     const newState = getSubscriptionState(appUserId);
+    // Get basic permissions (without specific audio duration)
     const newPermissions = getUsagePermissions(appUserId);
     
     setState(newState);
@@ -47,13 +50,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
   }, [appUserId, authLoading, refreshState]);
 
+  // Check if a specific audio duration can be processed
+  const checkCanProcessAudio = useCallback((audioDurationMinutes: number): UsagePermission | null => {
+    if (!appUserId) return null;
+    return canProcessAudioFile(appUserId, audioDurationMinutes);
+  }, [appUserId]);
+
   const recordUsageAndRefresh = useCallback((audioDurationMinutes: number): SubscriptionState | null => {
     if (!appUserId) return null;
 
     const currentState = getSubscriptionState(appUserId);
     
     if (currentState.status === "subscribed") {
-      recordUsage(appUserId, audioDurationMinutes);
+      recordSubscriptionUsage(appUserId, audioDurationMinutes);
     } else if (currentState.status === "trial_active") {
       recordTrialUsage(appUserId, audioDurationMinutes);
     }
@@ -68,6 +77,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     loading,
     refreshState,
     recordUsage: recordUsageAndRefresh,
+    checkCanProcessAudio,
   };
 
   return (

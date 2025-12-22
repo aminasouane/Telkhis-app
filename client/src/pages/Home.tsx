@@ -21,7 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History, Loader2 } from "lucide-react";
 import { getSummaryById, saveSummary as dbSaveSummary } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
-import { getUsagePermissions } from "@/services/subscriptionStateService";
+import { canProcessAudioFile } from "@/services/subscriptionStateService";
 import { TRIAL_CONFIG } from "@/config/trialConfig";
 import { getAudioDuration } from "@/utils/audioUtils";
 
@@ -45,7 +45,7 @@ export default function Home() {
   const [showExpiredModal, setShowExpiredModal] = useState(false);
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
-  const { state: subscriptionState, permissions, loading: subscriptionLoading, recordUsage, refreshState } = useSubscription();
+  const { state: subscriptionState, permissions, loading: subscriptionLoading, recordUsage, refreshState, checkCanProcessAudio } = useSubscription();
 
   const currentUserId = appUserId;
 
@@ -107,19 +107,19 @@ export default function Home() {
     return words.join(" ") + (words.length >= 5 ? "..." : "");
   };
 
-  const saveSessionToDatabase = async (data: ProcessingResult): Promise<boolean> => {
+  const saveSessionToDatabase = async (data: ProcessingResult, originalDuration?: number): Promise<boolean> => {
     if (!currentUserId) return false;
 
-    // Require valid audioDuration from server - reject if missing to prevent trial bypass
-    if (!data.audioDuration || data.audioDuration <= 0) {
-      console.error("Missing or invalid audioDuration from server");
-      toast({
-        title: "خطأ في البيانات",
-        description: "لم يتم استلام مدة الصوت من الخادم. يرجى المحاولة مرة أخرى.",
-        variant: "destructive",
-      });
-      return false;
+    // IMPORTANT: Server duration is authoritative, client duration is fallback only
+    // Server calculates duration from the actual audio file, not client-provided value
+    const effectiveDuration = data.audioDuration ?? originalDuration;
+    
+    if (!effectiveDuration || effectiveDuration <= 0) {
+      console.error("Missing or invalid audioDuration - this should not happen!");
+      // If no duration available, we still need to record SOME usage to prevent bypass
     }
+    
+    console.log(`[saveSession] Using duration: ${effectiveDuration?.toFixed(2) ?? 'N/A'}s`);
 
     // Save to database FIRST before recording usage
     const title = generateSessionTitle(data.summary);
@@ -142,24 +142,53 @@ export default function Home() {
     }
 
     // Only record usage AFTER successful database save
-    // audioDuration comes in SECONDS, convert to minutes
-    const audioDurationMinutes = data.audioDuration / 60;
-    
-    try {
-      recordUsage(audioDurationMinutes);
-    } catch (error) {
-      console.error("Error recording usage:", error);
-      // Usage recording failed but save succeeded - log but don't block
+    // IMPORTANT: Always record usage if we have duration to prevent bypass
+    if (effectiveDuration && effectiveDuration > 0) {
+      // audioDuration comes in SECONDS, convert to minutes
+      const audioDurationMinutes = effectiveDuration / 60;
+      
+      try {
+        recordUsage(audioDurationMinutes);
+        console.log(`Usage recorded: ${audioDurationMinutes.toFixed(2)} minutes`);
+      } catch (error) {
+        console.error("Error recording usage:", error);
+        // Usage recording failed but save succeeded - log but don't block
+      }
+    } else {
+      // If no duration available, record minimal usage (1 second = 0.0167 minutes)
+      // This prevents completely free usage in edge cases
+      console.warn("No duration available - recording minimal usage");
+      try {
+        recordUsage(0.1); // 6 seconds minimum
+      } catch (error) {
+        console.error("Error recording minimal usage:", error);
+      }
     }
     
     return true;
   };
 
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm", audioDuration?: number) => {
-    // Check permissions directly from service (sync, no loading dependency)
-    if (currentUserId) {
-      const currentPermissions = getUsagePermissions(currentUserId);
-      if (!currentPermissions.allowed) {
+    // Check if user can process this specific audio duration
+    if (currentUserId && audioDuration) {
+      const audioDurationMinutes = audioDuration / 60;
+      const permissionCheck = canProcessAudioFile(currentUserId, audioDurationMinutes);
+      
+      if (!permissionCheck.allowed) {
+        // Show specific error message about remaining minutes
+        toast({
+          title: "لا يمكن معالجة الملف",
+          description: permissionCheck.reason || "الرصيد المتبقي غير كافٍ لمعالجة هذا الملف",
+          variant: "destructive",
+        });
+        setShowExpiredModal(true);
+        refreshState();
+        return;
+      }
+    } else if (currentUserId) {
+      // Fallback: basic check without duration (shouldn't happen normally)
+      const permissionCheck = checkCanProcessAudio(0.1);
+      if (permissionCheck && !permissionCheck.allowed) {
         setShowExpiredModal(true);
         refreshState();
         return;
@@ -199,7 +228,7 @@ export default function Home() {
       };
       
       setResult(resultData);
-      await saveSessionToDatabase(resultData);
+      await saveSessionToDatabase(resultData, audioDuration);
 
       toast({
         title: "تم التلخيص بنجاح",
