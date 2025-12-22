@@ -9,8 +9,6 @@ import TranscriptionCard from "@/components/TranscriptionCard";
 import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
-import TrialExpiredModal from "@/components/TrialExpiredModal";
-import TrialExpiredExperience from "@/components/TrialExpiredExperience";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +20,7 @@ import { Info, History, Loader2 } from "lucide-react";
 import { getSummaryById, saveSummary as dbSaveSummary } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
 import { canProcessAudioFile } from "@/services/subscriptionStateService";
-import { TRIAL_CONFIG } from "@/config/trialConfig";
+import { getUserStatus, shouldShowSubscriptionPage } from "@/services/userStatusService";
 import { getAudioDuration } from "@/utils/audioUtils";
 
 interface ProcessingResult {
@@ -42,20 +40,20 @@ export default function Home() {
   const [liveResult, setLiveResult] = useState<ProcessingResult | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
-  const [showExpiredModal, setShowExpiredModal] = useState(false);
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
-  const { state: subscriptionState, permissions, loading: subscriptionLoading, recordUsage, refreshState, checkCanProcessAudio } = useSubscription();
+  const { recordUsage, refreshState, checkCanProcessAudio } = useSubscription();
 
   const currentUserId = appUserId;
 
-  // Check for both expired and used up states
-  const isExpired = subscriptionState?.status === "trial_expired" || subscriptionState?.status === "trial_used_up";
-  const trialStatus = subscriptionState?.trialStatus || null;
-
-  // Note: Don't auto-show expired modal on page load
-  // Modal only shows when user tries to create a summary (in processAudio)
-  // The inline TrialExpiredExperience handles the UI state for expired trials
+  // Redirect to /subscribe if trial is expired or minutes exhausted
+  useEffect(() => {
+    if (!authLoading && currentUserId) {
+      if (shouldShowSubscriptionPage(currentUserId)) {
+        navigate("/subscribe");
+      }
+    }
+  }, [authLoading, currentUserId, navigate]);
 
   // Load summary from URL parameter
   useEffect(() => {
@@ -175,22 +173,20 @@ export default function Home() {
       const permissionCheck = canProcessAudioFile(currentUserId, audioDurationMinutes);
       
       if (!permissionCheck.allowed) {
-        // Show specific error message about remaining minutes
         toast({
           title: "لا يمكن معالجة الملف",
           description: permissionCheck.reason || "الرصيد المتبقي غير كافٍ لمعالجة هذا الملف",
           variant: "destructive",
         });
-        setShowExpiredModal(true);
         refreshState();
+        navigate("/subscribe");
         return;
       }
     } else if (currentUserId) {
-      // Fallback: basic check without duration (shouldn't happen normally)
       const permissionCheck = checkCanProcessAudio(0.1);
       if (permissionCheck && !permissionCheck.allowed) {
-        setShowExpiredModal(true);
         refreshState();
+        navigate("/subscribe");
         return;
       }
     }
@@ -332,9 +328,7 @@ export default function Home() {
                 </AlertDescription>
               </Alert>
 
-              {isExpired ? (
-                <TrialExpiredExperience trialStatus={trialStatus} />
-              ) : isProcessing ? (
+              {isProcessing ? (
                 <div className="flex flex-col items-center gap-4 py-12">
                   <div className="h-16 w-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                   <p className="text-lg font-medium">جاري المعالجة...</p>
@@ -417,25 +411,13 @@ export default function Home() {
                     <History className="h-4 w-4 ml-2" />
                     السجل
                   </Button>
-                  {!isExpired && (
-                    <button
-                      onClick={handleNewRecording}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                      data-testid="button-new-recording"
-                    >
-                      تسجيل جديد ←
-                    </button>
-                  )}
-                  {isExpired && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate("/history")}
-                      data-testid="button-subscription-coming-from-result"
-                    >
-                      سيتم فتح الاشتراك قريبًا
-                    </Button>
-                  )}
+                  <button
+                    onClick={handleNewRecording}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    data-testid="button-new-recording"
+                  >
+                    تسجيل جديد ←
+                  </button>
                 </div>
               </div>
 
@@ -454,11 +436,6 @@ export default function Home() {
       </main>
 
       <Footer />
-
-      <TrialExpiredModal
-        open={showExpiredModal}
-        trialStatus={trialStatus}
-      />
     </div>
   );
 }

@@ -1,12 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/components/AuthProvider";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import TrialExpiredExperience from "@/components/TrialExpiredExperience";
 import { getTrialStatus, type TrialStatus } from "@/services/localTrialService";
+import { getUserStatus, shouldShowSubscriptionPage } from "@/services/userStatusService";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
 
 export default function Subscribe() {
   const [, navigate] = useLocation();
@@ -19,7 +19,8 @@ export default function Subscribe() {
       const status = getTrialStatus(appUserId);
       setTrialStatus(status);
       
-      if (!status.isExpired) {
+      // If trial is still active, redirect to home
+      if (!shouldShowSubscriptionPage(appUserId)) {
         navigate("/");
       } else {
         setIsLoading(false);
