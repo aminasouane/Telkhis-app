@@ -145,7 +145,7 @@ The application uses **Chargily Pay** for processing subscription payments in Al
     - **Audio Prep**: Auto-converts to WAV (16kHz, mono, PCM 16-bit)
     - **Limits**: 30 minutes max audio duration
 - **Grok API (xAI)**:
-    - **Model**: `grok-2-1212` - high context (131K tokens)
+    - **Model**: `grok-3` - high context (131K tokens)
     - **Languages**: Arabic, French, Algerian dialect (with language-specific prompts)
     - **Integration**: Via OpenAI SDK compatibility layer (`https://api.x.ai/v1`)
     - **Features**: Text summarization, key point extraction

@@ -97,7 +97,7 @@ ${transcript}
   try {
     const client = getGrokClient();
     const response = await client.chat.completions.create({
-      model: "grok-2-1212",
+      model: "grok-3",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
