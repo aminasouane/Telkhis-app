@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import bodyParser from "body-parser";
 import { transcribeAudio, summarizeText } from "./openai";
+import { summarizeWithGrok } from "./services/summarizeWithGrok";
 import { createGuestSession } from "./api/guest-session";
 import { saveSummary } from "./api/save-summary";
 import { getSummaries, getSummaryById, deleteSummary } from "./api/summaries";
@@ -71,6 +72,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }),
     handleChargilyWebhook
   );
+
+  // Standalone summarization endpoint using Grok API
+  app.post("/api/summarize", async (req: Request, res) => {
+    try {
+      const { transcript, language = "ar" } = req.body;
+
+      if (!transcript || typeof transcript !== "string" || transcript.trim().length === 0) {
+        return res.status(400).json({ error: "Transcript is required" });
+      }
+
+      const validLanguages = ["ar", "fr", "dz"];
+      if (!validLanguages.includes(language)) {
+        return res.status(400).json({ error: "Invalid language selection" });
+      }
+
+      const result = await summarizeWithGrok({
+        transcript: transcript.trim(),
+        language: language as "ar" | "fr" | "dz",
+      });
+
+      res.json({
+        summary: result.summary,
+        keyPoints: result.keyPoints,
+        processingTime: result.processingTime,
+      });
+    } catch (error: any) {
+      console.error("Error in /api/summarize:", error);
+
+      if (error.message?.includes("XAI_API_KEY")) {
+        return res.status(500).json({
+          error: "XAI API key is not configured",
+        });
+      }
+
+      res.status(500).json({
+        error: error.message || "Failed to summarize text",
+      });
+    }
+  });
 
   // Live summary endpoint - processes audio chunks during recording
   app.post("/api/process-audio-live", upload.single("audio"), async (req: Request, res) => {
