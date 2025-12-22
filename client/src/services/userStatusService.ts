@@ -42,7 +42,9 @@ export function getUserStatus(appUserId: string): UserStatus {
   const isActive = trialStatus.state === "ACTIVE";
   
   return {
-    trialActive: isActive && !trialStatus.isDailyLimitReached,
+    // trialActive should reflect trial validity (not expired, not exhausted)
+    // Daily limit is a SEPARATE concern that only blocks the action, not the UI
+    trialActive: isActive,
     trialExpired: isDaysExpired,
     minutesExhausted: isMinutesExhausted,
     dailyLimitReached: trialStatus.isDailyLimitReached && isActive,
@@ -57,7 +59,9 @@ export function getUserStatus(appUserId: string): UserStatus {
 
 export function canUseApp(appUserId: string): boolean {
   const status = getUserStatus(appUserId);
-  return (status.trialActive && !status.dailyLimitReached) || status.isSubscribed;
+  // User can USE the app if trial is active OR subscribed
+  // Daily limit only blocks the summarize ACTION, not app access
+  return status.trialActive || status.isSubscribed;
 }
 
 export function shouldShowSubscriptionPage(appUserId: string): boolean {
