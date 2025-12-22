@@ -5,10 +5,16 @@ const TRIAL_STORAGE_KEY = "takhleesly_trial_data";
 
 export type TrialStateType = "ACTIVE" | "USED_UP" | "EXPIRED";
 
+export interface DailyUsage {
+  date: string; // ISO date string (YYYY-MM-DD)
+  minutesUsed: number;
+}
+
 export interface TrialData {
   appUserId: string;
   firstUseDate: string;
   totalMinutesUsed: number;
+  dailyUsage?: DailyUsage; // Current day's usage
 }
 
 export interface TrialStatus {
@@ -20,6 +26,22 @@ export interface TrialStatus {
   daysRemaining: number;
   canUseTrial: boolean;
   reason?: "minutes_exhausted" | "days_expired";
+  // Daily usage tracking
+  dailyMinutesUsed: number;
+  dailyMinutesLimit: number;
+  dailyMinutesRemaining: number;
+  isDailyLimitReached: boolean;
+}
+
+function getTodayDateString(): string {
+  return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+function getNextMidnight(): Date {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  return tomorrow;
 }
 
 function getStorageKey(appUserId: string): string {
@@ -33,11 +55,19 @@ export function getTrialData(appUserId: string): TrialData | null {
     if (!data) return null;
     
     const parsed = JSON.parse(data);
-    // Migration: handle old format with summariesUsed
+    const today = getTodayDateString();
+    
+    // Reset daily usage if it's a new day
+    let dailyUsage = parsed.dailyUsage;
+    if (dailyUsage && dailyUsage.date !== today) {
+      dailyUsage = { date: today, minutesUsed: 0 };
+    }
+    
     return {
       appUserId: parsed.appUserId,
       firstUseDate: parsed.firstUseDate,
       totalMinutesUsed: parsed.totalMinutesUsed || 0,
+      dailyUsage: dailyUsage || { date: today, minutesUsed: 0 },
     };
   } catch {
     return null;
@@ -65,6 +95,7 @@ export function saveTrialData(data: TrialData): void {
 
 export function getTrialStatus(appUserId: string): TrialStatus {
   const data = getTrialData(appUserId);
+  const today = getTodayDateString();
   
   // If no trial data exists, user hasn't started trial yet - trial is ACTIVE with full limits
   if (!data) {
@@ -77,6 +108,10 @@ export function getTrialStatus(appUserId: string): TrialStatus {
       daysRemaining: TRIAL_CONFIG.VALIDITY_DAYS,
       canUseTrial: true,
       reason: undefined,
+      dailyMinutesUsed: 0,
+      dailyMinutesLimit: TRIAL_CONFIG.DAILY_LIMIT_MINUTES,
+      dailyMinutesRemaining: TRIAL_CONFIG.DAILY_LIMIT_MINUTES,
+      isDailyLimitReached: false,
     };
   }
   
@@ -86,6 +121,12 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   const daysRemaining = Math.max(0, TRIAL_CONFIG.VALIDITY_DAYS - daysPassed);
   
   const minutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - data.totalMinutesUsed);
+  
+  // Calculate daily usage (reset if different day)
+  const dailyUsage = data.dailyUsage;
+  const dailyMinutesUsed = (dailyUsage && dailyUsage.date === today) ? dailyUsage.minutesUsed : 0;
+  const dailyMinutesRemaining = Math.max(0, TRIAL_CONFIG.DAILY_LIMIT_MINUTES - dailyMinutesUsed);
+  const isDailyLimitReached = dailyMinutesRemaining <= 0;
   
   const isDaysExpired = daysPassed >= TRIAL_CONFIG.VALIDITY_DAYS;
   const isMinutesExhausted = minutesRemaining <= 0;
@@ -115,51 +156,94 @@ export function getTrialStatus(appUserId: string): TrialStatus {
     daysRemaining,
     canUseTrial: !isExpired,
     reason,
+    dailyMinutesUsed,
+    dailyMinutesLimit: TRIAL_CONFIG.DAILY_LIMIT_MINUTES,
+    dailyMinutesRemaining,
+    isDailyLimitReached,
   };
 }
+
+export type BlockReason = "daily_limit" | "total_limit" | "days_expired" | "minutes_exhausted";
 
 // Check if a specific audio duration can be processed
 export function canProcessAudio(appUserId: string, audioDurationMinutes: number): { 
   allowed: boolean; 
   status: TrialStatus;
   reason?: string;
+  blockReason?: BlockReason;
 } {
   const status = getTrialStatus(appUserId);
   
-  // If trial is not active, return not allowed
+  // If trial is not active (expired or used up), return not allowed
   if (!status.canUseTrial) {
     let reason = "التجربة المجانية غير متاحة";
+    let blockReason: BlockReason = "minutes_exhausted";
     if (status.reason === "days_expired") {
       reason = "انتهت صلاحية التجربة المجانية بعد 7 أيام";
+      blockReason = "days_expired";
     } else if (status.reason === "minutes_exhausted") {
       reason = "لقد استخدمت كامل الوقت المجاني (30 دقيقة)";
+      blockReason = "minutes_exhausted";
     }
-    return { allowed: false, status, reason };
+    return { allowed: false, status, reason, blockReason };
   }
   
-  // Check if enough minutes remaining for this specific audio
+  // Check daily limit FIRST (this takes precedence for active trials)
+  if (status.dailyMinutesRemaining < audioDurationMinutes) {
+    const remainingFormatted = status.dailyMinutesRemaining.toFixed(1);
+    const requestedFormatted = audioDurationMinutes.toFixed(1);
+    return {
+      allowed: false,
+      status,
+      reason: `الحد اليومي: تبقى ${remainingFormatted} دقيقة فقط اليوم. مدة الملف: ${requestedFormatted} دقيقة`,
+      blockReason: "daily_limit",
+    };
+  }
+  
+  // Check total remaining minutes
   if (status.minutesRemaining < audioDurationMinutes) {
     const remainingFormatted = status.minutesRemaining.toFixed(1);
     const requestedFormatted = audioDurationMinutes.toFixed(1);
     return {
       allowed: false,
       status,
-      reason: `مدة الملف (${requestedFormatted} دقيقة) أكبر من الرصيد المتبقي (${remainingFormatted} دقيقة)`,
+      reason: `مدة الملف (${requestedFormatted} دقيقة) أكبر من الرصيد الإجمالي المتبقي (${remainingFormatted} دقيقة)`,
+      blockReason: "total_limit",
     };
   }
   
   return { allowed: true, status };
 }
 
-// Record usage after successful processing
+// Record usage after successful processing (both total and daily)
 export function recordUsage(appUserId: string, audioDurationMinutes: number): TrialStatus {
   const data = getTrialData(appUserId) || initializeTrialData(appUserId);
+  const today = getTodayDateString();
   
+  // Update total usage
   data.totalMinutesUsed += audioDurationMinutes;
+  
+  // Update daily usage
+  if (!data.dailyUsage || data.dailyUsage.date !== today) {
+    data.dailyUsage = { date: today, minutesUsed: 0 };
+  }
+  data.dailyUsage.minutesUsed += audioDurationMinutes;
   
   saveTrialData(data);
   
+  console.log(`[recordUsage] Recorded ${audioDurationMinutes.toFixed(2)} min. Total: ${data.totalMinutesUsed.toFixed(2)}, Today: ${data.dailyUsage.minutesUsed.toFixed(2)}`);
+  
   return getTrialStatus(appUserId);
+}
+
+// Get time until daily limit resets (next midnight)
+export function getTimeUntilReset(): { hours: number; minutes: number } {
+  const now = new Date();
+  const midnight = getNextMidnight();
+  const diff = midnight.getTime() - now.getTime();
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  return { hours, minutes };
 }
 
 // Legacy function for backward compatibility

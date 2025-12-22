@@ -9,6 +9,7 @@ import TranscriptionCard from "@/components/TranscriptionCard";
 import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
+import DailyLimitModal from "@/components/DailyLimitModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History, Loader2 } from "lucide-react";
 import { getSummaryById, saveSummary as dbSaveSummary } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
-import { canProcessAudioFile } from "@/services/subscriptionStateService";
+import { canProcessAudio, type BlockReason } from "@/services/localTrialService";
 import { getUserStatus, shouldShowSubscriptionPage } from "@/services/userStatusService";
 import { getAudioDuration } from "@/utils/audioUtils";
 
@@ -40,9 +41,11 @@ export default function Home() {
   const [liveResult, setLiveResult] = useState<ProcessingResult | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
+  const [showDailyLimitModal, setShowDailyLimitModal] = useState(false);
+  const [dailyLimitInfo, setDailyLimitInfo] = useState({ hours: 0, minutes: 0, used: 0 });
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
-  const { recordUsage, refreshState, checkCanProcessAudio } = useSubscription();
+  const { recordUsage, refreshState } = useSubscription();
 
   const currentUserId = appUserId;
 
@@ -168,9 +171,9 @@ export default function Home() {
 
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm", audioDuration?: number) => {
     // Check if user can process this specific audio duration
-    if (currentUserId && audioDuration) {
-      const audioDurationMinutes = audioDuration / 60;
-      const permissionCheck = canProcessAudioFile(currentUserId, audioDurationMinutes);
+    if (currentUserId) {
+      const audioDurationMinutes = audioDuration ? audioDuration / 60 : 0.1;
+      const permissionCheck = canProcessAudio(currentUserId, audioDurationMinutes);
       
       if (!permissionCheck.allowed) {
         toast({
@@ -179,14 +182,21 @@ export default function Home() {
           variant: "destructive",
         });
         refreshState();
-        navigate("/subscribe");
-        return;
-      }
-    } else if (currentUserId) {
-      const permissionCheck = checkCanProcessAudio(0.1);
-      if (permissionCheck && !permissionCheck.allowed) {
-        refreshState();
-        navigate("/subscribe");
+        
+        // Handle different block reasons differently
+        if (permissionCheck.blockReason === "daily_limit") {
+          // Show modal for daily limit - user can try tomorrow
+          const status = getUserStatus(currentUserId);
+          setDailyLimitInfo({
+            hours: status.hoursUntilReset,
+            minutes: status.minutesUntilReset,
+            used: permissionCheck.status.dailyMinutesUsed,
+          });
+          setShowDailyLimitModal(true);
+        } else {
+          // Redirect to subscription page for trial expiration or total limit
+          navigate("/subscribe");
+        }
         return;
       }
     }
@@ -436,6 +446,14 @@ export default function Home() {
       </main>
 
       <Footer />
+
+      <DailyLimitModal
+        open={showDailyLimitModal}
+        onClose={() => setShowDailyLimitModal(false)}
+        hoursUntilReset={dailyLimitInfo.hours}
+        minutesUntilReset={dailyLimitInfo.minutes}
+        dailyMinutesUsed={dailyLimitInfo.used}
+      />
     </div>
   );
 }
