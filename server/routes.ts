@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
 import bodyParser from "body-parser";
-import { transcribeAudio, summarizeText } from "./openai";
+import { transcribeAudio } from "./openai";
 import { summarizeWithGrok } from "./services/summarizeWithGrok";
 import { createGuestSession } from "./api/guest-session";
 import { saveSummary } from "./api/save-summary";
@@ -155,14 +155,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Step 2: Quick summarization for live preview
-      const { summary, keyPoints } = await summarizeText(transcription, language);
+      // Step 2: Quick summarization for live preview using Grok API
+      const grokResult = await summarizeWithGrok({
+        transcript: transcription,
+        language: language as "ar" | "fr" | "dz",
+      });
 
       // Return partial results with duration from client if provided
       res.json({
         transcription,
-        summary,
-        keyPoints,
+        summary: grokResult.summary,
+        keyPoints: grokResult.keyPoints || [],
         audioDuration: audioDuration || null,
         processedAt: new Date().toISOString(),
         isLive: true,
@@ -219,14 +222,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Could not transcribe audio" });
       }
 
-      // Step 2: Summarize transcription with language context
-      const { summary, keyPoints } = await summarizeText(transcription, language);
+      // Step 2: Summarize transcription using Grok API
+      const grokResult = await summarizeWithGrok({
+        transcript: transcription,
+        language: language as "ar" | "fr" | "dz",
+      });
 
       // Return results with duration (from client if provided)
       res.json({
         transcription,
-        summary,
-        keyPoints,
+        summary: grokResult.summary,
+        keyPoints: grokResult.keyPoints || [],
         audioDuration: audioDuration || null,
         processedAt: new Date().toISOString(),
       });

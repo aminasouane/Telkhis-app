@@ -1,7 +1,7 @@
 # Takhleesly - Audio Transcription and Summarization App
 
 ## Overview
-Takhleesly (تلخيصلي) is a multi-language web application for transcribing audio lectures and generating AI-powered summaries. It supports Arabic, French, and Algerian dialect, allowing users to record audio directly or upload files. The application leverages OpenAI's Whisper for transcription and GPT-4 for intelligent summarization. It operates on a freemium model, offering a one-time 30-minute audio trial before requiring a subscription.
+Takhleesly (تلخيصلي) is a multi-language web application for transcribing audio lectures and generating AI-powered summaries. It supports Arabic, French, and Algerian dialect, allowing users to record audio directly or upload files. The application leverages **whisper.cpp** (local) for transcription and **Grok API (xAI)** for intelligent summarization. It operates on a freemium model, offering a one-time 30-minute audio trial before requiring a subscription.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -28,7 +28,18 @@ The frontend is built with React, TypeScript, and Vite, using Wouter for routing
   - Display condition: `user && userData && isAuthenticatedUser()` (icon shows whenever valid userData exists, independent of loading state)
 
 ### Backend
-The backend uses Node.js with Express.js, providing RESTful endpoints for health checks, audio processing (live and batch), and secure guest/user management. It employs Multer for in-memory audio file handling. The audio processing pipeline involves pre-processing validation (e.g., duration limits), transcription via OpenAI Whisper, and summarization via GPT-4o-mini. The system incorporates a multi-layered security architecture with pre-AI validation, trusted metadata, and defense-in-depth for summary persistence, including freshness and sanity checks, and atomic trial enforcement. Client-side audio duration is used for trial tracking.
+The backend uses Node.js with Express.js, providing RESTful endpoints for health checks, audio processing (live and batch), and secure guest/user management. It employs Multer for in-memory audio file handling. The audio processing pipeline involves pre-processing validation (e.g., duration limits), transcription via whisper.cpp (local), and summarization via Grok API (xAI). The system incorporates a multi-layered security architecture with pre-AI validation, trusted metadata, and defense-in-depth for summary persistence, including freshness and sanity checks, and atomic trial enforcement. Client-side audio duration is used for trial tracking.
+
+**Key Endpoints:**
+- `POST /api/process-audio`: Full audio processing (Whisper transcription → Grok summarization)
+- `POST /api/process-audio-live`: Live transcription during recording
+- `POST /api/summarize`: Standalone text summarization endpoint using Grok API
+
+**Summarization Service** (`server/services/summarizeWithGrok.ts`):
+- Uses Grok API via OpenAI SDK compatibility layer
+- Language-specific prompts for Arabic, French, and Algerian dialect
+- Returns summary, key points, and processing time
+- API key: `XAI_API_KEY` (required)
 
 ### Data Storage
 The project uses PostgreSQL (via Neon serverless) with Drizzle ORM, primarily through Supabase. Tables include `users`, `subscriptions`, `summaries`, `settings`, and `payments`. The `subscriptions` table tracks trial usage, limits, expiration, and payment provider information (Chargily/Stripe). The `payments` table logs all payment transactions with complete metadata for audit trails. All sensitive Supabase operations are mediated by the backend using `SUPABASE_SERVICE_ROLE_KEY`, enforcing RLS policies for data isolation.
@@ -133,8 +144,13 @@ The application uses **Chargily Pay** for processing subscription payments in Al
     - **Requirements**: FFmpeg, FFprobe, Make, G++ for building
     - **Audio Prep**: Auto-converts to WAV (16kHz, mono, PCM 16-bit)
     - **Limits**: 30 minutes max audio duration
-- **OpenAI API**:
-    - **GPT-4o-mini**: Language-specific text summarization and key point extraction.
+- **Grok API (xAI)**:
+    - **Model**: `grok-2-1212` - high context (131K tokens)
+    - **Languages**: Arabic, French, Algerian dialect (with language-specific prompts)
+    - **Integration**: Via OpenAI SDK compatibility layer (`https://api.x.ai/v1`)
+    - **Features**: Text summarization, key point extraction
+    - **API Key**: `XAI_API_KEY` (required)
+    - **Service File**: `server/services/summarizeWithGrok.ts`
 
 ### Database Services
 - **Neon Database**: Provides serverless PostgreSQL.
