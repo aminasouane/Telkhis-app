@@ -17,6 +17,11 @@ The frontend is built with React, TypeScript, and Vite, utilizing Radix UI with 
 - **Audio Processing Pipeline**: Involves pre-processing validation, transcription via `whisper.cpp`, and summarization via Grok API.
 - **Security**: Multi-layered security with pre-AI validation, trusted metadata, defense-in-depth for summary persistence, and atomic trial enforcement. JWT-based authentication secures all payment and user-sensitive endpoints.
 - **Subscription Management**: A minute-based trial system (30 minutes, 7 days validity) transitions to paid subscriptions handled via Chargily Pay. The system uses a unified state machine (`trial_active`, `trial_used_up`, `trial_expired`, `subscribed`) to manage user access and features.
+  - **Trial Quota**: Based on total audio minutes consumed (not request count). Users can create unlimited summaries within the 30-minute quota.
+  - **Duration Calculation**: Server-side authoritative duration using music-metadata/ffprobe (fallback: file-size estimate). Server-calculated duration is used for usage tracking.
+  - **Pre-check**: Client checks `remainingMinutes >= audioDuration` before processing. Server enforces the 5-minute per-file limit.
+  - **Usage Tracking**: Only recorded after successful database save to prevent orphan entries.
+  - **MVP Limitation**: One request can exceed the limit before being blocked (single-request overage), but total usage is tracked correctly.
 
 ### Feature Specifications
 - **Header Component**: Implements a robust profile icon visibility logic based on user authentication status (`guest`, `free`, `premium`, `pro_plus`) with debouncing and caching to prevent flickering during state changes.
