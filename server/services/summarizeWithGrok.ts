@@ -1,9 +1,19 @@
 import OpenAI from "openai";
 
-const grokClient = new OpenAI({
-  baseURL: "https://api.x.ai/v1",
-  apiKey: process.env.XAI_API_KEY,
-});
+let grokClient: OpenAI | null = null;
+
+function getGrokClient(): OpenAI {
+  if (!process.env.XAI_API_KEY) {
+    throw new Error("XAI_API_KEY is not configured");
+  }
+  if (!grokClient) {
+    grokClient = new OpenAI({
+      baseURL: "https://api.x.ai/v1",
+      apiKey: process.env.XAI_API_KEY,
+    });
+  }
+  return grokClient;
+}
 
 export const SUMMARIZATION_PROMPTS = {
   ar: `أنت مساعد ذكي متخصص في تلخيص المحاضرات الأكاديمية.
@@ -85,7 +95,8 @@ ${transcript}
 قدم الملخص مع النقاط الرئيسية:`;
 
   try {
-    const response = await grokClient.chat.completions.create({
+    const client = getGrokClient();
+    const response = await client.chat.completions.create({
       model: "grok-2-1212",
       messages: [
         { role: "system", content: systemPrompt },
