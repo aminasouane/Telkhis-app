@@ -16,11 +16,13 @@ The frontend is built with React, TypeScript, and Vite, utilizing Radix UI with 
 - **Backend**: Node.js with Express.js, providing RESTful endpoints for audio processing (live and batch) and secure user management. Multer handles in-memory audio files.
 - **Audio Processing Pipeline**: Involves pre-processing validation, transcription via `whisper.cpp`, and summarization via Grok API.
 - **Security**: Multi-layered security with pre-AI validation, trusted metadata, defense-in-depth for summary persistence, and atomic trial enforcement. JWT-based authentication secures all payment and user-sensitive endpoints.
-- **Subscription Management**: A minute-based trial system (30 minutes, 7 days validity) transitions to paid subscriptions handled via Chargily Pay. The system uses a unified state machine (`trial_active`, `trial_used_up`, `trial_expired`, `subscribed`) to manage user access and features.
-  - **Trial Quota**: Based on total audio minutes consumed (not request count). Users can create unlimited summaries within the 30-minute quota.
+- **Subscription Management**: A minute-based trial system (30 minutes total, 7 days validity, 5 minutes per day limit) transitions to paid subscriptions handled via Chargily Pay. The system uses a unified state machine (`trial_active`, `trial_used_up`, `trial_expired`, `subscribed`) to manage user access and features.
+  - **Trial Quota**: Based on total audio minutes consumed (not request count). Users can create unlimited summaries within the 30-minute quota, but limited to 5 minutes per day.
+  - **Daily Limit System**: Users can only process 5 minutes of audio per day. When exceeded, a modal appears showing time until midnight reset. The app remains usable (viewing history, etc.) but processing is blocked until the next day.
+  - **Block Reason Types**: `daily_limit` (modal overlay), `total_limit` (redirect to subscription), `days_expired` (redirect), `minutes_exhausted` (redirect).
   - **Duration Calculation**: Server-side authoritative duration using music-metadata/ffprobe (fallback: file-size estimate). Server-calculated duration is used for usage tracking.
-  - **Pre-check**: Client checks `remainingMinutes >= audioDuration` before processing. Server enforces the 5-minute per-file limit.
-  - **Usage Tracking**: Only recorded after successful database save to prevent orphan entries.
+  - **Pre-check**: Client checks both `dailyMinutesRemaining >= audioDuration` AND `minutesRemaining >= audioDuration` before processing. Server enforces the 5-minute per-file limit.
+  - **Usage Tracking**: Both total and daily usage recorded after successful database save to prevent orphan entries. Daily usage auto-resets at midnight.
   - **MVP Limitation**: One request can exceed the limit before being blocked (single-request overage), but total usage is tracked correctly.
 
 ### Feature Specifications
