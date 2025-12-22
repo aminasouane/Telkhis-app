@@ -62,7 +62,24 @@ export function saveTrialData(data: TrialData): void {
 }
 
 export function getTrialStatus(appUserId: string): TrialStatus {
-  const data = getTrialData(appUserId) || initializeTrialData(appUserId);
+  const data = getTrialData(appUserId);
+  
+  // If no trial data exists, user hasn't started trial yet - trial is ACTIVE with full limits
+  if (!data) {
+    return {
+      state: "ACTIVE",
+      isExpired: false,
+      summariesUsed: 0,
+      summariesLimit: TRIAL_CONFIG.MAX_SUMMARIES,
+      summariesRemaining: TRIAL_CONFIG.MAX_SUMMARIES,
+      minutesUsed: 0,
+      minutesLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES,
+      minutesRemaining: TRIAL_CONFIG.MAX_AUDIO_MINUTES,
+      daysRemaining: TRIAL_CONFIG.VALIDITY_DAYS,
+      canUseTrial: true,
+      reason: undefined,
+    };
+  }
   
   const now = new Date();
   const firstUse = new Date(data.firstUseDate);
@@ -79,12 +96,16 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   let state: TrialStateType;
   let reason: TrialStatus["reason"] = undefined;
   
+  // Priority: days_expired takes precedence, then check usage limits
   if (isDaysExpired) {
     state = "EXPIRED";
     reason = "days_expired";
-  } else if (isSummariesExhausted || isTimeExhausted) {
+  } else if (isSummariesExhausted) {
     state = "USED_UP";
-    reason = isSummariesExhausted ? "summaries_exhausted" : "time_expired";
+    reason = "summaries_exhausted";
+  } else if (isTimeExhausted) {
+    state = "USED_UP";
+    reason = "time_expired";
   } else {
     state = "ACTIVE";
   }

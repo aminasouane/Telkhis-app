@@ -166,16 +166,23 @@ The application uses **Chargily Pay** for processing subscription payments in Al
 ## Subscription Architecture
 
 ### Subscription State Machine
-The application uses a unified subscription state system with three states:
+The application uses a unified subscription state system with four states:
 
 1. **trial_active**: User has unused trial capacity
    - Less than 1 summary created AND less than 30 minutes used AND within 7 days
+   - Note: Trial data is NOT initialized until first usage (prevents premature countdown)
    
-2. **trial_expired**: Trial capacity exhausted or expired
-   - 1 or more summaries created OR 30+ minutes used OR more than 7 days since first use
+2. **trial_used_up**: Trial limits exhausted but days remaining
+   - 1 or more summaries created OR 30+ minutes used
+   - Days since first use is less than 7
+   - Different UI message: "استهلكت رصيدك المجاني"
    
-3. **subscribed**: User has an active paid subscription
-   - Future state - activated via `activateSubscription()` after payment confirmation
+3. **trial_expired**: Trial validity expired
+   - More than 7 days since first use (regardless of usage)
+   - Different UI message: "انتهت صلاحية التجربة"
+   
+4. **subscribed**: User has an active paid subscription
+   - Activated via `activateSubscription()` after payment confirmation
 
 ### Key Files
 - **client/src/types/subscription.ts**: TypeScript types (SubscriptionStatus, SubscriptionState, SubscriptionInfo, UsagePermission)

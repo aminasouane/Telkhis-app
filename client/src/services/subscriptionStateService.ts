@@ -51,8 +51,12 @@ export function getSubscriptionState(appUserId: string): SubscriptionState {
   
   if (subscription?.isActive) {
     status = "subscribed";
-  } else if (trialStatus.isExpired) {
+  } else if (trialStatus.state === "EXPIRED") {
+    // Days expired (7 days passed since first use)
     status = "trial_expired";
+  } else if (trialStatus.state === "USED_UP") {
+    // Limits exhausted (summaries or minutes used up) but days remaining
+    status = "trial_used_up";
   } else {
     status = "trial_active";
   }
@@ -96,22 +100,30 @@ export function getUsagePermissions(appUserId: string): UsagePermission {
       return { allowed: true, state };
     }
     
-    case "trial_expired": {
+    case "trial_used_up": {
+      // Trial limits exhausted but days remaining
       const reason = state.trialStatus?.reason;
-      let message = "انتهت التجربة المجانية";
+      let message = "استهلكت رصيدك المجاني";
       
       if (reason === "summaries_exhausted") {
-        message = "لقد استخدمت تلخيصك المجاني";
+        message = "لقد استخدمت تلخيصك المجاني الوحيد";
       } else if (reason === "time_expired") {
-        message = "لقد استخدمت كامل الوقت المجاني";
-      } else if (reason === "days_expired") {
-        message = "انتهت صلاحية التجربة";
+        message = "لقد استخدمت كامل الوقت المجاني (30 دقيقة)";
       }
       
       return {
         allowed: false,
         state,
         reason: message,
+      };
+    }
+    
+    case "trial_expired": {
+      // Days expired (7 days passed)
+      return {
+        allowed: false,
+        state,
+        reason: "انتهت صلاحية التجربة المجانية بعد 7 أيام",
       };
     }
   }

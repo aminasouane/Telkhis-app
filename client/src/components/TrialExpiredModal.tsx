@@ -32,8 +32,10 @@ export default function TrialExpiredModal({
     
     switch (trialStatus.state) {
       case "USED_UP":
+        // Limits exhausted (summaries or minutes) but days may remain
         return "استهلكت رصيدك المجاني";
       case "EXPIRED":
+        // 7 days passed since first use
         return "انتهت صلاحية التجربة";
       default:
         return "انتهت تجربتك المجانية";
@@ -45,11 +47,11 @@ export default function TrialExpiredModal({
     
     switch (trialStatus.reason) {
       case "summaries_exhausted":
-        return `لقد استخدمت تلخيصك المجاني الوحيد`;
+        return "لقد استخدمت تلخيصك المجاني الوحيد. اشترك للحصول على المزيد من التلخيصات.";
       case "time_expired":
-        return `لقد استخدمت كامل الوقت المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة)`;
+        return `لقد استخدمت كامل الوقت المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة). اشترك للحصول على وقت إضافي.`;
       case "days_expired":
-        return `انتهت صلاحية التجربة بعد ${TRIAL_CONFIG.VALIDITY_DAYS} أيام من أول استخدام`;
+        return `انتهت صلاحية التجربة المجانية بعد ${TRIAL_CONFIG.VALIDITY_DAYS} أيام من أول استخدام.`;
       default:
         return null;
     }

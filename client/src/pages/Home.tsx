@@ -49,14 +49,13 @@ export default function Home() {
 
   const currentUserId = appUserId;
 
-  const isExpired = subscriptionState?.status === "trial_expired";
+  // Check for both expired and used up states
+  const isExpired = subscriptionState?.status === "trial_expired" || subscriptionState?.status === "trial_used_up";
   const trialStatus = subscriptionState?.trialStatus || null;
 
-  useEffect(() => {
-    if (subscriptionState?.status === "trial_expired") {
-      setShowExpiredModal(true);
-    }
-  }, [subscriptionState?.status]);
+  // Note: Don't auto-show expired modal on page load
+  // Modal only shows when user tries to create a summary (in processAudio)
+  // The inline TrialExpiredExperience handles the UI state for expired trials
 
   // Load summary from URL parameter
   useEffect(() => {
@@ -108,18 +107,21 @@ export default function Home() {
     return words.join(" ") + (words.length >= 5 ? "..." : "");
   };
 
-  const saveSessionToDatabase = async (data: ProcessingResult) => {
-    if (!currentUserId) return;
+  const saveSessionToDatabase = async (data: ProcessingResult): Promise<boolean> => {
+    if (!currentUserId) return false;
 
-    // audioDuration comes in SECONDS from getAudioDuration, convert to minutes
-    // If duration is missing, use the full trial limit to prevent bypass
-    const audioDurationSeconds = data.audioDuration || (TRIAL_CONFIG.MAX_AUDIO_MINUTES * 60);
-    const audioDurationMinutes = audioDurationSeconds / 60;
-    
-    // Record usage via subscription service and refresh state
-    recordUsage(audioDurationMinutes);
+    // Require valid audioDuration from server - reject if missing to prevent trial bypass
+    if (!data.audioDuration || data.audioDuration <= 0) {
+      console.error("Missing or invalid audioDuration from server");
+      toast({
+        title: "خطأ في البيانات",
+        description: "لم يتم استلام مدة الصوت من الخادم. يرجى المحاولة مرة أخرى.",
+        variant: "destructive",
+      });
+      return false;
+    }
 
-    // Save to database
+    // Save to database FIRST before recording usage
     const title = generateSessionTitle(data.summary);
     const saved = await dbSaveSummary({
       user_id: currentUserId,
@@ -133,10 +135,24 @@ export default function Home() {
     if (!saved) {
       toast({
         title: "خطأ في الحفظ",
-        description: "حدث خطأ أثناء حفظ التلخيص",
+        description: "حدث خطأ أثناء حفظ التلخيص. لم يتم احتساب الاستخدام.",
         variant: "destructive",
       });
+      return false;
     }
+
+    // Only record usage AFTER successful database save
+    // audioDuration comes in SECONDS, convert to minutes
+    const audioDurationMinutes = data.audioDuration / 60;
+    
+    try {
+      recordUsage(audioDurationMinutes);
+    } catch (error) {
+      console.error("Error recording usage:", error);
+      // Usage recording failed but save succeeded - log but don't block
+    }
+    
+    return true;
   };
 
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm", audioDuration?: number) => {
