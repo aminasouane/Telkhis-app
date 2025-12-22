@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 
+const GROK_TIMEOUT_MS = 60000; // 60 seconds timeout for Grok API
+
 let grokClient: OpenAI | null = null;
 
 function getGrokClient(): OpenAI {
@@ -10,20 +12,27 @@ function getGrokClient(): OpenAI {
     grokClient = new OpenAI({
       baseURL: "https://api.x.ai/v1",
       apiKey: process.env.XAI_API_KEY,
+      timeout: GROK_TIMEOUT_MS,
     });
   }
   return grokClient;
 }
 
+// Prompts updated to request plain text without markdown formatting
 export const SUMMARIZATION_PROMPTS = {
   ar: `أنت مساعد ذكي متخصص في تلخيص المحاضرات الأكاديمية.
 
 المطلوب منك:
 1. تلخيص النص بلغة عربية فصحى واضحة ومفهومة
-2. تنظيم الملخص في نقاط مرقمة
+2. تنظيم الملخص في فقرات متسلسلة ومرقمة (1. 2. 3. إلخ)
 3. استخراج الأفكار الرئيسية والمفاهيم الأساسية
 4. الحفاظ على المعلومات المهمة دون اختصار مُخل
-5. إضافة عناوين فرعية إذا كان النص طويلاً
+
+تنسيق الإخراج:
+- اكتب نصاً عادياً بدون رموز Markdown
+- لا تستخدم # أو ## أو * أو - للتنسيق
+- استخدم الأرقام العربية (1. 2. 3.) للترقيم فقط
+- اكتب فقرات نصية واضحة ومتصلة
 
 أسلوب الكتابة:
 - استخدم لغة أكاديمية واضحة
@@ -34,10 +43,15 @@ export const SUMMARIZATION_PROMPTS = {
 
 Votre mission:
 1. Résumer le texte en français clair et compréhensible
-2. Organiser le résumé en points numérotés
+2. Organiser le résumé en paragraphes numérotés (1. 2. 3. etc.)
 3. Extraire les idées principales et les concepts clés
 4. Préserver les informations importantes sans abréviation excessive
-5. Ajouter des sous-titres si le texte est long
+
+Format de sortie:
+- Écrivez du texte brut sans symboles Markdown
+- N'utilisez pas #, ##, *, ou - pour le formatage
+- Utilisez uniquement des chiffres (1. 2. 3.) pour la numérotation
+- Rédigez des paragraphes clairs et cohérents
 
 Style d'écriture:
 - Utilisez un langage académique clair
@@ -48,16 +62,57 @@ Style d'écriture:
 
 المطلوب منك:
 1. تلخيص النص بلغة عربية واضحة (يمكن استخدام بعض التعبيرات الدارجة الجزائرية إذا لزم الأمر)
-2. تنظيم الملخص في نقاط مرقمة
+2. تنظيم الملخص في فقرات متسلسلة ومرقمة (1. 2. 3. إلخ)
 3. استخراج الأفكار الرئيسية
 4. الحفاظ على المعلومات المهمة
-5. إضافة عناوين فرعية إذا كان النص طويلاً
+
+تنسيق الإخراج:
+- اكتب نصاً عادياً بدون رموز Markdown
+- لا تستخدم # أو ## أو * أو - للتنسيق
+- استخدم الأرقام (1. 2. 3.) للترقيم فقط
+- اكتب فقرات نصية واضحة ومتصلة
 
 أسلوب الكتابة:
 - استخدم لغة بسيطة ومفهومة
 - تجنب التكرار
 - حافظ على تسلسل منطقي للأفكار`,
 };
+
+// Clean markdown symbols and normalize text for display
+export function cleanSummaryText(text: string): string {
+  let cleaned = text;
+  
+  // Remove markdown headers (# ## ### etc.)
+  cleaned = cleaned.replace(/^#{1,6}\s*/gm, "");
+  
+  // Remove bold/italic markers (* ** *** ___)
+  cleaned = cleaned.replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1");
+  cleaned = cleaned.replace(/_{1,3}([^_]+)_{1,3}/g, "$1");
+  
+  // Remove bullet points (- * •) at start of lines, keep the text
+  cleaned = cleaned.replace(/^[\s]*[-*•]\s+/gm, "");
+  
+  // Remove code blocks
+  cleaned = cleaned.replace(/```[\s\S]*?```/g, "");
+  cleaned = cleaned.replace(/`([^`]+)`/g, "$1");
+  
+  // Remove horizontal rules
+  cleaned = cleaned.replace(/^[-*_]{3,}$/gm, "");
+  
+  // Remove links but keep text [text](url) -> text
+  cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+  
+  // Normalize multiple newlines to double newline
+  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
+  
+  // Trim whitespace from each line
+  cleaned = cleaned.split("\n").map(line => line.trim()).join("\n");
+  
+  // Final trim
+  cleaned = cleaned.trim();
+  
+  return cleaned;
+}
 
 export interface SummarizeOptions {
   transcript: string;
@@ -95,20 +150,41 @@ ${transcript}
 قدم الملخص مع النقاط الرئيسية:`;
 
   try {
+    console.log(`Starting Grok summarization for ${transcript.length} chars in ${language}...`);
+    
     const client = getGrokClient();
-    const response = await client.chat.completions.create({
-      model: "grok-3",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: maxTokens,
-      temperature: 0.3,
-    });
+    
+    // Create AbortController for timeout handling
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, GROK_TIMEOUT_MS);
+    
+    let response;
+    try {
+      response = await client.chat.completions.create(
+        {
+          model: "grok-3",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: maxTokens,
+          temperature: 0.3,
+        },
+        { signal: abortController.signal }
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
-    const summary = response.choices[0]?.message?.content || "";
+    const rawSummary = response.choices[0]?.message?.content || "";
     const processingTime = Date.now() - startTime;
+    
+    console.log(`Grok summarization completed in ${processingTime}ms`);
 
+    // Clean markdown symbols from the summary
+    const summary = cleanSummaryText(rawSummary);
     const keyPoints = extractKeyPoints(summary);
 
     return {
@@ -117,19 +193,34 @@ ${transcript}
       processingTime,
     };
   } catch (error: any) {
-    console.error("Grok summarization error:", error);
+    const processingTime = Date.now() - startTime;
+    console.error(`Grok summarization error after ${processingTime}ms:`, error);
 
+    // Handle AbortController timeout
+    if (error.name === "AbortError" || error.message?.includes("aborted")) {
+      throw new Error("انتهت مهلة الاتصال بخادم التلخيص (60 ثانية). يرجى المحاولة مرة أخرى.");
+    }
+
+    // Handle other timeout errors
+    if (error.code === "ETIMEDOUT" || error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+      throw new Error("انتهت مهلة الاتصال بخادم التلخيص. يرجى المحاولة مرة أخرى.");
+    }
+
+    // Handle specific API errors
     if (error.status === 401) {
-      throw new Error("Invalid XAI API key");
+      throw new Error("مفتاح API غير صالح");
     }
     if (error.status === 429) {
-      throw new Error("Rate limit exceeded. Please try again later.");
+      throw new Error("تم تجاوز الحد الأقصى للطلبات. يرجى المحاولة لاحقاً.");
     }
     if (error.status === 503) {
-      throw new Error("Grok service temporarily unavailable");
+      throw new Error("خدمة التلخيص غير متاحة مؤقتاً. يرجى المحاولة لاحقاً.");
+    }
+    if (error.status === 500) {
+      throw new Error("خطأ في خادم التلخيص. يرجى المحاولة لاحقاً.");
     }
 
-    throw new Error(`Summarization failed: ${error.message}`);
+    throw new Error(`فشل التلخيص: ${error.message || "خطأ غير معروف"}`);
   }
 }
 
