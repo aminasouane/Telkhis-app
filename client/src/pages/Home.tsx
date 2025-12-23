@@ -23,7 +23,7 @@ import { Info, History, Loader2 } from "lucide-react";
 import { getSummaryById, saveSummary as dbSaveSummary } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
 import { canProcessAudio, type BlockReason } from "@/services/localTrialService";
-import { getUserStatus, shouldShowSubscriptionPage } from "@/services/userStatusService";
+import { getUserStatus } from "@/services/userStatusService";
 import { getAudioDuration } from "@/utils/audioUtils";
 
 interface ProcessingResult {
