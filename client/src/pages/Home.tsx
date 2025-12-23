@@ -211,6 +211,10 @@ export default function Home() {
       if (audioDuration) {
         formData.append("audioDuration", audioDuration.toString());
       }
+      // Send userId for server-side trial validation
+      if (currentUserId) {
+        formData.append("userId", currentUserId);
+      }
 
       const response = await fetch("/api/process-audio", {
         method: "POST",
@@ -218,8 +222,36 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "فشلت معالجة الملف الصوتي");
+        const errorData = await response.json();
+        
+        // Handle server-side trial validation errors
+        if (errorData.errorCode) {
+          console.log(`[processAudio] Server rejected: ${errorData.errorCode}`);
+          
+          // Refresh local state to sync with server
+          refreshState();
+          
+          if (errorData.errorCode === "DAILY_LIMIT_REACHED" || errorData.errorCode === "INSUFFICIENT_DAILY") {
+            // Show daily limit modal
+            const status = getUserStatus(currentUserId!);
+            setDailyLimitInfo({
+              hours: status.hoursUntilReset,
+              minutes: status.minutesUntilReset,
+              used: errorData.usage?.dailyMinutesUsed || 0,
+            });
+            setShowDailyLimitModal(true);
+            setIsProcessing(false);
+            return;
+          } else if (errorData.errorCode === "TRIAL_EXHAUSTED" || errorData.errorCode === "INSUFFICIENT_TOTAL") {
+            // Show trial expired modal
+            setTrialStatusForModal(getTrialStatus(currentUserId!));
+            setShowTrialExpiredModal(true);
+            setIsProcessing(false);
+            return;
+          }
+        }
+        
+        throw new Error(errorData.error || "فشلت معالجة الملف الصوتي");
       }
 
       const data = await response.json();

@@ -97,8 +97,12 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   const data = getTrialData(appUserId);
   const today = getTodayDateString();
   
+  // Debug log: trace what's in storage
+  console.log(`[getTrialStatus] appUserId=${appUserId}, data=`, data);
+  
   // If no trial data exists, user hasn't started trial yet - trial is ACTIVE with full limits
   if (!data) {
+    console.log(`[getTrialStatus] No data found - returning fresh trial`);
     return {
       state: "ACTIVE",
       isExpired: false,
@@ -217,23 +221,39 @@ export function canProcessAudio(appUserId: string, audioDurationMinutes: number)
 
 // Record usage after successful processing (both total and daily)
 export function recordUsage(appUserId: string, audioDurationMinutes: number): TrialStatus {
-  const data = getTrialData(appUserId) || initializeTrialData(appUserId);
+  console.log(`[recordUsage] START: Recording ${audioDurationMinutes} minutes for user ${appUserId}`);
+  
+  const existingData = getTrialData(appUserId);
+  const data = existingData || initializeTrialData(appUserId);
   const today = getTodayDateString();
   
-  // Update total usage
-  data.totalMinutesUsed += audioDurationMinutes;
+  console.log(`[recordUsage] BEFORE: totalMinutesUsed=${data.totalMinutesUsed}, dailyUsage=`, data.dailyUsage);
+  
+  // Sanity check: prevent negative or unreasonably large values
+  if (audioDurationMinutes < 0 || audioDurationMinutes > 60) {
+    console.error(`[recordUsage] INVALID duration: ${audioDurationMinutes}. Clamping to valid range.`);
+    audioDurationMinutes = Math.max(0, Math.min(60, audioDurationMinutes));
+  }
+  
+  // Update total usage (INCREMENTAL, not replacement)
+  const previousTotal = data.totalMinutesUsed || 0;
+  data.totalMinutesUsed = previousTotal + audioDurationMinutes;
   
   // Update daily usage
   if (!data.dailyUsage || data.dailyUsage.date !== today) {
     data.dailyUsage = { date: today, minutesUsed: 0 };
   }
-  data.dailyUsage.minutesUsed += audioDurationMinutes;
+  const previousDaily = data.dailyUsage.minutesUsed || 0;
+  data.dailyUsage.minutesUsed = previousDaily + audioDurationMinutes;
+  
+  console.log(`[recordUsage] AFTER: totalMinutesUsed=${data.totalMinutesUsed} (was ${previousTotal}), dailyUsage.minutesUsed=${data.dailyUsage.minutesUsed} (was ${previousDaily})`);
   
   saveTrialData(data);
   
-  console.log(`[recordUsage] Recorded ${audioDurationMinutes.toFixed(2)} min. Total: ${data.totalMinutesUsed.toFixed(2)}, Today: ${data.dailyUsage.minutesUsed.toFixed(2)}`);
+  const newStatus = getTrialStatus(appUserId);
+  console.log(`[recordUsage] NEW STATUS: state=${newStatus.state}, minutesRemaining=${newStatus.minutesRemaining}, dailyMinutesRemaining=${newStatus.dailyMinutesRemaining}`);
   
-  return getTrialStatus(appUserId);
+  return newStatus;
 }
 
 // Get time until daily limit resets (next midnight)

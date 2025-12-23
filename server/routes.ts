@@ -5,6 +5,7 @@ import bodyParser from "body-parser";
 import { transcribeAudio } from "./openai";
 import { summarizeWithGrok } from "./services/summarizeWithGrok";
 import { validateAndGetDuration } from "./utils/audioDuration";
+import { validateTrialUsage } from "./utils/trialValidation";
 import { createGuestSession } from "./api/guest-session";
 import { saveSummary } from "./api/save-summary";
 import { getSummaries, getSummaryById, deleteSummary } from "./api/summaries";
@@ -190,6 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const file = (req as any).file;
       const language = req.body.language || "ar"; // Default to Arabic
       const clientDuration = req.body.audioDuration ? parseFloat(req.body.audioDuration) : null;
+      const userId = req.body.userId || req.headers['x-user-id'] as string;
       
       if (!file) {
         return res.status(400).json({ error: "No audio file provided" });
@@ -219,6 +221,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           duration: audioDuration,
           maxDuration: 300
         });
+      }
+
+      // SERVER-SIDE TRIAL VALIDATION
+      // This is the authoritative check - client-side is just UX, server-side is security
+      if (userId) {
+        const trialValidation = await validateTrialUsage(userId, audioDuration);
+        
+        if (!trialValidation.allowed) {
+          console.log(`[process-audio] BLOCKED: ${trialValidation.errorCode} - ${trialValidation.reason}`);
+          return res.status(403).json({
+            error: trialValidation.reason,
+            errorCode: trialValidation.errorCode,
+            usage: {
+              totalMinutesUsed: trialValidation.totalMinutesUsed,
+              dailyMinutesUsed: trialValidation.dailyMinutesUsed,
+              minutesRemaining: trialValidation.minutesRemaining,
+              dailyMinutesRemaining: trialValidation.dailyMinutesRemaining,
+            }
+          });
+        }
+        
+        console.log(`[process-audio] User ${userId} passed trial validation. Usage: total=${trialValidation.totalMinutesUsed.toFixed(2)}min, today=${trialValidation.dailyMinutesUsed.toFixed(2)}min`);
+      } else {
+        console.warn(`[process-audio] No userId provided - skipping trial validation`);
       }
 
       // Step 1: Transcribe audio using the buffer, filename, mimetype, and language
