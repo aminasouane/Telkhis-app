@@ -7,34 +7,31 @@ export default function Footer() {
       <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col items-center gap-4">
           <div className="flex flex-wrap justify-center gap-6 text-sm">
-            <Link href="/about">
-              <a 
-                className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-                data-testid="link-about"
-              >
-                <Users className="h-4 w-4" />
-                <span>من نحن</span>
-              </a>
+            <Link 
+              href="/about"
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+              data-testid="link-about"
+            >
+              <Users className="h-4 w-4" />
+              <span>من نحن</span>
             </Link>
             
-            <Link href="/terms">
-              <a 
-                className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-                data-testid="link-terms"
-              >
-                <FileText className="h-4 w-4" />
-                <span>الشروط والأحكام</span>
-              </a>
+            <Link 
+              href="/terms"
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+              data-testid="link-terms"
+            >
+              <FileText className="h-4 w-4" />
+              <span>الشروط والأحكام</span>
             </Link>
             
-            <Link href="/privacy">
-              <a 
-                className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-                data-testid="link-privacy"
-              >
-                <Shield className="h-4 w-4" />
-                <span>سياسة الخصوصية</span>
-              </a>
+            <Link 
+              href="/privacy"
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+              data-testid="link-privacy"
+            >
+              <Shield className="h-4 w-4" />
+              <span>سياسة الخصوصية</span>
             </Link>
           </div>
           
