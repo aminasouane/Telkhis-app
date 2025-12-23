@@ -6,6 +6,7 @@ import { transcribeAudio } from "./openai";
 import { summarizeWithGrok } from "./services/summarizeWithGrok";
 import { validateAndGetDuration } from "./utils/audioDuration";
 import { validateTrialUsage } from "./utils/trialValidation";
+import { supabaseAdmin } from "./supabase-admin";
 import { createGuestSession } from "./api/guest-session";
 import { saveSummary } from "./api/save-summary";
 import { getSummaries, getSummaryById, deleteSummary } from "./api/summaries";
@@ -197,6 +198,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No audio file provided" });
       }
 
+      // REQUIRED: userId must be present for trial validation - prevents bypass
+      if (!userId) {
+        return res.status(401).json({ 
+          error: "User ID required",
+          errorCode: "UNAUTHORIZED",
+          message: "يجب تسجيل الدخول لاستخدام هذه الخدمة"
+        });
+      }
+
       // Validate language
       const validLanguages = ["ar", "fr", "dz"];
       if (!validLanguages.includes(language)) {
@@ -223,29 +233,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // SERVER-SIDE TRIAL VALIDATION
+      // SERVER-SIDE TRIAL VALIDATION (REQUIRED)
       // This is the authoritative check - client-side is just UX, server-side is security
-      if (userId) {
-        const trialValidation = await validateTrialUsage(userId, audioDuration);
-        
-        if (!trialValidation.allowed) {
-          console.log(`[process-audio] BLOCKED: ${trialValidation.errorCode} - ${trialValidation.reason}`);
-          return res.status(403).json({
-            error: trialValidation.reason,
-            errorCode: trialValidation.errorCode,
-            usage: {
-              totalMinutesUsed: trialValidation.totalMinutesUsed,
-              dailyMinutesUsed: trialValidation.dailyMinutesUsed,
-              minutesRemaining: trialValidation.minutesRemaining,
-              dailyMinutesRemaining: trialValidation.dailyMinutesRemaining,
-            }
-          });
-        }
-        
-        console.log(`[process-audio] User ${userId} passed trial validation. Usage: total=${trialValidation.totalMinutesUsed.toFixed(2)}min, today=${trialValidation.dailyMinutesUsed.toFixed(2)}min`);
-      } else {
-        console.warn(`[process-audio] No userId provided - skipping trial validation`);
+      const trialValidation = await validateTrialUsage(userId, audioDuration);
+      
+      if (!trialValidation.allowed) {
+        console.log(`[process-audio] BLOCKED: ${trialValidation.errorCode} - ${trialValidation.reason}`);
+        return res.status(403).json({
+          error: trialValidation.reason,
+          errorCode: trialValidation.errorCode,
+          usage: {
+            totalMinutesUsed: trialValidation.totalMinutesUsed,
+            dailyMinutesUsed: trialValidation.dailyMinutesUsed,
+            minutesRemaining: trialValidation.minutesRemaining,
+            dailyMinutesRemaining: trialValidation.dailyMinutesRemaining,
+          }
+        });
       }
+      
+      console.log(`[process-audio] User ${userId} passed trial validation. Usage: total=${trialValidation.totalMinutesUsed.toFixed(2)}min, today=${trialValidation.dailyMinutesUsed.toFixed(2)}min`);
 
       // Step 1: Transcribe audio using the buffer, filename, mimetype, and language
       const transcription = await transcribeAudio(
@@ -265,6 +271,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         language: language as "ar" | "fr" | "dz",
       });
 
+      const processedAt = new Date().toISOString();
+      
+      // Step 3: ATOMIC SAVE - Save summary to database before returning result
+      // This ensures usage is recorded for every successful processing (no bypass possible)
+      // SECURITY: Save MUST succeed for request to complete - prevents untracked usage
+      const title = grokResult.summary.split(' ').slice(0, 5).join(' ') + '...';
+      
+      const { data: savedSummary, error: saveError } = await supabaseAdmin
+        .from('summaries')
+        .insert({
+          user_id: userId,
+          title,
+          content: grokResult.summary,
+          transcript: transcription,
+          key_points: grokResult.keyPoints || [],
+          language,
+          audio_duration: audioDuration, // Duration in seconds - authoritative for usage tracking
+        })
+        .select()
+        .single();
+      
+      if (saveError) {
+        console.error('[process-audio] CRITICAL: Failed to save summary:', saveError);
+        // FAIL the request if save fails - prevents untracked usage
+        return res.status(500).json({
+          error: "فشل حفظ التلخيص. يرجى المحاولة مرة أخرى.",
+          errorCode: "SAVE_FAILED",
+          details: saveError.message
+        });
+      }
+      
+      console.log(`[process-audio] Summary saved atomically. ID: ${savedSummary.id}, Duration: ${audioDuration}s`);
+
       // Return results with server-validated duration (authoritative for usage tracking)
       res.json({
         transcription,
@@ -272,7 +311,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         keyPoints: grokResult.keyPoints || [],
         audioDuration: audioDuration, // Server-validated duration in seconds
         durationSource: durationResult.source, // For debugging
-        processedAt: new Date().toISOString(),
+        processedAt,
+        savedSummaryId: savedSummary?.id || null, // Let client know if save succeeded
       });
     } catch (error: any) {
       console.error("Error processing audio:", error);

@@ -22,6 +22,7 @@ export interface SummaryData {
   language: Language;
   shared?: boolean;
   created_at?: string;
+  audio_duration?: number; // Duration in seconds
 }
 
 export interface SubscriptionData {
@@ -94,30 +95,38 @@ export async function upsertUser(userId: string, email: string, name?: string): 
 }
 
 /**
- * Save a new summary to the database
+ * Save a new summary to the database via backend API
+ * This ensures server-side trial validation and authoritative usage tracking
  */
-export async function saveSummary(summaryData: SummaryData): Promise<SummaryData | null> {
+export async function saveSummary(summaryData: SummaryData & { processedAt?: string }): Promise<SummaryData | null> {
   try {
-    const { data, error } = await supabase
-      .from('summaries')
-      .insert({
-        user_id: summaryData.user_id,
+    const response = await fetch('/api/save-summary', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: summaryData.user_id,
         title: summaryData.title,
         content: summaryData.content,
         transcript: summaryData.transcript,
-        key_points: summaryData.key_points,
+        keyPoints: summaryData.key_points,
         language: summaryData.language,
-        shared: summaryData.shared || false
-      })
-      .select()
-      .single();
+        audioDuration: summaryData.audio_duration, // Duration in seconds
+        processedAt: summaryData.processedAt, // ISO timestamp from server
+      }),
+    });
 
-    if (error) {
-      console.error('Error saving summary:', error);
-      return null;
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error saving summary:', errorData);
+      
+      // Re-throw with error details for the caller to handle
+      throw new Error(errorData.message || errorData.error || 'Failed to save summary');
     }
 
-    return data;
+    const { summary } = await response.json();
+    return summary;
   } catch (error) {
     console.error('Error in saveSummary:', error);
     return null;

@@ -121,7 +121,7 @@ export default function Home() {
     
     console.log(`[saveSession] Using duration: ${effectiveDuration?.toFixed(2) ?? 'N/A'}s`);
 
-    // Save to database FIRST before recording usage
+    // Save to database via backend API (ensures server-side trial validation)
     const title = generateSessionTitle(data.summary);
     const saved = await dbSaveSummary({
       user_id: currentUserId,
@@ -130,6 +130,8 @@ export default function Home() {
       transcript: data.transcription,
       key_points: data.keyPoints,
       language: data.language,
+      audio_duration: effectiveDuration, // Duration in seconds for server-side usage tracking
+      processedAt: data.processedAt, // Server timestamp for freshness validation
     });
     
     if (!saved) {
@@ -267,12 +269,33 @@ export default function Home() {
       };
       
       setResult(resultData);
-      await saveSessionToDatabase(resultData, audioDuration);
-
-      toast({
-        title: "تم التلخيص بنجاح",
-        description: "تم تحويل الصوت إلى نص وتلخيصه وحفظه في قاعدة البيانات",
-      });
+      
+      // Server now saves atomically - we just need to record local usage for UX
+      // The actual usage is tracked server-side in the database
+      const effectiveDuration = data.audioDuration ?? audioDuration;
+      if (effectiveDuration && effectiveDuration > 0 && currentUserId) {
+        const audioDurationMinutes = effectiveDuration / 60;
+        try {
+          recordUsage(audioDurationMinutes);
+          console.log(`[processAudio] Local usage recorded: ${audioDurationMinutes.toFixed(2)} minutes`);
+        } catch (error) {
+          console.error("Error recording local usage:", error);
+        }
+      }
+      
+      // Check if server saved successfully
+      if (data.savedSummaryId) {
+        toast({
+          title: "تم التلخيص بنجاح",
+          description: "تم تحويل الصوت إلى نص وتلخيصه وحفظه في قاعدة البيانات",
+        });
+      } else {
+        toast({
+          title: "تم التلخيص",
+          description: "تم تحويل الصوت إلى نص وتلخيصه (لم يتم الحفظ)",
+          variant: "default",
+        });
+      }
     } catch (error: any) {
       console.error("Error processing audio:", error);
       toast({
