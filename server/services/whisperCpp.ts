@@ -171,6 +171,7 @@ export async function ensureModelReady(): Promise<void> {
 function runWhisperBinary(wavPath: string, language: string): Promise<string> {
   return new Promise((resolve, reject) => {
     // CPU-only args for Replit environment (no GPU available)
+    // IMPORTANT: Do NOT use -fa (enables flash attention which requires GPU)
     const args = [
       "-m", MODEL_PATH,
       "-f", wavPath,
@@ -179,7 +180,6 @@ function runWhisperBinary(wavPath: string, language: string): Promise<string> {
       "-otxt",
       "-t", "4",        // Use 4 CPU threads
       "-ng",            // No GPU (force CPU-only)
-      "-fa",            // Disable flash attention (GPU feature)
     ];
 
     console.log(`[whisper.cpp] Running: ${WHISPER_BINARY} ${args.join(" ")}`);

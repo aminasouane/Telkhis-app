@@ -276,36 +276,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const processedAt = new Date().toISOString();
       
-      // Step 3: ATOMIC SAVE - Save summary to database before returning result
-      // This ensures usage is recorded for every successful processing (no bypass possible)
-      // SECURITY: Save MUST succeed for request to complete - prevents untracked usage
+      // Step 3: Try to save summary to database (non-blocking - user gets result even if save fails)
       const title = grokResult.summary.split(' ').slice(0, 5).join(' ') + '...';
       
-      const { data: savedSummary, error: saveError } = await supabaseAdmin
-        .from('summaries')
-        .insert({
-          user_id: userId,
-          title,
-          content: grokResult.summary,
-          transcript: transcription,
-          key_points: grokResult.keyPoints || [],
-          language,
-          audio_duration: audioDuration, // Duration in seconds - authoritative for usage tracking
-        })
-        .select()
-        .single();
+      let savedSummary = null;
+      let saveError = null;
       
-      if (saveError) {
-        console.error('[process-audio] CRITICAL: Failed to save summary:', saveError);
-        // FAIL the request if save fails - prevents untracked usage
-        return res.status(500).json({
-          error: "فشل حفظ التلخيص. يرجى المحاولة مرة أخرى.",
-          errorCode: "SAVE_FAILED",
-          details: saveError.message
-        });
+      try {
+        const result = await supabaseAdmin
+          .from('summaries')
+          .insert({
+            user_id: userId,
+            title,
+            content: grokResult.summary,
+            transcript: transcription,
+            key_points: grokResult.keyPoints || [],
+            language,
+            audio_duration: audioDuration,
+          })
+          .select()
+          .single();
+        
+        savedSummary = result.data;
+        saveError = result.error;
+        
+        if (saveError) {
+          console.error('[process-audio] WARNING: Failed to save summary (will still return result):', saveError);
+        } else {
+          console.log(`[process-audio] Summary saved. ID: ${savedSummary?.id}, Duration: ${audioDuration}s`);
+        }
+      } catch (dbError: any) {
+        console.error('[process-audio] WARNING: Database error (will still return result):', dbError.message);
       }
       
-      console.log(`[process-audio] Summary saved atomically. ID: ${savedSummary.id}, Duration: ${audioDuration}s`);
+      // ALWAYS return summary to user, even if save failed
 
       // Calculate post-save usage to inform client about NEXT attempt
       const audioDurationMinutes = audioDuration / 60;
