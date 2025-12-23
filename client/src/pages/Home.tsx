@@ -240,18 +240,13 @@ export default function Home() {
       
       // ============================================================
       // AFTER_SUMMARY STAGE: Record usage and check if NEXT attempt blocked
+      // Use server-provided trial status (more accurate than local)
       // ============================================================
       const effectiveDuration = data.audioDuration ?? audioDuration;
       const audioDurationMinutes = effectiveDuration ? effectiveDuration / 60 : 0;
       
-      // Log status BEFORE recording usage
-      const preStatus = getTrialStatus(currentUserId);
-      console.log('[Trial Check] BEFORE recording usage:', {
-        stage: 'after_summary',
-        totalMinutesUsed: preStatus.minutesUsed,
-        dailyMinutesUsed: preStatus.dailyMinutesUsed,
-        audioDurationMinutes: audioDurationMinutes.toFixed(2),
-      });
+      // Use server-provided trial status if available
+      const serverTrialStatus = data.trialStatus;
       
       // Record local usage for UX (server already tracked in database)
       if (effectiveDuration && effectiveDuration > 0) {
@@ -263,21 +258,27 @@ export default function Home() {
         }
       }
       
-      // Log status AFTER recording usage
-      const postStatus = getTrialStatus(currentUserId);
-      logTrialCheck('after_summary', postStatus, effectiveDuration);
+      // Log server-provided status
+      console.log('[Trial Check] Server status after processing:', serverTrialStatus);
       
       // Check if NEXT attempt would be blocked (informational only - current operation completed)
-      // MVP: Only check daily limit (no total limit blocking)
-      if (postStatus.dailyMinutesRemaining <= 0) {
-        const status = getUserStatus(currentUserId);
-        setDailyLimitInfo({
-          hours: status.hoursUntilReset,
-          minutes: status.minutesUntilReset,
-          used: postStatus.dailyMinutesUsed,
-        });
-        // Show modal after delay so user sees their result first
-        setTimeout(() => setShowDailyLimitModal(true), 1500);
+      // Use server-provided info which is more accurate
+      if (serverTrialStatus?.nextBlocked) {
+        // Show appropriate modal based on block reason after delay (so user sees result first)
+        if (serverTrialStatus.nextBlockReason === 'days_expired') {
+          // Trial expired - show trial expired modal
+          setTrialStatusForModal(getTrialStatus(currentUserId));
+          setTimeout(() => setShowTrialExpiredModal(true), 1500);
+        } else if (serverTrialStatus.nextBlockReason === 'daily_limit') {
+          // Daily limit reached - show daily limit modal
+          const status = getUserStatus(currentUserId);
+          setDailyLimitInfo({
+            hours: status.hoursUntilReset,
+            minutes: status.minutesUntilReset,
+            used: serverTrialStatus.dailyMinutesUsed || 0,
+          });
+          setTimeout(() => setShowDailyLimitModal(true), 1500);
+        }
       }
       // NOTE: No total limit check in MVP - users get 30 min/day for 7 days
       

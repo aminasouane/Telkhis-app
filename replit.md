@@ -21,9 +21,10 @@ The frontend is built with React, TypeScript, and Vite, utilizing Radix UI with 
     - **Date Expiry**: 7 days from first use. After 7 days, trial is blocked entirely.
     - **Daily Limit**: 30 minutes per day. When exceeded, a modal appears showing time until midnight reset.
     - **NO Total Limit**: `totalMinutesUsed` is tracked for analytics only, NOT used for blocking. Users effectively get 30 min/day × 7 days = 210 minutes maximum.
+  - **Critical Flow Rule**: Any recording that HAS STARTED must ALWAYS complete (transcription + summary). Blocking only affects NEXT attempt to start a new recording. Server never blocks mid-operation.
   - **Block Reason Types**: All block reasons show modals (no redirects). `daily_limit` → DailyLimitModal, `days_expired` → TrialExpiredModal. The UI always remains accessible.
   - **Duration Calculation**: Server-side authoritative duration using music-metadata/ffprobe (fallback: file-size estimate). Server-calculated duration is used for usage tracking.
-  - **Pre-check**: Client checks only `dailyMinutesRemaining >= 0` before processing. Server enforces the 5-minute per-file limit.
+  - **Pre-check**: Client checks only `dailyMinutesRemaining >= 0` before starting NEW recording. Server validates and returns `trialStatus` with `nextBlocked` flag.
   - **Usage Tracking**: Both total and daily usage recorded after successful database save. Daily usage auto-resets at midnight. Total usage for analytics only.
   - **MVP Limitation**: One request can exceed the daily limit before being blocked (single-request overage), then next request is blocked.
   - **Debug Commands**: `resetTrial()` and `debugTrial()` available in browser console (auto-detects userId).

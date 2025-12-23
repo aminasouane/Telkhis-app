@@ -233,25 +233,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // SERVER-SIDE TRIAL VALIDATION (REQUIRED)
-      // This is the authoritative check - client-side is just UX, server-side is security
+      // SERVER-SIDE TRIAL VALIDATION (INFORMATIONAL ONLY)
+      // MVP RULE: Current operation ALWAYS completes - blocking only affects NEXT attempt
+      // The recording has already started, so we MUST process it and return results
       const trialValidation = await validateTrialUsage(userId, audioDuration);
       
+      // Log current status but DO NOT BLOCK - user has already started recording
       if (!trialValidation.allowed) {
-        console.log(`[process-audio] BLOCKED: ${trialValidation.errorCode} - ${trialValidation.reason}`);
-        return res.status(403).json({
-          error: trialValidation.reason,
-          errorCode: trialValidation.errorCode,
-          usage: {
-            totalMinutesUsed: trialValidation.totalMinutesUsed,
-            dailyMinutesUsed: trialValidation.dailyMinutesUsed,
-            minutesRemaining: trialValidation.minutesRemaining,
-            dailyMinutesRemaining: trialValidation.dailyMinutesRemaining,
-          }
-        });
+        console.log(`[process-audio] User ${userId} at limit (${trialValidation.errorCode}) - but completing current operation`);
+      } else {
+        console.log(`[process-audio] User ${userId} trial OK. Usage: total=${trialValidation.totalMinutesUsed.toFixed(2)}min, today=${trialValidation.dailyMinutesUsed.toFixed(2)}min`);
       }
       
-      console.log(`[process-audio] User ${userId} passed trial validation. Usage: total=${trialValidation.totalMinutesUsed.toFixed(2)}min, today=${trialValidation.dailyMinutesUsed.toFixed(2)}min`);
+      // Store current limit status to include in response (for client to show appropriate UI after completion)
+      const wasAtLimit = !trialValidation.allowed;
+      const limitReason = trialValidation.errorCode;
 
       // Step 1: Transcribe audio using the buffer, filename, mimetype, and language
       const transcription = await transcribeAudio(
@@ -304,7 +300,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[process-audio] Summary saved atomically. ID: ${savedSummary.id}, Duration: ${audioDuration}s`);
 
+      // Calculate post-save usage to inform client about NEXT attempt
+      const audioDurationMinutes = audioDuration / 60;
+      const newDailyUsage = trialValidation.dailyMinutesUsed + audioDurationMinutes;
+      const newDailyRemaining = Math.max(0, 30 - newDailyUsage); // 30 min daily limit
+      
+      // Determine if next attempt will be blocked (daily limit OR trial expiry)
+      const isDailyLimitReached = newDailyRemaining <= 0;
+      const isTrialExpired = limitReason === "TRIAL_EXPIRED";
+      const nextBlocked = isDailyLimitReached || isTrialExpired;
+      const nextBlockReason = isTrialExpired ? "days_expired" : (isDailyLimitReached ? "daily_limit" : null);
+      
       // Return results with server-validated duration (authoritative for usage tracking)
+      // Include trial info so client can show appropriate modals for NEXT attempt
       res.json({
         transcription,
         summary: grokResult.summary,
@@ -313,6 +321,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         durationSource: durationResult.source, // For debugging
         processedAt,
         savedSummaryId: savedSummary?.id || null, // Let client know if save succeeded
+        // Trial status for client to update local state and show modals
+        trialStatus: {
+          wasAtLimit, // Was user already at limit before this request?
+          limitReason, // Which limit was reached (if any)
+          totalMinutesUsed: trialValidation.totalMinutesUsed + audioDurationMinutes,
+          dailyMinutesUsed: newDailyUsage,
+          dailyMinutesRemaining: newDailyRemaining,
+          nextBlocked, // Will next attempt be blocked (daily or expiry)?
+          nextBlockReason, // Reason for next block: 'daily_limit' or 'days_expired'
+        },
       });
     } catch (error: any) {
       console.error("Error processing audio:", error);
