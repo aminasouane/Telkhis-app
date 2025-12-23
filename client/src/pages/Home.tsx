@@ -309,6 +309,11 @@ export default function Home() {
   };
 
   const handleFileUpload = async (file: File) => {
+    // PRE-CHECK: Verify user can process BEFORE uploading/processing file
+    if (!checkTrialBeforeAction()) {
+      return; // Block upload - modal is already shown
+    }
+    
     try {
       // Calculate audio duration before processing
       const duration = await getAudioDuration(file);
@@ -349,7 +354,42 @@ export default function Home() {
     });
   };
 
+  // PRE-CHECK: Verify user has remaining minutes BEFORE starting any action
+  // This prevents recording or file upload when trial is exhausted
+  const checkTrialBeforeAction = (): boolean => {
+    if (!currentUserId) return false;
+    
+    // Check with minimal duration (0.1 minutes = 6 seconds) to see if ANY processing is allowed
+    const permissionCheck = canProcessAudio(currentUserId, 0.1);
+    
+    if (!permissionCheck.allowed) {
+      console.log(`[PRE-CHECK] Blocked: ${permissionCheck.blockReason}`);
+      
+      // Show appropriate modal based on block reason
+      if (permissionCheck.blockReason === "daily_limit") {
+        const status = getUserStatus(currentUserId);
+        setDailyLimitInfo({
+          hours: status.hoursUntilReset,
+          minutes: status.minutesUntilReset,
+          used: permissionCheck.status.dailyMinutesUsed,
+        });
+        setShowDailyLimitModal(true);
+      } else {
+        // total_limit, days_expired, minutes_exhausted
+        setTrialStatusForModal(getTrialStatus(currentUserId));
+        setShowTrialExpiredModal(true);
+      }
+      return false;
+    }
+    return true;
+  };
+
   const handleRecordingStart = () => {
+    // PRE-CHECK: Verify user can process BEFORE recording starts
+    if (!checkTrialBeforeAction()) {
+      return; // Block recording - modal is already shown
+    }
+    
     setIsRecording(true);
     setLiveResult(null);
     setResult(null);
@@ -418,6 +458,7 @@ export default function Home() {
                       onRecordingComplete={handleRecordingComplete}
                       onLiveUpdate={handleLiveUpdate}
                       onRecordingStart={handleRecordingStart}
+                      onBeforeRecording={checkTrialBeforeAction}
                       language={language}
                     />
 

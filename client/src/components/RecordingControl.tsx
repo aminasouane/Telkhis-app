@@ -16,6 +16,7 @@ interface RecordingControlProps {
   onRecordingComplete: (audioBlob: Blob, duration: number) => void;
   onLiveUpdate?: (data: LiveUpdateData) => void;
   onRecordingStart?: () => void;
+  onBeforeRecording?: () => boolean; // Pre-check: returns true if recording is allowed
   language: string;
 }
 
@@ -23,6 +24,7 @@ export default function RecordingControl({
   onRecordingComplete, 
   onLiveUpdate,
   onRecordingStart,
+  onBeforeRecording,
   language 
 }: RecordingControlProps) {
   const [status, setStatus] = useState<RecordingStatus>("idle");
@@ -92,6 +94,11 @@ export default function RecordingControl({
   };
 
   const startRecording = async () => {
+    // PRE-CHECK: Verify user can record BEFORE starting
+    if (onBeforeRecording && !onBeforeRecording()) {
+      return; // Block recording - caller handles showing modal
+    }
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
