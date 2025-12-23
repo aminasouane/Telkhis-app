@@ -73,21 +73,22 @@ async function buildWhisperCpp(): Promise<void> {
     return;
   }
 
-  console.log("[whisper.cpp] Building whisper.cpp with cmake (this may take a few minutes)...");
+  console.log("[whisper.cpp] Building whisper.cpp with cmake (CPU-only, this may take a few minutes)...");
   
   const buildDir = path.join(WHISPER_DIR, "build");
   if (!fs.existsSync(buildDir)) {
     fs.mkdirSync(buildDir, { recursive: true });
   }
   
-  await execAsync(`cd "${buildDir}" && cmake .. && cmake --build . --config Release -j4`, { 
+  // Build with CPU-only flags - disable all GPU backends for Replit environment
+  await execAsync(`cd "${buildDir}" && cmake .. -DGGML_CUDA=OFF -DGGML_METAL=OFF -DGGML_VULKAN=OFF -DGGML_SYCL=OFF -DWHISPER_NO_ACCELERATE=ON && cmake --build . --config Release -j2`, { 
     timeout: 600000 
   });
   
   if (!fs.existsSync(WHISPER_BINARY)) {
     throw new Error("Build failed: whisper-cli binary not found after cmake build");
   }
-  console.log("[whisper.cpp] Build complete");
+  console.log("[whisper.cpp] Build complete (CPU-only mode)");
 }
 
 async function downloadModel(): Promise<void> {
@@ -169,12 +170,16 @@ export async function ensureModelReady(): Promise<void> {
 
 function runWhisperBinary(wavPath: string, language: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    // CPU-only args for Replit environment (no GPU available)
     const args = [
       "-m", MODEL_PATH,
       "-f", wavPath,
       "-l", language,
       "--no-timestamps",
-      "-otxt"
+      "-otxt",
+      "-t", "4",        // Use 4 CPU threads
+      "-ng",            // No GPU (force CPU-only)
+      "-fa",            // Disable flash attention (GPU feature)
     ];
 
     console.log(`[whisper.cpp] Running: ${WHISPER_BINARY} ${args.join(" ")}`);
