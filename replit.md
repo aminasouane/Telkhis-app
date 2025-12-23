@@ -16,14 +16,17 @@ The frontend is built with React, TypeScript, and Vite, utilizing Radix UI with 
 - **Backend**: Node.js with Express.js, providing RESTful endpoints for audio processing (live and batch) and secure user management. Multer handles in-memory audio files.
 - **Audio Processing Pipeline**: Involves pre-processing validation, transcription via `whisper.cpp`, and summarization via Grok API.
 - **Security**: Multi-layered security with pre-AI validation, trusted metadata, defense-in-depth for summary persistence, and atomic trial enforcement. JWT-based authentication secures all payment and user-sensitive endpoints.
-- **Subscription Management**: A minute-based trial system (30 minutes total, 7 days validity, 30 minutes per day limit) transitions to paid subscriptions handled via Chargily Pay. The system uses a unified state machine (`trial_active`, `trial_used_up`, `trial_expired`, `subscribed`) to manage user access and features.
-  - **Trial Quota**: Based on total audio minutes consumed (not request count). Users can create unlimited summaries within the 30-minute quota, but limited to 30 minutes per day.
-  - **Daily Limit System**: Users can only process 30 minutes of audio per day. When exceeded, a modal appears showing time until midnight reset. The app remains usable (viewing history, etc.) but processing is blocked until the next day.
-  - **Block Reason Types**: All block reasons show modals (no redirects). `daily_limit` → DailyLimitModal, `total_limit`/`days_expired`/`minutes_exhausted` → TrialExpiredModal. The UI always remains accessible.
+- **Subscription Management**: Transitions to paid subscriptions handled via Chargily Pay. The system uses a unified state machine (`trial_active`, `trial_expired`, `subscribed`) to manage user access and features.
+  - **MVP Trial Logic** (CURRENT):
+    - **Date Expiry**: 7 days from first use. After 7 days, trial is blocked entirely.
+    - **Daily Limit**: 30 minutes per day. When exceeded, a modal appears showing time until midnight reset.
+    - **NO Total Limit**: `totalMinutesUsed` is tracked for analytics only, NOT used for blocking. Users effectively get 30 min/day × 7 days = 210 minutes maximum.
+  - **Block Reason Types**: All block reasons show modals (no redirects). `daily_limit` → DailyLimitModal, `days_expired` → TrialExpiredModal. The UI always remains accessible.
   - **Duration Calculation**: Server-side authoritative duration using music-metadata/ffprobe (fallback: file-size estimate). Server-calculated duration is used for usage tracking.
-  - **Pre-check**: Client checks both `dailyMinutesRemaining >= audioDuration` AND `minutesRemaining >= audioDuration` before processing. Server enforces the 5-minute per-file limit.
-  - **Usage Tracking**: Both total and daily usage recorded after successful database save to prevent orphan entries. Daily usage auto-resets at midnight.
-  - **MVP Limitation**: One request can exceed the limit before being blocked (single-request overage), but total usage is tracked correctly.
+  - **Pre-check**: Client checks only `dailyMinutesRemaining >= 0` before processing. Server enforces the 5-minute per-file limit.
+  - **Usage Tracking**: Both total and daily usage recorded after successful database save. Daily usage auto-resets at midnight. Total usage for analytics only.
+  - **MVP Limitation**: One request can exceed the daily limit before being blocked (single-request overage), then next request is blocked.
+  - **Debug Commands**: `resetTrial()` and `debugTrial()` available in browser console (auto-detects userId).
 
 ### Feature Specifications
 - **Header Component**: Implements a robust profile icon visibility logic based on user authentication status (`guest`, `free`, `premium`, `pro_plus`) with debouncing and caching to prevent flickering during state changes.

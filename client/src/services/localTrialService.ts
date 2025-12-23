@@ -127,8 +127,6 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   const daysPassed = Math.floor((now.getTime() - firstUse.getTime()) / (1000 * 60 * 60 * 24));
   const daysRemaining = Math.max(0, TRIAL_CONFIG.VALIDITY_DAYS - daysPassed);
   
-  const minutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - data.totalMinutesUsed);
-  
   // Calculate daily usage (reset if different day)
   const dailyUsage = data.dailyUsage;
   const dailyMinutesUsed = (dailyUsage && dailyUsage.date === today) ? dailyUsage.minutesUsed : 0;
@@ -136,36 +134,40 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   const isDailyLimitReached = dailyMinutesRemaining <= 0;
   
   const isDaysExpired = daysPassed >= TRIAL_CONFIG.VALIDITY_DAYS;
-  const isMinutesExhausted = minutesRemaining <= 0;
   
+  // For analytics: total minutes remaining (not used for blocking in MVP)
+  const totalMinutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - data.totalMinutesUsed);
+  
+  // MVP: Only check date expiry and daily limit
+  // totalMinutesUsed is tracked for analytics but NOT used for blocking
   let state: TrialStateType;
   let reason: TrialStatus["reason"] = undefined;
   
-  // Priority: days_expired takes precedence, then check minutes
+  // Only days_expired blocks the trial entirely
+  // Daily limit is checked separately in canProcessAudio
   if (isDaysExpired) {
     state = "EXPIRED";
     reason = "days_expired";
-  } else if (isMinutesExhausted) {
-    state = "USED_UP";
-    reason = "minutes_exhausted";
   } else {
     state = "ACTIVE";
   }
   
   const isExpired = state !== "ACTIVE";
   
+  // Keep minutesRemaining as TOTAL remaining (for analytics/display)
+  // Use dailyMinutesRemaining for daily blocking decisions
   return {
     state,
     isExpired,
-    minutesUsed: data.totalMinutesUsed,
-    minutesLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES,
-    minutesRemaining,
+    minutesUsed: data.totalMinutesUsed, // Analytics: total used
+    minutesLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES, // Analytics: total limit
+    minutesRemaining: totalMinutesRemaining, // Analytics: total remaining (NOT used for blocking)
     daysRemaining,
     canUseTrial: !isExpired,
     reason,
     dailyMinutesUsed,
     dailyMinutesLimit: TRIAL_CONFIG.DAILY_LIMIT_MINUTES,
-    dailyMinutesRemaining,
+    dailyMinutesRemaining, // Use THIS for blocking decisions
     isDailyLimitReached,
   };
 }
@@ -173,9 +175,11 @@ export function getTrialStatus(appUserId: string): TrialStatus {
 export type BlockReason = "daily_limit" | "total_limit" | "days_expired" | "minutes_exhausted";
 
 // Check if a specific audio duration can be processed
-// IMPORTANT: We only block if limits are ALREADY exhausted from PREVIOUS usage
-// Current operation is always allowed (single-request overage allowed for MVP)
-// Blocking applies to NEXT attempt, not current one
+// MVP LOGIC:
+// 1. Check date expiry (7 days from first use)
+// 2. Check daily limit (30 minutes per day)
+// 3. NO total limit check - totalMinutesUsed is for analytics only
+// Current operation is always allowed to complete (single-request overage allowed)
 export function canProcessAudio(appUserId: string, audioDurationMinutes: number): { 
   allowed: boolean; 
   status: TrialStatus;
@@ -184,21 +188,17 @@ export function canProcessAudio(appUserId: string, audioDurationMinutes: number)
 } {
   const status = getTrialStatus(appUserId);
   
-  // If trial is not active (expired or used up), return not allowed
-  if (!status.canUseTrial) {
-    let reason = "التجربة المجانية غير متاحة";
-    let blockReason: BlockReason = "minutes_exhausted";
-    if (status.reason === "days_expired") {
-      reason = "انتهت صلاحية التجربة المجانية بعد 7 أيام";
-      blockReason = "days_expired";
-    } else if (status.reason === "minutes_exhausted") {
-      reason = "لقد استخدمت كامل الوقت المجاني (30 دقيقة)";
-      blockReason = "minutes_exhausted";
-    }
-    return { allowed: false, status, reason, blockReason };
+  // Check 1: Date expiry (trial is 7 days from first use)
+  if (!status.canUseTrial && status.reason === "days_expired") {
+    return {
+      allowed: false,
+      status,
+      reason: "انتهت صلاحية التجربة المجانية بعد 7 أيام",
+      blockReason: "days_expired",
+    };
   }
   
-  // Check if daily limit is ALREADY exhausted (>= 30 minutes used today)
+  // Check 2: Daily limit is ALREADY exhausted (>= 30 minutes used today)
   if (status.dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
     return {
       allowed: false,
@@ -208,20 +208,10 @@ export function canProcessAudio(appUserId: string, audioDurationMinutes: number)
     };
   }
   
-  // Check if total limit is ALREADY exhausted (>= 30 minutes total)
-  if (status.minutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
-    return {
-      allowed: false,
-      status,
-      reason: `لقد استخدمت كامل الوقت المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة)`,
-      blockReason: "total_limit",
-    };
-  }
+  // NO Check 3: totalMinutesUsed is NOT used for blocking in MVP
+  // Users get 30 minutes per day for 7 days (max possible = 210 minutes)
   
-  // NOTE: We do NOT check if audioDurationMinutes would exceed the limit
   // Current operation is always allowed to complete
-  // After this request completes, the NEXT request will be blocked if limits are reached
-  
   return { allowed: true, status };
 }
 
@@ -306,7 +296,30 @@ export function resetTrialData(appUserId: string): void {
 
 // Expose debug functions globally for browser console access
 if (typeof window !== 'undefined') {
-  (window as any).debugTrial = (userId: string) => debugTrialData(userId);
-  (window as any).resetTrial = (userId: string) => resetTrialData(userId);
-  console.log('[Trial Debug] Available commands: debugTrial(userId), resetTrial(userId)');
+  // Auto-detect current userId from localStorage
+  const getCurrentUserId = (): string | null => {
+    const stored = localStorage.getItem('takhleesly_app_user_id');
+    return stored;
+  };
+  
+  (window as any).debugTrial = (userId?: string) => {
+    const id = userId || getCurrentUserId();
+    if (!id) {
+      console.log('[Trial Debug] No userId provided and no stored userId found');
+      return;
+    }
+    debugTrialData(id);
+  };
+  
+  (window as any).resetTrial = (userId?: string) => {
+    const id = userId || getCurrentUserId();
+    if (!id) {
+      console.log('[Trial Reset] No userId provided and no stored userId found');
+      return;
+    }
+    resetTrialData(id);
+    console.log('[Trial Reset] Done! Refresh the page to see changes.');
+  };
+  
+  console.log('[Trial Debug] Available commands: debugTrial(), resetTrial() - auto-detects userId');
 }

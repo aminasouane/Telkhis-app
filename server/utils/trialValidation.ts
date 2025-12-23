@@ -52,6 +52,7 @@ export async function validateTrialUsage(
     // Calculate total and daily usage from database
     let totalMinutesUsed = 0;
     let dailyMinutesUsed = 0;
+    let firstUseDate: Date | null = null;
     
     for (const summary of summaries || []) {
       // audio_duration is stored in seconds
@@ -65,31 +66,46 @@ export async function validateTrialUsage(
       if (createdDate === today) {
         dailyMinutesUsed += durationMinutes;
       }
+      
+      // Track earliest summary date as first use date
+      if (summary.created_at) {
+        const summaryDate = new Date(summary.created_at);
+        if (!firstUseDate || summaryDate < firstUseDate) {
+          firstUseDate = summaryDate;
+        }
+      }
     }
     
-    console.log(`[trialValidation] Usage - Total: ${totalMinutesUsed.toFixed(2)} min, Today: ${dailyMinutesUsed.toFixed(2)} min`);
+    console.log(`[trialValidation] Usage - Total: ${totalMinutesUsed.toFixed(2)} min, Today: ${dailyMinutesUsed.toFixed(2)} min, FirstUse: ${firstUseDate?.toISOString() || 'new user'}`);
     
-    const minutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - totalMinutesUsed);
+    // Calculate both total and daily remaining for analytics
+    const totalMinutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - totalMinutesUsed);
     const dailyMinutesRemaining = Math.max(0, TRIAL_CONFIG.DAILY_LIMIT_MINUTES - dailyMinutesUsed);
     
-    // IMPORTANT: We only block if limits are ALREADY exhausted from PREVIOUS usage
-    // Current operation is always allowed to complete (single-request overage allowed for MVP)
-    // The blocking applies to the NEXT attempt, not the current one
+    // MVP LOGIC:
+    // 1. Check date expiry (7 days from first use)
+    // 2. Check daily limit (30 minutes per day)
+    // 3. NO total limit check - users get 30 min/day for 7 days
     
-    // Check total limit - only if ALREADY at or over limit (previous usage exhausted quota)
-    if (totalMinutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
-      return {
-        allowed: false,
-        reason: `لقد استخدمت كامل الوقت المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة)`,
-        errorCode: "TRIAL_EXHAUSTED",
-        totalMinutesUsed,
-        dailyMinutesUsed,
-        minutesRemaining,
-        dailyMinutesRemaining,
-      };
+    // Check 1: 7-day trial expiry (server-side enforcement)
+    if (firstUseDate) {
+      const now = new Date();
+      const daysPassed = Math.floor((now.getTime() - firstUseDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysPassed >= TRIAL_CONFIG.VALIDITY_DAYS) {
+        console.log(`[trialValidation] Trial expired: ${daysPassed} days since first use`);
+        return {
+          allowed: false,
+          reason: `انتهت صلاحية التجربة المجانية بعد ${TRIAL_CONFIG.VALIDITY_DAYS} أيام`,
+          errorCode: "TRIAL_EXPIRED",
+          totalMinutesUsed,
+          dailyMinutesUsed,
+          minutesRemaining: 0,
+          dailyMinutesRemaining: 0,
+        };
+      }
     }
     
-    // Check daily limit - only if ALREADY at or over limit (previous usage exhausted daily quota)
+    // Check 2: Daily limit - block if ALREADY at or over limit
     if (dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
       return {
         allowed: false,
@@ -97,21 +113,20 @@ export async function validateTrialUsage(
         errorCode: "DAILY_LIMIT_REACHED",
         totalMinutesUsed,
         dailyMinutesUsed,
-        minutesRemaining,
+        minutesRemaining: totalMinutesRemaining, // Analytics: total remaining
         dailyMinutesRemaining,
       };
     }
     
-    // NOTE: We removed the "insufficient" checks that blocked based on audioDuration
-    // This allows the current request to complete even if it would exceed the limit
-    // After this request completes, the NEXT request will be blocked by the checks above
+    // NO total limit check for MVP
+    // totalMinutesUsed is kept for analytics/history only
     
-    // All checks passed
+    // All checks passed - current operation can proceed
     return {
       allowed: true,
       totalMinutesUsed,
       dailyMinutesUsed,
-      minutesRemaining,
+      minutesRemaining: totalMinutesRemaining, // Analytics: total remaining
       dailyMinutesRemaining,
     };
     

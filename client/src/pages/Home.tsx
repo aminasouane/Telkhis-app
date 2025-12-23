@@ -65,20 +65,21 @@ function canStartNewSummary(userId: string): {
   // Log at before_start stage
   logTrialCheck('before_start', status);
   
-  // Check if trial expired due to 7 days validity
+  // MVP LOGIC: Only check date expiry and daily limit
+  // totalMinutesUsed is for analytics only - NOT used for blocking
+  
+  // Check 1: Trial expired due to 7 days validity
   if (status.reason === 'days_expired') {
     return { allowed: false, blockReason: 'days_expired', status };
   }
   
-  // Check if daily limit is ALREADY exhausted (>= limit from PREVIOUS usage)
+  // Check 2: Daily limit is ALREADY exhausted (>= 30 min used today)
   if (status.dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
     return { allowed: false, blockReason: 'daily_limit', status };
   }
   
-  // Check if total limit is ALREADY exhausted (>= limit from PREVIOUS usage)
-  if (status.minutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
-    return { allowed: false, blockReason: 'total_limit', status };
-  }
+  // NO Check 3: totalMinutesUsed NOT used for blocking in MVP
+  // Users get 30 minutes per day for 7 days (max = 210 minutes)
   
   // Limits not exhausted - allow operation to proceed
   return { allowed: true, blockReason: null, status };
@@ -267,6 +268,7 @@ export default function Home() {
       logTrialCheck('after_summary', postStatus, effectiveDuration);
       
       // Check if NEXT attempt would be blocked (informational only - current operation completed)
+      // MVP: Only check daily limit (no total limit blocking)
       if (postStatus.dailyMinutesRemaining <= 0) {
         const status = getUserStatus(currentUserId);
         setDailyLimitInfo({
@@ -276,10 +278,8 @@ export default function Home() {
         });
         // Show modal after delay so user sees their result first
         setTimeout(() => setShowDailyLimitModal(true), 1500);
-      } else if (postStatus.minutesRemaining <= 0) {
-        setTrialStatusForModal(postStatus);
-        setTimeout(() => setShowTrialExpiredModal(true), 1500);
       }
+      // NOTE: No total limit check in MVP - users get 30 min/day for 7 days
       
       // Check if server saved successfully
       if (data.savedSummaryId) {
