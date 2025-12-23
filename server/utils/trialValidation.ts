@@ -72,7 +72,11 @@ export async function validateTrialUsage(
     const minutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - totalMinutesUsed);
     const dailyMinutesRemaining = Math.max(0, TRIAL_CONFIG.DAILY_LIMIT_MINUTES - dailyMinutesUsed);
     
-    // Check total limit
+    // IMPORTANT: We only block if limits are ALREADY exhausted from PREVIOUS usage
+    // Current operation is always allowed to complete (single-request overage allowed for MVP)
+    // The blocking applies to the NEXT attempt, not the current one
+    
+    // Check total limit - only if ALREADY at or over limit (previous usage exhausted quota)
     if (totalMinutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
       return {
         allowed: false,
@@ -85,20 +89,7 @@ export async function validateTrialUsage(
       };
     }
     
-    // Check if remaining minutes are sufficient
-    if (minutesRemaining < audioDurationMinutes) {
-      return {
-        allowed: false,
-        reason: `مدة الملف (${audioDurationMinutes.toFixed(1)} دقيقة) أكبر من الرصيد المتبقي (${minutesRemaining.toFixed(1)} دقيقة)`,
-        errorCode: "INSUFFICIENT_TOTAL",
-        totalMinutesUsed,
-        dailyMinutesUsed,
-        minutesRemaining,
-        dailyMinutesRemaining,
-      };
-    }
-    
-    // Check daily limit
+    // Check daily limit - only if ALREADY at or over limit (previous usage exhausted daily quota)
     if (dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
       return {
         allowed: false,
@@ -111,18 +102,9 @@ export async function validateTrialUsage(
       };
     }
     
-    // Check if daily remaining is sufficient
-    if (dailyMinutesRemaining < audioDurationMinutes) {
-      return {
-        allowed: false,
-        reason: `الحد اليومي: تبقى ${dailyMinutesRemaining.toFixed(1)} دقيقة فقط اليوم. مدة الملف: ${audioDurationMinutes.toFixed(1)} دقيقة`,
-        errorCode: "INSUFFICIENT_DAILY",
-        totalMinutesUsed,
-        dailyMinutesUsed,
-        minutesRemaining,
-        dailyMinutesRemaining,
-      };
-    }
+    // NOTE: We removed the "insufficient" checks that blocked based on audioDuration
+    // This allows the current request to complete even if it would exceed the limit
+    // After this request completes, the NEXT request will be blocked by the checks above
     
     // All checks passed
     return {

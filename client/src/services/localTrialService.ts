@@ -170,6 +170,9 @@ export function getTrialStatus(appUserId: string): TrialStatus {
 export type BlockReason = "daily_limit" | "total_limit" | "days_expired" | "minutes_exhausted";
 
 // Check if a specific audio duration can be processed
+// IMPORTANT: We only block if limits are ALREADY exhausted from PREVIOUS usage
+// Current operation is always allowed (single-request overage allowed for MVP)
+// Blocking applies to NEXT attempt, not current one
 export function canProcessAudio(appUserId: string, audioDurationMinutes: number): { 
   allowed: boolean; 
   status: TrialStatus;
@@ -192,29 +195,29 @@ export function canProcessAudio(appUserId: string, audioDurationMinutes: number)
     return { allowed: false, status, reason, blockReason };
   }
   
-  // Check daily limit FIRST (this takes precedence for active trials)
-  if (status.dailyMinutesRemaining < audioDurationMinutes) {
-    const remainingFormatted = status.dailyMinutesRemaining.toFixed(1);
-    const requestedFormatted = audioDurationMinutes.toFixed(1);
+  // Check if daily limit is ALREADY exhausted (>= 30 minutes used today)
+  if (status.dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
     return {
       allowed: false,
       status,
-      reason: `الحد اليومي: تبقى ${remainingFormatted} دقيقة فقط اليوم. مدة الملف: ${requestedFormatted} دقيقة`,
+      reason: `لقد وصلت للحد اليومي (${TRIAL_CONFIG.DAILY_LIMIT_MINUTES} دقيقة). يمكنك المتابعة غداً.`,
       blockReason: "daily_limit",
     };
   }
   
-  // Check total remaining minutes
-  if (status.minutesRemaining < audioDurationMinutes) {
-    const remainingFormatted = status.minutesRemaining.toFixed(1);
-    const requestedFormatted = audioDurationMinutes.toFixed(1);
+  // Check if total limit is ALREADY exhausted (>= 30 minutes total)
+  if (status.minutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
     return {
       allowed: false,
       status,
-      reason: `مدة الملف (${requestedFormatted} دقيقة) أكبر من الرصيد الإجمالي المتبقي (${remainingFormatted} دقيقة)`,
+      reason: `لقد استخدمت كامل الوقت المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة)`,
       blockReason: "total_limit",
     };
   }
+  
+  // NOTE: We do NOT check if audioDurationMinutes would exceed the limit
+  // Current operation is always allowed to complete
+  // After this request completes, the NEXT request will be blocked if limits are reached
   
   return { allowed: true, status };
 }
