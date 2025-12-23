@@ -10,6 +10,8 @@ import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
 import DailyLimitModal from "@/components/DailyLimitModal";
+import TrialExpiredModal from "@/components/TrialExpiredModal";
+import { getTrialStatus, type TrialStatus } from "@/services/localTrialService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,20 +45,17 @@ export default function Home() {
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
   const [showDailyLimitModal, setShowDailyLimitModal] = useState(false);
   const [dailyLimitInfo, setDailyLimitInfo] = useState({ hours: 0, minutes: 0, used: 0 });
+  const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
+  const [trialStatusForModal, setTrialStatusForModal] = useState<TrialStatus | null>(null);
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
   const { recordUsage, refreshState } = useSubscription();
 
   const currentUserId = appUserId;
 
-  // Redirect to /subscribe if trial is expired or minutes exhausted
-  useEffect(() => {
-    if (!authLoading && currentUserId) {
-      if (shouldShowSubscriptionPage(currentUserId)) {
-        navigate("/subscribe");
-      }
-    }
-  }, [authLoading, currentUserId, navigate]);
+  // NOTE: We intentionally do NOT redirect when trial expires.
+  // The user can still use the app, but the summarize ACTION will be blocked.
+  // This provides a better UX - users can still browse, view history, etc.
 
   // Load summary from URL parameter
   useEffect(() => {
@@ -183,7 +182,7 @@ export default function Home() {
         });
         refreshState();
         
-        // Handle different block reasons differently
+        // Handle different block reasons with modals - NO redirects
         if (permissionCheck.blockReason === "daily_limit") {
           // Show modal for daily limit - user can try tomorrow
           const status = getUserStatus(currentUserId);
@@ -194,8 +193,10 @@ export default function Home() {
           });
           setShowDailyLimitModal(true);
         } else {
-          // Redirect to subscription page for trial expiration or total limit
-          navigate("/subscribe");
+          // Show trial expired modal for trial expiration or total limit
+          // User can still browse the app, just can't summarize
+          setTrialStatusForModal(getTrialStatus(currentUserId));
+          setShowTrialExpiredModal(true);
         }
         return;
       }
@@ -453,6 +454,12 @@ export default function Home() {
         hoursUntilReset={dailyLimitInfo.hours}
         minutesUntilReset={dailyLimitInfo.minutes}
         dailyMinutesUsed={dailyLimitInfo.used}
+      />
+
+      <TrialExpiredModal
+        open={showTrialExpiredModal}
+        onClose={() => setShowTrialExpiredModal(false)}
+        trialStatus={trialStatusForModal}
       />
     </div>
   );

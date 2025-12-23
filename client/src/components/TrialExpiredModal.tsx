@@ -14,17 +14,24 @@ import { TRIAL_CONFIG } from "@/config/trialConfig";
 
 interface TrialExpiredModalProps {
   open: boolean;
+  onClose: () => void;
   trialStatus: TrialStatus | null;
 }
 
 export default function TrialExpiredModal({
   open,
+  onClose,
   trialStatus
 }: TrialExpiredModalProps) {
   const [, navigate] = useLocation();
 
+  const handleSubscribe = () => {
+    onClose();
+    navigate("/subscribe");
+  };
+
   const handleContinue = () => {
-    navigate("/history");
+    onClose();
   };
 
   const getTitle = () => {
@@ -56,7 +63,7 @@ export default function TrialExpiredModal({
   };
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-md" dir="rtl">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-2">
@@ -98,20 +105,25 @@ export default function TrialExpiredModal({
           </div>
         )}
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="mt-4 gap-2">
           <Button
             onClick={handleContinue}
             variant="outline"
-            className="w-full"
-            data-testid="button-continue-trial"
+            data-testid="button-continue-browsing"
+          >
+            متابعة التصفح
+          </Button>
+          <Button
+            onClick={handleSubscribe}
+            data-testid="button-subscribe-now"
           >
             <Sparkles className="h-4 w-4 ml-2" />
-            سيتم فتح الاشتراك قريبًا — متابعة التصفح
+            اشترك الآن
           </Button>
         </DialogFooter>
         
         <p className="text-xs text-muted-foreground text-center">
-          سنُعلمك فور توفر خطط الاشتراك. شكرًا لاستخدامك تلخيصلي!
+          يمكنك الاستمرار في تصفح التطبيق وعرض السجل السابق.
         </p>
       </DialogContent>
     </Dialog>
