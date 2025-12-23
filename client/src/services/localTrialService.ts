@@ -279,3 +279,28 @@ export function canCreateSummary(appUserId: string): { allowed: boolean; status:
 export function recordSummaryUsage(appUserId: string, audioDurationMinutes: number): TrialStatus {
   return recordUsage(appUserId, audioDurationMinutes);
 }
+
+// Debug function to inspect current trial data (can be called from browser console)
+export function debugTrialData(appUserId: string): void {
+  const data = getTrialData(appUserId);
+  const status = getTrialStatus(appUserId);
+  console.log("=== TRIAL DEBUG INFO ===");
+  console.log("Raw localStorage data:", data);
+  console.log("Calculated status:", status);
+  console.log("========================");
+}
+
+// Reset trial data (for debugging/testing purposes)
+// WARNING: This clears all usage data - use with caution
+export function resetTrialData(appUserId: string): void {
+  const key = getStorageKey(appUserId);
+  localStorage.removeItem(key);
+  console.log(`[resetTrialData] Cleared trial data for user ${appUserId}`);
+}
+
+// Expose debug functions globally for browser console access
+if (typeof window !== 'undefined') {
+  (window as any).debugTrial = (userId: string) => debugTrialData(userId);
+  (window as any).resetTrial = (userId: string) => resetTrialData(userId);
+  console.log('[Trial Debug] Available commands: debugTrial(userId), resetTrial(userId)');
+}
