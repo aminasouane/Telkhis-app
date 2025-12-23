@@ -21,6 +21,9 @@ function getTodayDateString(): string {
   return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 }
 
+// TEMPORARY: Set to true to bypass all trial checks for debugging
+const TRIAL_BYPASS_ENABLED = true;
+
 export async function validateTrialUsage(
   userId: string,
   audioDurationSeconds: number
@@ -29,6 +32,18 @@ export async function validateTrialUsage(
   const today = getTodayDateString();
   
   console.log(`[trialValidation] Checking user ${userId} for ${audioDurationMinutes.toFixed(2)} minutes`);
+  
+  // TEMPORARY BYPASS: Skip all trial checks for debugging
+  if (TRIAL_BYPASS_ENABLED) {
+    console.log(`[trialValidation] BYPASS ENABLED - allowing all requests`);
+    return {
+      allowed: true,
+      totalMinutesUsed: 0,
+      dailyMinutesUsed: 0,
+      minutesRemaining: 30,
+      dailyMinutesRemaining: 30,
+    };
+  }
   
   try {
     // Query total usage from summaries table

@@ -344,21 +344,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       };
       
+      console.log(`FINAL_SUMMARY: start - about to send response`);
       console.log(`[process-audio] Sending response to client. Summary length = ${responsePayload.summary?.length || 0}, Transcript length = ${responsePayload.transcription?.length || 0}`);
       res.json(responsePayload);
+      console.log(`FINAL_SUMMARY: response sent successfully`);
     } catch (error: any) {
-      console.error("Error processing audio:", error);
+      console.error("FINAL_SUMMARY: ERROR in processing:", error);
       
-      // Check if it's an API key error
-      if (error.message?.includes("OPENAI_API_KEY")) {
-        return res.status(500).json({
-          error: "OpenAI API key is not configured. Please add OPENAI_API_KEY to environment variables.",
-        });
-      }
-      
-      res.status(500).json({
+      // ALWAYS return a response - never leave client hanging
+      const errorResponse = {
         error: error.message || "Failed to process audio",
-      });
+        errorCode: error.message?.includes("OPENAI_API_KEY") ? "API_KEY_MISSING" : "PROCESSING_ERROR",
+        transcription: "",
+        summary: "",
+        keyPoints: [],
+      };
+      
+      console.log(`FINAL_SUMMARY: sending error response`);
+      return res.status(500).json(errorResponse);
     }
   });
 
