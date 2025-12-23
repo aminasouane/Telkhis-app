@@ -225,6 +225,15 @@ export default function Home() {
       }
 
       const data = await response.json();
+      
+      // Log received response for debugging
+      console.log('[processAudio] Response received from server:', {
+        transcriptionLength: data.transcription?.length || 0,
+        summaryLength: data.summary?.length || 0,
+        keyPointsCount: data.keyPoints?.length || 0,
+        savedSummaryId: data.savedSummaryId,
+      });
+      
       const resultData = {
         transcription: data.transcription,
         summary: data.summary,
@@ -236,6 +245,7 @@ export default function Home() {
         processedAt: data.processedAt,
       };
       
+      console.log('[processAudio] Setting result state with summary:', resultData.summary?.substring(0, 100) + '...');
       setResult(resultData);
       
       // ============================================================

@@ -250,6 +250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limitReason = trialValidation.errorCode;
 
       // Step 1: Transcribe audio using the buffer, filename, mimetype, and language
+      console.log(`[process-audio] Starting transcription...`);
       const transcription = await transcribeAudio(
         file.buffer,
         file.originalname,
@@ -257,15 +258,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         language
       );
 
+      // Validate transcript before proceeding
       if (!transcription || transcription.trim().length === 0) {
+        console.log(`[process-audio] ERROR: Transcript is empty or null`);
         return res.status(400).json({ error: "Could not transcribe audio" });
       }
+      
+      console.log(`[process-audio] Transcript ready, length = ${transcription.length} chars`);
 
-      // Step 2: Summarize transcription using Grok API
+      // Step 2: Summarize transcription using Grok API (non-streaming, full response)
+      console.log(`[process-audio] Starting Grok summarization (non-streaming)...`);
       const grokResult = await summarizeWithGrok({
         transcript: transcription,
         language: language as "ar" | "fr" | "dz",
       });
+      console.log(`[process-audio] Grok response received. Summary length = ${grokResult.summary?.length || 0} chars`);
 
       const processedAt = new Date().toISOString();
       
@@ -313,7 +320,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Return results with server-validated duration (authoritative for usage tracking)
       // Include trial info so client can show appropriate modals for NEXT attempt
-      res.json({
+      const responsePayload = {
         transcription,
         summary: grokResult.summary,
         keyPoints: grokResult.keyPoints || [],
@@ -331,7 +338,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           nextBlocked, // Will next attempt be blocked (daily or expiry)?
           nextBlockReason, // Reason for next block: 'daily_limit' or 'days_expired'
         },
-      });
+      };
+      
+      console.log(`[process-audio] Sending response to client. Summary length = ${responsePayload.summary?.length || 0}, Transcript length = ${responsePayload.transcription?.length || 0}`);
+      res.json(responsePayload);
     } catch (error: any) {
       console.error("Error processing audio:", error);
       
