@@ -1,6 +1,9 @@
 import { TRIAL_CONFIG } from "@/config/trialConfig";
 import { getOrCreateAppUserId } from "./appUserService";
 
+// Re-export TRIAL_CONFIG for use in other components
+export { TRIAL_CONFIG };
+
 const TRIAL_STORAGE_KEY = "takhleesly_trial_data";
 
 export type TrialStateType = "ACTIVE" | "USED_UP" | "EXPIRED";

@@ -11,7 +11,7 @@ import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
 import DailyLimitModal from "@/components/DailyLimitModal";
 import TrialExpiredModal from "@/components/TrialExpiredModal";
-import { getTrialStatus, type TrialStatus } from "@/services/localTrialService";
+import { getTrialStatus, type TrialStatus, TRIAL_CONFIG } from "@/services/localTrialService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +20,69 @@ import { useLanguage } from "@/components/LanguageProvider";
 import { languageNames, type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History, Loader2 } from "lucide-react";
-import { getSummaryById, saveSummary as dbSaveSummary } from "@/services/dbService";
+import { getSummaryById } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
 import { getUserStatus } from "@/services/userStatusService";
 import { getAudioDuration } from "@/utils/audioUtils";
+
+// ============================================================
+// TRIAL DIAGNOSTIC LOGGING
+// Logs trial state at each stage for debugging
+// ============================================================
+type TrialCheckStage = 'before_start' | 'after_transcription' | 'after_summary';
+
+function logTrialCheck(
+  stage: TrialCheckStage,
+  status: TrialStatus,
+  audioDuration?: number
+) {
+  console.log('[Trial Check]', {
+    stage,
+    usedMinutesToday: status.dailyMinutesUsed,
+    dailyLimit: TRIAL_CONFIG.DAILY_LIMIT_MINUTES,
+    dailyMinutesRemaining: status.dailyMinutesRemaining,
+    totalMinutesUsed: status.minutesUsed,
+    totalLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES,
+    totalMinutesRemaining: status.minutesRemaining,
+    audioDuration: audioDuration ?? 'N/A',
+    state: status.state,
+    canUseTrial: status.canUseTrial,
+  });
+}
+
+// ============================================================
+// CENTRALIZED BLOCKING LOGIC
+// Only checks if limits are ALREADY exhausted (from previous usage)
+// Returns { allowed, blockReason } - does NOT block current operation
+// ============================================================
+function canStartNewSummary(userId: string): { 
+  allowed: boolean; 
+  blockReason: 'daily_limit' | 'total_limit' | 'days_expired' | null;
+  status: TrialStatus;
+} {
+  const status = getTrialStatus(userId);
+  
+  // Log at before_start stage
+  logTrialCheck('before_start', status);
+  
+  // Check if trial expired due to 7 days validity
+  if (status.reason === 'days_expired') {
+    return { allowed: false, blockReason: 'days_expired', status };
+  }
+  
+  // Check if daily limit is ALREADY exhausted (>= limit from PREVIOUS usage)
+  if (status.dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
+    return { allowed: false, blockReason: 'daily_limit', status };
+  }
+  
+  // Check if total limit is ALREADY exhausted (>= limit from PREVIOUS usage)
+  if (status.minutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
+    return { allowed: false, blockReason: 'total_limit', status };
+  }
+  
+  // Limits not exhausted - allow operation to proceed
+  return { allowed: true, blockReason: null, status };
+}
 
 interface ProcessingResult {
   transcription: string;
@@ -106,69 +165,6 @@ export default function Home() {
     return words.join(" ") + (words.length >= 5 ? "..." : "");
   };
 
-  const saveSessionToDatabase = async (data: ProcessingResult, originalDuration?: number): Promise<boolean> => {
-    if (!currentUserId) return false;
-
-    // IMPORTANT: Server duration is authoritative, client duration is fallback only
-    // Server calculates duration from the actual audio file, not client-provided value
-    const effectiveDuration = data.audioDuration ?? originalDuration;
-    
-    if (!effectiveDuration || effectiveDuration <= 0) {
-      console.error("Missing or invalid audioDuration - this should not happen!");
-      // If no duration available, we still need to record SOME usage to prevent bypass
-    }
-    
-    console.log(`[saveSession] Using duration: ${effectiveDuration?.toFixed(2) ?? 'N/A'}s`);
-
-    // Save to database via backend API (ensures server-side trial validation)
-    const title = generateSessionTitle(data.summary);
-    const saved = await dbSaveSummary({
-      user_id: currentUserId,
-      title,
-      content: data.summary,
-      transcript: data.transcription,
-      key_points: data.keyPoints,
-      language: data.language,
-      audio_duration: effectiveDuration, // Duration in seconds for server-side usage tracking
-      processedAt: data.processedAt, // Server timestamp for freshness validation
-    });
-    
-    if (!saved) {
-      toast({
-        title: "خطأ في الحفظ",
-        description: "حدث خطأ أثناء حفظ التلخيص. لم يتم احتساب الاستخدام.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Only record usage AFTER successful database save
-    // IMPORTANT: Always record usage if we have duration to prevent bypass
-    if (effectiveDuration && effectiveDuration > 0) {
-      // audioDuration comes in SECONDS, convert to minutes
-      const audioDurationMinutes = effectiveDuration / 60;
-      
-      try {
-        recordUsage(audioDurationMinutes);
-        console.log(`Usage recorded: ${audioDurationMinutes.toFixed(2)} minutes`);
-      } catch (error) {
-        console.error("Error recording usage:", error);
-        // Usage recording failed but save succeeded - log but don't block
-      }
-    } else {
-      // If no duration available, record minimal usage (1 second = 0.0167 minutes)
-      // This prevents completely free usage in edge cases
-      console.warn("No duration available - recording minimal usage");
-      try {
-        recordUsage(0.1); // 6 seconds minimum
-      } catch (error) {
-        console.error("Error recording minimal usage:", error);
-      }
-    }
-    
-    return true;
-  };
-
   const processAudio = async (audioBlob: Blob, filename: string = "recording.webm", audioDuration?: number) => {
     // NOTE: We do NOT pre-check trial limits here
     // The current operation is always allowed to complete.
@@ -241,36 +237,48 @@ export default function Home() {
       
       setResult(resultData);
       
-      // Server now saves atomically - we just need to record local usage for UX
-      // The actual usage is tracked server-side in the database
+      // ============================================================
+      // AFTER_SUMMARY STAGE: Record usage and check if NEXT attempt blocked
+      // ============================================================
       const effectiveDuration = data.audioDuration ?? audioDuration;
-      if (effectiveDuration && effectiveDuration > 0 && currentUserId) {
-        const audioDurationMinutes = effectiveDuration / 60;
+      const audioDurationMinutes = effectiveDuration ? effectiveDuration / 60 : 0;
+      
+      // Log status BEFORE recording usage
+      const preStatus = getTrialStatus(currentUserId);
+      console.log('[Trial Check] BEFORE recording usage:', {
+        stage: 'after_summary',
+        totalMinutesUsed: preStatus.minutesUsed,
+        dailyMinutesUsed: preStatus.dailyMinutesUsed,
+        audioDurationMinutes: audioDurationMinutes.toFixed(2),
+      });
+      
+      // Record local usage for UX (server already tracked in database)
+      if (effectiveDuration && effectiveDuration > 0) {
         try {
           recordUsage(audioDurationMinutes);
           console.log(`[processAudio] Local usage recorded: ${audioDurationMinutes.toFixed(2)} minutes`);
-          
-          // After recording usage, check if NEXT attempt would be blocked
-          // This is for informational purposes only - current operation already completed successfully
-          const postStatus = getTrialStatus(currentUserId);
-          if (postStatus.dailyMinutesRemaining <= 0) {
-            // Daily limit reached - inform user that NEXT attempt will be blocked
-            const status = getUserStatus(currentUserId);
-            setDailyLimitInfo({
-              hours: status.hoursUntilReset,
-              minutes: status.minutesUntilReset,
-              used: postStatus.dailyMinutesUsed,
-            });
-            // Show modal after a brief delay so user sees their result first
-            setTimeout(() => setShowDailyLimitModal(true), 1500);
-          } else if (postStatus.minutesRemaining <= 0) {
-            // Total trial limit reached - inform user that trial is exhausted
-            setTrialStatusForModal(postStatus);
-            setTimeout(() => setShowTrialExpiredModal(true), 1500);
-          }
         } catch (error) {
           console.error("Error recording local usage:", error);
         }
+      }
+      
+      // Log status AFTER recording usage
+      const postStatus = getTrialStatus(currentUserId);
+      logTrialCheck('after_summary', postStatus, effectiveDuration);
+      
+      // Check if NEXT attempt would be blocked (informational only - current operation completed)
+      if (postStatus.dailyMinutesRemaining <= 0) {
+        const status = getUserStatus(currentUserId);
+        setDailyLimitInfo({
+          hours: status.hoursUntilReset,
+          minutes: status.minutesUntilReset,
+          used: postStatus.dailyMinutesUsed,
+        });
+        // Show modal after delay so user sees their result first
+        setTimeout(() => setShowDailyLimitModal(true), 1500);
+      } else if (postStatus.minutesRemaining <= 0) {
+        setTrialStatusForModal(postStatus);
+        setTimeout(() => setShowTrialExpiredModal(true), 1500);
       }
       
       // Check if server saved successfully
@@ -299,8 +307,30 @@ export default function Home() {
   };
 
   const handleFileUpload = async (file: File) => {
-    // NOTE: We do NOT pre-check trial limits here
-    // All operations are allowed to complete. Limits are checked for NEXT attempt after processing.
+    // ============================================================
+    // BEFORE_START CHECK: Only block if limits ALREADY exhausted
+    // ============================================================
+    if (currentUserId) {
+      const check = canStartNewSummary(currentUserId);
+      if (!check.allowed) {
+        console.log(`[handleFileUpload] BLOCKED at start: ${check.blockReason}`);
+        
+        if (check.blockReason === 'daily_limit') {
+          const status = getUserStatus(currentUserId);
+          setDailyLimitInfo({
+            hours: status.hoursUntilReset,
+            minutes: status.minutesUntilReset,
+            used: check.status.dailyMinutesUsed,
+          });
+          setShowDailyLimitModal(true);
+        } else {
+          setTrialStatusForModal(check.status);
+          setShowTrialExpiredModal(true);
+        }
+        return; // Block the action (but UI remains usable)
+      }
+    }
+    
     try {
       // Calculate audio duration before processing
       const duration = await getAudioDuration(file);
@@ -315,6 +345,7 @@ export default function Home() {
         return;
       }
       
+      // Limits not exhausted - proceed with processing
       processAudio(file, file.name, duration);
     } catch (error) {
       console.error("Error calculating audio duration:", error);
@@ -327,6 +358,7 @@ export default function Home() {
   };
 
   const handleRecordingComplete = (audioBlob: Blob, duration: number) => {
+    // NOTE: No blocking here - recording already in progress, must complete
     setIsRecording(false);
     setLiveResult(null);
     processAudio(audioBlob, "recording.webm", duration);
@@ -342,8 +374,31 @@ export default function Home() {
   };
 
   const handleRecordingStart = () => {
-    // NOTE: We do NOT pre-check trial limits here
-    // Recording is always allowed. Limits are checked for NEXT attempt after processing.
+    // ============================================================
+    // BEFORE_START CHECK: Only block if limits ALREADY exhausted
+    // ============================================================
+    if (currentUserId) {
+      const check = canStartNewSummary(currentUserId);
+      if (!check.allowed) {
+        console.log(`[handleRecordingStart] BLOCKED at start: ${check.blockReason}`);
+        
+        if (check.blockReason === 'daily_limit') {
+          const status = getUserStatus(currentUserId);
+          setDailyLimitInfo({
+            hours: status.hoursUntilReset,
+            minutes: status.minutesUntilReset,
+            used: check.status.dailyMinutesUsed,
+          });
+          setShowDailyLimitModal(true);
+        } else {
+          setTrialStatusForModal(check.status);
+          setShowTrialExpiredModal(true);
+        }
+        return; // Block the action (but UI remains usable)
+      }
+    }
+    
+    // Limits not exhausted - start recording
     setIsRecording(true);
     setLiveResult(null);
     setResult(null);
