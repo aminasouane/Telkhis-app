@@ -138,36 +138,38 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   // For analytics: total minutes remaining (not used for blocking in MVP)
   const totalMinutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - data.totalMinutesUsed);
   
-  // MVP: Only check date expiry and daily limit
-  // totalMinutesUsed is tracked for analytics but NOT used for blocking
+  // Check trial validity:
+  // 1. Days expired (7 days from first use)
+  // 2. Total minutes exhausted (30 minutes total)
   let state: TrialStateType;
   let reason: TrialStatus["reason"] = undefined;
   
-  // Only days_expired blocks the trial entirely
-  // Daily limit is checked separately in canProcessAudio
+  const isTotalMinutesExhausted = data.totalMinutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES;
+  
   if (isDaysExpired) {
     state = "EXPIRED";
     reason = "days_expired";
+  } else if (isTotalMinutesExhausted) {
+    state = "USED_UP";
+    reason = "minutes_exhausted";
   } else {
     state = "ACTIVE";
   }
   
   const isExpired = state !== "ACTIVE";
   
-  // Keep minutesRemaining as TOTAL remaining (for analytics/display)
-  // Use dailyMinutesRemaining for daily blocking decisions
   return {
     state,
     isExpired,
-    minutesUsed: data.totalMinutesUsed, // Analytics: total used
-    minutesLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES, // Analytics: total limit
-    minutesRemaining: totalMinutesRemaining, // Analytics: total remaining (NOT used for blocking)
+    minutesUsed: data.totalMinutesUsed, // Total minutes used
+    minutesLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES, // 30 minutes total limit
+    minutesRemaining: totalMinutesRemaining, // Minutes remaining from 30
     daysRemaining,
     canUseTrial: !isExpired,
     reason,
     dailyMinutesUsed,
     dailyMinutesLimit: TRIAL_CONFIG.DAILY_LIMIT_MINUTES,
-    dailyMinutesRemaining, // Use THIS for blocking decisions
+    dailyMinutesRemaining,
     isDailyLimitReached,
   };
 }

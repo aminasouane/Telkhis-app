@@ -9,7 +9,6 @@ import TranscriptionCard from "@/components/TranscriptionCard";
 import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
-import DailyLimitModal from "@/components/DailyLimitModal";
 import TrialExpiredModal from "@/components/TrialExpiredModal";
 import { getTrialStatus, type TrialStatus, TRIAL_CONFIG } from "@/services/localTrialService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +21,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, History, Loader2 } from "lucide-react";
 import { getSummaryById } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
-import { getUserStatus } from "@/services/userStatusService";
 import { getAudioDuration } from "@/utils/audioUtils";
 
 // ============================================================
@@ -52,16 +50,17 @@ function logTrialCheck(
 
 // ============================================================
 // CENTRALIZED BLOCKING LOGIC
-// Only checks if limits are ALREADY exhausted (from previous usage)
-// Returns { allowed, blockReason } - does NOT block current operation
+// Checks if user can start a new recording based on Trial limits:
+// - 30 minutes TOTAL limit
+// - 7 days validity from first use
+// Returns { allowed, blockReason } - blocks BEFORE starting new recording
 // ============================================================
 
-// TEMPORARY: Set to true to bypass all trial checks for debugging
-const TRIAL_BYPASS_ENABLED = true;
+type BlockReason = 'total_limit' | 'days_expired' | null;
 
 function canStartNewSummary(userId: string): { 
   allowed: boolean; 
-  blockReason: 'daily_limit' | 'total_limit' | 'days_expired' | null;
+  blockReason: BlockReason;
   status: TrialStatus;
 } {
   const status = getTrialStatus(userId);
@@ -69,29 +68,20 @@ function canStartNewSummary(userId: string): {
   // Log at before_start stage
   logTrialCheck('before_start', status);
   
-  // TEMPORARY BYPASS: Skip all trial checks for debugging
-  if (TRIAL_BYPASS_ENABLED) {
-    console.log('[canStartNewSummary] BYPASS ENABLED - allowing all requests');
-    return { allowed: true, blockReason: null, status };
-  }
-  
-  // MVP LOGIC: Only check date expiry and daily limit
-  // totalMinutesUsed is for analytics only - NOT used for blocking
-  
   // Check 1: Trial expired due to 7 days validity
   if (status.reason === 'days_expired') {
+    console.log('[canStartNewSummary] BLOCKED: Trial days expired');
     return { allowed: false, blockReason: 'days_expired', status };
   }
   
-  // Check 2: Daily limit is ALREADY exhausted (>= 30 min used today)
-  if (status.dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
-    return { allowed: false, blockReason: 'daily_limit', status };
+  // Check 2: Total 30 minutes limit exhausted
+  if (status.minutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
+    console.log('[canStartNewSummary] BLOCKED: Total 30 minutes limit reached');
+    return { allowed: false, blockReason: 'total_limit', status };
   }
   
-  // NO Check 3: totalMinutesUsed NOT used for blocking in MVP
-  // Users get 30 minutes per day for 7 days (max = 210 minutes)
-  
-  // Limits not exhausted - allow operation to proceed
+  // All checks passed - allow new recording
+  console.log('[canStartNewSummary] ALLOWED: Trial active');
   return { allowed: true, blockReason: null, status };
 }
 
@@ -112,8 +102,6 @@ export default function Home() {
   const [liveResult, setLiveResult] = useState<ProcessingResult | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
-  const [showDailyLimitModal, setShowDailyLimitModal] = useState(false);
-  const [dailyLimitInfo, setDailyLimitInfo] = useState({ hours: 0, minutes: 0, used: 0 });
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
   const [trialStatusForModal, setTrialStatusForModal] = useState<TrialStatus | null>(null);
   const { toast } = useToast();
@@ -216,19 +204,10 @@ export default function Home() {
           // Refresh local state to sync with server
           refreshState();
           
-          if (errorData.errorCode === "DAILY_LIMIT_REACHED" || errorData.errorCode === "INSUFFICIENT_DAILY") {
-            // Show daily limit modal
-            const status = getUserStatus(currentUserId!);
-            setDailyLimitInfo({
-              hours: status.hoursUntilReset,
-              minutes: status.minutesUntilReset,
-              used: errorData.usage?.dailyMinutesUsed || 0,
-            });
-            setShowDailyLimitModal(true);
-            setIsProcessing(false);
-            return;
-          } else if (errorData.errorCode === "TRIAL_EXHAUSTED" || errorData.errorCode === "INSUFFICIENT_TOTAL") {
-            // Show trial expired modal
+          // Show trial expired modal for any trial-related error
+          if (errorData.errorCode === "TRIAL_MINUTES_EXCEEDED" || 
+              errorData.errorCode === "TRIAL_DAYS_EXPIRED" ||
+              errorData.errorCode === "TRIAL_EXHAUSTED") {
             setTrialStatusForModal(getTrialStatus(currentUserId!));
             setShowTrialExpiredModal(true);
             setIsProcessing(false);
@@ -289,23 +268,10 @@ export default function Home() {
       // Check if NEXT attempt would be blocked (informational only - current operation completed)
       // Use server-provided info which is more accurate
       if (serverTrialStatus?.nextBlocked) {
-        // Show appropriate modal based on block reason after delay (so user sees result first)
-        if (serverTrialStatus.nextBlockReason === 'days_expired') {
-          // Trial expired - show trial expired modal
-          setTrialStatusForModal(getTrialStatus(currentUserId));
-          setTimeout(() => setShowTrialExpiredModal(true), 1500);
-        } else if (serverTrialStatus.nextBlockReason === 'daily_limit') {
-          // Daily limit reached - show daily limit modal
-          const status = getUserStatus(currentUserId);
-          setDailyLimitInfo({
-            hours: status.hoursUntilReset,
-            minutes: status.minutesUntilReset,
-            used: serverTrialStatus.dailyMinutesUsed || 0,
-          });
-          setTimeout(() => setShowDailyLimitModal(true), 1500);
-        }
+        // Show trial expired modal after delay (so user sees result first)
+        setTrialStatusForModal(getTrialStatus(currentUserId));
+        setTimeout(() => setShowTrialExpiredModal(true), 1500);
       }
-      // NOTE: No total limit check in MVP - users get 30 min/day for 7 days
       
       // Check if server saved successfully
       if (data.savedSummaryId) {
@@ -341,19 +307,9 @@ export default function Home() {
       const check = canStartNewSummary(currentUserId);
       if (!check.allowed) {
         console.log(`[handleFileUpload] BLOCKED at start: ${check.blockReason}`);
-        
-        if (check.blockReason === 'daily_limit') {
-          const status = getUserStatus(currentUserId);
-          setDailyLimitInfo({
-            hours: status.hoursUntilReset,
-            minutes: status.minutesUntilReset,
-            used: check.status.dailyMinutesUsed,
-          });
-          setShowDailyLimitModal(true);
-        } else {
-          setTrialStatusForModal(check.status);
-          setShowTrialExpiredModal(true);
-        }
+        // Show trial expired modal for both total_limit and days_expired
+        setTrialStatusForModal(check.status);
+        setShowTrialExpiredModal(true);
         return; // Block the action (but UI remains usable)
       }
     }
@@ -402,30 +358,21 @@ export default function Home() {
 
   const handleRecordingStart = () => {
     // ============================================================
-    // BEFORE_START CHECK: Only block if limits ALREADY exhausted
+    // BEFORE_START CHECK: Block if trial limits exhausted
+    // - 30 minutes total OR 7 days expired
     // ============================================================
     if (currentUserId) {
       const check = canStartNewSummary(currentUserId);
       if (!check.allowed) {
         console.log(`[handleRecordingStart] BLOCKED at start: ${check.blockReason}`);
-        
-        if (check.blockReason === 'daily_limit') {
-          const status = getUserStatus(currentUserId);
-          setDailyLimitInfo({
-            hours: status.hoursUntilReset,
-            minutes: status.minutesUntilReset,
-            used: check.status.dailyMinutesUsed,
-          });
-          setShowDailyLimitModal(true);
-        } else {
-          setTrialStatusForModal(check.status);
-          setShowTrialExpiredModal(true);
-        }
+        // Show trial expired modal for both total_limit and days_expired
+        setTrialStatusForModal(check.status);
+        setShowTrialExpiredModal(true);
         return; // Block the action (but UI remains usable)
       }
     }
     
-    // Limits not exhausted - start recording
+    // Trial active - start recording
     setIsRecording(true);
     setLiveResult(null);
     setResult(null);
@@ -578,14 +525,6 @@ export default function Home() {
       </main>
 
       <Footer />
-
-      <DailyLimitModal
-        open={showDailyLimitModal}
-        onClose={() => setShowDailyLimitModal(false)}
-        hoursUntilReset={dailyLimitInfo.hours}
-        minutesUntilReset={dailyLimitInfo.minutes}
-        dailyMinutesUsed={dailyLimitInfo.used}
-      />
 
       <TrialExpiredModal
         open={showTrialExpiredModal}

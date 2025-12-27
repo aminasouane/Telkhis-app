@@ -17,16 +17,15 @@ The frontend is built with React, TypeScript, and Vite, utilizing Radix UI with 
 - **Audio Processing Pipeline**: Involves pre-processing validation, transcription via `whisper.cpp`, and summarization via Grok API.
 - **Security**: Multi-layered security with pre-AI validation, trusted metadata, defense-in-depth for summary persistence, and atomic trial enforcement. JWT-based authentication secures all payment and user-sensitive endpoints.
 - **Subscription Management**: Transitions to paid subscriptions handled via Chargily Pay. The system uses a unified state machine (`trial_active`, `trial_expired`, `subscribed`) to manage user access and features.
-  - **MVP Trial Logic** (CURRENT):
-    - **Date Expiry**: 7 days from first use. After 7 days, trial is blocked entirely.
-    - **Daily Limit**: 30 minutes per day. When exceeded, a modal appears showing time until midnight reset.
-    - **NO Total Limit**: `totalMinutesUsed` is tracked for analytics only, NOT used for blocking. Users effectively get 30 min/day × 7 days = 210 minutes maximum.
-  - **Critical Flow Rule**: Any recording that HAS STARTED must ALWAYS complete (transcription + summary). Blocking only affects NEXT attempt to start a new recording. Server never blocks mid-operation.
-  - **Block Reason Types**: All block reasons show modals (no redirects). `daily_limit` → DailyLimitModal, `days_expired` → TrialExpiredModal. The UI always remains accessible.
-  - **Duration Calculation**: Server-side authoritative duration using music-metadata/ffprobe (fallback: file-size estimate). Server-calculated duration is used for usage tracking.
-  - **Pre-check**: Client checks only `dailyMinutesRemaining >= 0` before starting NEW recording. Server validates and returns `trialStatus` with `nextBlocked` flag.
-  - **Usage Tracking**: Both total and daily usage recorded after successful database save. Daily usage auto-resets at midnight. Total usage for analytics only.
-  - **MVP Limitation**: One request can exceed the daily limit before being blocked (single-request overage), then next request is blocked.
+  - **MVP Trial Logic** (CURRENT - v2.0):
+    - **Total Limit**: 30 minutes TOTAL from first use. When exhausted, trial is blocked and subscription required.
+    - **Date Expiry**: 7 days from first use. After 7 days, trial is blocked regardless of minutes remaining.
+  - **Trial States**: `ACTIVE` (can use), `USED_UP` (30 minutes exhausted), `EXPIRED` (7 days passed).
+  - **Block Reasons**: `total_limit` (minutes exhausted), `days_expired` (7 days passed). Both show TrialExpiredModal with appropriate message.
+  - **Server Error Codes**: `TRIAL_MINUTES_EXCEEDED`, `TRIAL_DAYS_EXPIRED`.
+  - **Critical Flow Rule**: Any recording that HAS STARTED must ALWAYS complete (transcription + summary). Blocking only affects NEXT attempt to start a new recording.
+  - **Duration Calculation**: Server-side authoritative duration using music-metadata/ffprobe (fallback: file-size estimate).
+  - **Pre-check**: Client checks `minutesUsed >= 30` before starting NEW recording. Server validates and returns `trialStatus` with `nextBlocked` flag.
   - **Debug Commands**: `resetTrial()` and `debugTrial()` available in browser console (auto-detects userId).
 
 ### Feature Specifications
