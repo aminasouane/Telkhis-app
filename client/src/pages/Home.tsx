@@ -10,7 +10,9 @@ import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
 import LanguageSelector from "@/components/LanguageSelector";
 import TrialExpiredModal from "@/components/TrialExpiredModal";
+import DailyLimitModal from "@/components/DailyLimitModal";
 import { getTrialStatus, type TrialStatus, TRIAL_CONFIG } from "@/services/localTrialService";
+import { getUserStatus } from "@/services/userStatusService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,12 +53,13 @@ function logTrialCheck(
 // ============================================================
 // CENTRALIZED BLOCKING LOGIC
 // Checks if user can start a new recording based on Trial limits:
-// - 30 minutes TOTAL limit
+// - 30 minutes PER DAY
+// - 210 minutes TOTAL (30 × 7 days)
 // - 7 days validity from first use
 // Returns { allowed, blockReason } - blocks BEFORE starting new recording
 // ============================================================
 
-type BlockReason = 'total_limit' | 'days_expired' | null;
+type BlockReason = 'daily_limit' | 'total_limit' | 'days_expired' | null;
 
 function canStartNewSummary(userId: string): { 
   allowed: boolean; 
@@ -74,9 +77,15 @@ function canStartNewSummary(userId: string): {
     return { allowed: false, blockReason: 'days_expired', status };
   }
   
-  // Check 2: Total 30 minutes limit exhausted
+  // Check 2: Daily limit exhausted (30 minutes per day)
+  if (status.dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
+    console.log(`[canStartNewSummary] BLOCKED: Daily limit reached (${status.dailyMinutesUsed.toFixed(1)}/${TRIAL_CONFIG.DAILY_LIMIT_MINUTES} min)`);
+    return { allowed: false, blockReason: 'daily_limit', status };
+  }
+  
+  // Check 3: Total limit exhausted (210 minutes total)
   if (status.minutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
-    console.log('[canStartNewSummary] BLOCKED: Total 30 minutes limit reached');
+    console.log(`[canStartNewSummary] BLOCKED: Total limit reached (${status.minutesUsed.toFixed(1)}/${TRIAL_CONFIG.MAX_AUDIO_MINUTES} min)`);
     return { allowed: false, blockReason: 'total_limit', status };
   }
   
@@ -103,7 +112,9 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
+  const [showDailyLimitModal, setShowDailyLimitModal] = useState(false);
   const [trialStatusForModal, setTrialStatusForModal] = useState<TrialStatus | null>(null);
+  const [dailyLimitInfo, setDailyLimitInfo] = useState({ hours: 0, minutes: 0, used: 0 });
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
   const { recordUsage, refreshState } = useSubscription();
@@ -204,8 +215,21 @@ export default function Home() {
           // Refresh local state to sync with server
           refreshState();
           
-          // Show trial expired modal for any trial-related error
-          if (errorData.errorCode === "TRIAL_MINUTES_EXCEEDED" || 
+          // Show daily limit modal
+          if (errorData.errorCode === "TRIAL_DAILY_LIMIT_REACHED") {
+            const status = getUserStatus(currentUserId!);
+            setDailyLimitInfo({
+              hours: status.hoursUntilReset,
+              minutes: status.minutesUntilReset,
+              used: errorData.usage?.dailyMinutesUsed || 0,
+            });
+            setShowDailyLimitModal(true);
+            setIsProcessing(false);
+            return;
+          }
+          
+          // Show trial expired modal for total limit or days expired
+          if (errorData.errorCode === "TRIAL_TOTAL_LIMIT_REACHED" || 
               errorData.errorCode === "TRIAL_DAYS_EXPIRED" ||
               errorData.errorCode === "TRIAL_EXHAUSTED") {
             setTrialStatusForModal(getTrialStatus(currentUserId!));
@@ -301,15 +325,27 @@ export default function Home() {
 
   const handleFileUpload = async (file: File) => {
     // ============================================================
-    // BEFORE_START CHECK: Only block if limits ALREADY exhausted
+    // BEFORE_START CHECK: Block if trial limits exhausted
     // ============================================================
     if (currentUserId) {
       const check = canStartNewSummary(currentUserId);
       if (!check.allowed) {
         console.log(`[handleFileUpload] BLOCKED at start: ${check.blockReason}`);
-        // Show trial expired modal for both total_limit and days_expired
-        setTrialStatusForModal(check.status);
-        setShowTrialExpiredModal(true);
+        
+        if (check.blockReason === 'daily_limit') {
+          // Show daily limit modal
+          const status = getUserStatus(currentUserId);
+          setDailyLimitInfo({
+            hours: status.hoursUntilReset,
+            minutes: status.minutesUntilReset,
+            used: check.status.dailyMinutesUsed,
+          });
+          setShowDailyLimitModal(true);
+        } else {
+          // Show trial expired modal for total_limit or days_expired
+          setTrialStatusForModal(check.status);
+          setShowTrialExpiredModal(true);
+        }
         return; // Block the action (but UI remains usable)
       }
     }
@@ -356,23 +392,41 @@ export default function Home() {
     });
   };
 
-  const handleRecordingStart = () => {
-    // ============================================================
-    // BEFORE_START CHECK: Block if trial limits exhausted
-    // - 30 minutes total OR 7 days expired
-    // ============================================================
-    if (currentUserId) {
-      const check = canStartNewSummary(currentUserId);
-      if (!check.allowed) {
-        console.log(`[handleRecordingStart] BLOCKED at start: ${check.blockReason}`);
-        // Show trial expired modal for both total_limit and days_expired
-        setTrialStatusForModal(check.status);
-        setShowTrialExpiredModal(true);
-        return; // Block the action (but UI remains usable)
-      }
+  // ============================================================
+  // PRE-FLIGHT CHECK: Called BEFORE microphone is activated
+  // Returns true if recording is allowed, false to block
+  // ============================================================
+  const handleBeforeRecording = (): boolean => {
+    if (!currentUserId) {
+      return true; // Allow if no user context
     }
     
-    // Trial active - start recording
+    const check = canStartNewSummary(currentUserId);
+    if (!check.allowed) {
+      console.log(`[handleBeforeRecording] BLOCKED: ${check.blockReason}`);
+      
+      if (check.blockReason === 'daily_limit') {
+        // Show daily limit modal
+        const status = getUserStatus(currentUserId);
+        setDailyLimitInfo({
+          hours: status.hoursUntilReset,
+          minutes: status.minutesUntilReset,
+          used: check.status.dailyMinutesUsed,
+        });
+        setShowDailyLimitModal(true);
+      } else {
+        // Show trial expired modal for total_limit or days_expired
+        setTrialStatusForModal(check.status);
+        setShowTrialExpiredModal(true);
+      }
+      return false; // Block - do NOT start recording
+    }
+    
+    return true; // Allow recording
+  };
+  
+  const handleRecordingStart = () => {
+    // Called AFTER recording has started - set UI state
     setIsRecording(true);
     setLiveResult(null);
     setResult(null);
@@ -440,6 +494,7 @@ export default function Home() {
                     <RecordingControl 
                       onRecordingComplete={handleRecordingComplete}
                       onLiveUpdate={handleLiveUpdate}
+                      onBeforeRecording={handleBeforeRecording}
                       onRecordingStart={handleRecordingStart}
                       language={language}
                     />
@@ -525,6 +580,14 @@ export default function Home() {
       </main>
 
       <Footer />
+
+      <DailyLimitModal
+        open={showDailyLimitModal}
+        onClose={() => setShowDailyLimitModal(false)}
+        hoursUntilReset={dailyLimitInfo.hours}
+        minutesUntilReset={dailyLimitInfo.minutes}
+        dailyMinutesUsed={dailyLimitInfo.used}
+      />
 
       <TrialExpiredModal
         open={showTrialExpiredModal}
