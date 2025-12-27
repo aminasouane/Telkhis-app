@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "../supabase-admin";
 
 const TRIAL_CONFIG = {
-  MAX_AUDIO_MINUTES: 30,
+  MAX_AUDIO_MINUTES: 210, // 30 × 7 days = 210 total
   DAILY_LIMIT_MINUTES: 30,
   VALIDITY_DAYS: 7,
   MAX_FILE_DURATION_SECONDS: 300, // 5 minutes per file
@@ -83,8 +83,9 @@ export async function validateTrialUsage(
     const dailyMinutesRemaining = Math.max(0, TRIAL_CONFIG.DAILY_LIMIT_MINUTES - dailyMinutesUsed);
     
     // TRIAL LIMITS:
-    // 1. 30 minutes TOTAL limit
-    // 2. 7 days validity from first use
+    // 1. 7 days validity from first use
+    // 2. 30 minutes per day
+    // 3. 210 minutes total (30 × 7)
     
     // Check 1: 7-day trial expiry
     if (firstUseDate) {
@@ -104,13 +105,27 @@ export async function validateTrialUsage(
       }
     }
     
-    // Check 2: 30 minutes TOTAL limit
+    // Check 2: Daily limit (30 minutes per day)
+    if (dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
+      console.log(`[trialValidation] Daily limit reached: ${dailyMinutesUsed.toFixed(2)} / ${TRIAL_CONFIG.DAILY_LIMIT_MINUTES} minutes used today`);
+      return {
+        allowed: false,
+        reason: `لقد استهلكت ${TRIAL_CONFIG.DAILY_LIMIT_MINUTES} دقيقة اليوم. يمكنك المتابعة غداً.`,
+        errorCode: "TRIAL_DAILY_LIMIT_REACHED",
+        totalMinutesUsed,
+        dailyMinutesUsed,
+        minutesRemaining: totalMinutesRemaining,
+        dailyMinutesRemaining: 0,
+      };
+    }
+    
+    // Check 3: Total limit (210 minutes)
     if (totalMinutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
-      console.log(`[trialValidation] Trial exhausted: ${totalMinutesUsed.toFixed(2)} / ${TRIAL_CONFIG.MAX_AUDIO_MINUTES} minutes used`);
+      console.log(`[trialValidation] Total limit exhausted: ${totalMinutesUsed.toFixed(2)} / ${TRIAL_CONFIG.MAX_AUDIO_MINUTES} minutes used`);
       return {
         allowed: false,
         reason: `لقد استنفدت الحد المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة). اشترك لمتابعة استخدام التطبيق.`,
-        errorCode: "TRIAL_MINUTES_EXCEEDED",
+        errorCode: "TRIAL_TOTAL_LIMIT_REACHED",
         totalMinutesUsed,
         dailyMinutesUsed,
         minutesRemaining: 0,
