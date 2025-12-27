@@ -55,6 +55,10 @@ function logTrialCheck(
 // Only checks if limits are ALREADY exhausted (from previous usage)
 // Returns { allowed, blockReason } - does NOT block current operation
 // ============================================================
+
+// TEMPORARY: Set to true to bypass all trial checks for debugging
+const TRIAL_BYPASS_ENABLED = true;
+
 function canStartNewSummary(userId: string): { 
   allowed: boolean; 
   blockReason: 'daily_limit' | 'total_limit' | 'days_expired' | null;
@@ -64,6 +68,12 @@ function canStartNewSummary(userId: string): {
   
   // Log at before_start stage
   logTrialCheck('before_start', status);
+  
+  // TEMPORARY BYPASS: Skip all trial checks for debugging
+  if (TRIAL_BYPASS_ENABLED) {
+    console.log('[canStartNewSummary] BYPASS ENABLED - allowing all requests');
+    return { allowed: true, blockReason: null, status };
+  }
   
   // MVP LOGIC: Only check date expiry and daily limit
   // totalMinutesUsed is for analytics only - NOT used for blocking
