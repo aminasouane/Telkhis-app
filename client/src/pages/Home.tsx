@@ -182,6 +182,9 @@ export default function Home() {
     // Server-side validation handles limit enforcement.
     // Blocking for NEXT attempt happens after processing completes.
     
+    console.log('[FLOW] processAudio START - sending audio to server');
+    console.log(`[FLOW] Audio size: ${audioBlob.size} bytes, duration: ${audioDuration}s`);
+    
     setIsProcessing(true);
     
     try {
@@ -196,10 +199,12 @@ export default function Home() {
         formData.append("userId", currentUserId);
       }
 
+      console.log('[FLOW] Sending fetch request to /api/process-audio...');
       const response = await fetch("/api/process-audio", {
         method: "POST",
         body: formData,
       });
+      console.log(`[FLOW] Received response: status=${response.status}, ok=${response.ok}`);
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -316,13 +321,14 @@ export default function Home() {
         });
       }
     } catch (error: any) {
-      console.error("Error processing audio:", error);
+      console.error("[FLOW] ERROR in processAudio:", error);
       toast({
         title: "خطأ في المعالجة",
         description: error.message || "حدث خطأ أثناء معالجة الملف الصوتي",
         variant: "destructive",
       });
     } finally {
+      console.log('[FLOW] processAudio COMPLETE - setting isProcessing=false');
       setIsProcessing(false);
     }
   };

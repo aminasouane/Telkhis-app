@@ -188,13 +188,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Process audio file endpoint (final processing)
   app.post("/api/process-audio", upload.single("audio"), async (req: Request, res) => {
+    console.log('[FLOW] /api/process-audio START - request received');
     try {
       const file = (req as any).file;
       const language = req.body.language || "ar"; // Default to Arabic
       const clientDuration = req.body.audioDuration ? parseFloat(req.body.audioDuration) : null;
       const userId = req.body.userId || req.headers['x-user-id'] as string;
       
+      console.log(`[FLOW] File: ${file ? file.originalname : 'NONE'}, Size: ${file?.size || 0}, Language: ${language}, UserId: ${userId}`);
+      
       if (!file) {
+        console.log('[FLOW] ERROR: No audio file provided');
         return res.status(400).json({ error: "No audio file provided" });
       }
 
