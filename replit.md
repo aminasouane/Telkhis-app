@@ -17,17 +17,18 @@ The frontend is built with React, TypeScript, and Vite, utilizing Radix UI with 
 - **Audio Processing Pipeline**: Involves pre-processing validation, transcription via `whisper.cpp`, and summarization via Grok API.
 - **Security**: Multi-layered security with pre-AI validation, trusted metadata, defense-in-depth for summary persistence, and atomic trial enforcement. JWT-based authentication secures all payment and user-sensitive endpoints.
 - **Subscription Management**: Transitions to paid subscriptions handled via Chargily Pay. The system uses a unified state machine (`trial_active`, `trial_expired`, `subscribed`) to manage user access and features.
-  - **MVP Trial Logic** (CURRENT - v3.1):
+  - **MVP Trial Logic** (CURRENT - v3.2):
     - **Daily Limit**: 30 minutes per day. Resets at midnight.
     - **Date Expiry**: 7 days from first use. After 7 days, trial is blocked.
-    - **Total Limit**: NOT used for blocking - tracked for analytics only.
-  - **Trial States**: `ACTIVE` (can use), `EXPIRED` (7 days passed).
-  - **Block Reasons**: `daily_limit` (30 min/day) → DailyLimitModal, `days_expired` (7 days) → TrialExpiredModal.
-  - **Server Error Codes**: `TRIAL_DAILY_LIMIT_REACHED`, `TRIAL_DAYS_EXPIRED`.
+    - **Total Limit**: 210 minutes total (30 × 7). Now used for blocking.
+    - **Unified Config**: `shared/trial.ts` is single source of truth for all limits.
+  - **Trial States**: `ACTIVE` (can use), `EXPIRED` (7 days passed), `USED_UP` (total limit reached).
+  - **Block Reasons**: `daily_limit` → DailyLimitModal, `days_expired` or `total_limit` → TrialExpiredModal.
+  - **Server Error Codes**: `TRIAL_DAILY_LIMIT_REACHED`, `TRIAL_DAYS_EXPIRED`, `TRIAL_TOTAL_LIMIT_REACHED`.
   - **Critical Flow Rule**: Any recording that HAS STARTED must ALWAYS complete. Blocking only affects NEXT attempt.
   - **Pre-check Flow**: Client calls `handleBeforeRecording()` (returns boolean) BEFORE microphone activation. If false, shows modal.
   - **Duration Calculation**: Server-side authoritative duration using music-metadata (fallback: file-size estimate).
-  - **Performance Timing**: Server logs [TIMING] for each stage: upload, transcription, summarization, dbSave.
+  - **Usage Capping**: `recordUsage()` caps at limits (210 total, 30 daily) to prevent exceeding limits.
   - **Debug Commands**: `resetTrial()` and `debugTrial()` in browser console (auto-detects userId).
 
 ### Feature Specifications

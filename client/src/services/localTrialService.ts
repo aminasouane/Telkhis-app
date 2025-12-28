@@ -1,8 +1,15 @@
 import { TRIAL_CONFIG } from "@/config/trialConfig";
+import { 
+  checkTrialStatus as checkTrialStatusShared,
+  capUsageAtLimit,
+  capDailyUsageAtLimit,
+  type BlockReason as SharedBlockReason
+} from "@shared/trial";
 import { getOrCreateAppUserId } from "./appUserService";
 
-// Re-export TRIAL_CONFIG for use in other components
 export { TRIAL_CONFIG };
+
+export type BlockReason = SharedBlockReason;
 
 const TRIAL_STORAGE_KEY = "takhleesly_trial_data";
 
@@ -134,24 +141,26 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   const isDailyLimitReached = dailyMinutesRemaining <= 0;
   
   const isDaysExpired = daysPassed >= TRIAL_CONFIG.VALIDITY_DAYS;
+  const isTotalLimitReached = data.totalMinutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES;
   
-  // For analytics: total minutes remaining (not used for blocking in MVP)
+  // Calculate remaining minutes
   const totalMinutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - data.totalMinutesUsed);
   
   // ============================================================
-  // TRIAL VALIDITY (MVP v3.1):
+  // TRIAL VALIDITY (MVP v3.2):
   // 1. Days expired (7 days from first use) → blocks user
-  // 2. Daily limit exhausted (30 min/day) → blocks user (handled separately)
-  // 
-  // NOTE: totalMinutesUsed is NOT used for blocking - analytics only.
+  // 2. Total limit (210 min) → blocks user
+  // 3. Daily limit exhausted (30 min/day) → blocks user (handled separately)
   // ============================================================
   let state: TrialStateType;
   let reason: TrialStatus["reason"] = undefined;
   
-  // Only block based on days expired - total minutes is analytics only
   if (isDaysExpired) {
     state = "EXPIRED";
     reason = "days_expired";
+  } else if (isTotalLimitReached) {
+    state = "USED_UP";
+    reason = "minutes_exhausted";
   } else {
     state = "ACTIVE";
   }
@@ -161,11 +170,11 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   return {
     state,
     isExpired,
-    minutesUsed: data.totalMinutesUsed, // Total minutes used
-    minutesLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES, // 30 minutes total limit
-    minutesRemaining: totalMinutesRemaining, // Minutes remaining from 30
+    minutesUsed: data.totalMinutesUsed,
+    minutesLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES,
+    minutesRemaining: totalMinutesRemaining,
     daysRemaining,
-    canUseTrial: !isExpired,
+    canUseTrial: !isExpired && !isDailyLimitReached,
     reason,
     dailyMinutesUsed,
     dailyMinutesLimit: TRIAL_CONFIG.DAILY_LIMIT_MINUTES,
@@ -174,16 +183,11 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   };
 }
 
-// MVP v3.1: Only daily_limit and days_expired are used for blocking
-// total_limit/minutes_exhausted are removed - totalMinutesUsed is analytics only
-export type BlockReason = "daily_limit" | "days_expired";
+// MVP v3.1: Uses shared BlockReason type from @shared/trial
+// Supports: daily_limit, days_expired, total_limit
 
 // Check if a specific audio duration can be processed
-// MVP LOGIC:
-// 1. Check date expiry (7 days from first use)
-// 2. Check daily limit (30 minutes per day)
-// 3. NO total limit check - totalMinutesUsed is for analytics only
-// Current operation is always allowed to complete (single-request overage allowed)
+// Uses shared checkTrialStatus for consistent logic
 export function canProcessAudio(appUserId: string, audioDurationMinutes: number): { 
   allowed: boolean; 
   status: TrialStatus;
@@ -191,35 +195,28 @@ export function canProcessAudio(appUserId: string, audioDurationMinutes: number)
   blockReason?: BlockReason;
 } {
   const status = getTrialStatus(appUserId);
+  const data = getTrialData(appUserId);
   
-  // Check 1: Date expiry (trial is 7 days from first use)
-  if (!status.canUseTrial && status.reason === "days_expired") {
+  const check = checkTrialStatusShared({
+    firstUseDateStr: data?.firstUseDate || null,
+    totalMinutesUsed: status.minutesUsed,
+    dailyMinutesUsed: status.dailyMinutesUsed,
+  });
+  
+  if (!check.allowed) {
     return {
       allowed: false,
       status,
-      reason: "انتهت صلاحية التجربة المجانية بعد 7 أيام",
-      blockReason: "days_expired",
+      reason: check.reason,
+      blockReason: check.blockReason,
     };
   }
   
-  // Check 2: Daily limit is ALREADY exhausted (>= 30 minutes used today)
-  if (status.dailyMinutesUsed >= TRIAL_CONFIG.DAILY_LIMIT_MINUTES) {
-    return {
-      allowed: false,
-      status,
-      reason: `لقد وصلت للحد اليومي (${TRIAL_CONFIG.DAILY_LIMIT_MINUTES} دقيقة). يمكنك المتابعة غداً.`,
-      blockReason: "daily_limit",
-    };
-  }
-  
-  // NO Check 3: totalMinutesUsed is NOT used for blocking in MVP
-  // Users get 30 minutes per day for 7 days (max possible = 210 minutes)
-  
-  // Current operation is always allowed to complete
   return { allowed: true, status };
 }
 
 // Record usage after successful processing (both total and daily)
+// Uses capping to prevent exceeding limits
 export function recordUsage(appUserId: string, audioDurationMinutes: number): TrialStatus {
   console.log(`[recordUsage] START: Recording ${audioDurationMinutes} minutes for user ${appUserId}`);
   
@@ -235,18 +232,18 @@ export function recordUsage(appUserId: string, audioDurationMinutes: number): Tr
     audioDurationMinutes = Math.max(0, Math.min(60, audioDurationMinutes));
   }
   
-  // Update total usage (INCREMENTAL, not replacement)
+  // Update total usage with capping at MAX_AUDIO_MINUTES (210)
   const previousTotal = data.totalMinutesUsed || 0;
-  data.totalMinutesUsed = previousTotal + audioDurationMinutes;
+  data.totalMinutesUsed = capUsageAtLimit(previousTotal, audioDurationMinutes);
   
-  // Update daily usage
+  // Update daily usage with capping at DAILY_LIMIT_MINUTES (30)
   if (!data.dailyUsage || data.dailyUsage.date !== today) {
     data.dailyUsage = { date: today, minutesUsed: 0 };
   }
   const previousDaily = data.dailyUsage.minutesUsed || 0;
-  data.dailyUsage.minutesUsed = previousDaily + audioDurationMinutes;
+  data.dailyUsage.minutesUsed = capDailyUsageAtLimit(previousDaily, audioDurationMinutes);
   
-  console.log(`[recordUsage] AFTER: totalMinutesUsed=${data.totalMinutesUsed} (was ${previousTotal}), dailyUsage.minutesUsed=${data.dailyUsage.minutesUsed} (was ${previousDaily})`);
+  console.log(`[recordUsage] AFTER: totalMinutesUsed=${data.totalMinutesUsed} (was ${previousTotal}, capped at ${TRIAL_CONFIG.MAX_AUDIO_MINUTES}), dailyUsage.minutesUsed=${data.dailyUsage.minutesUsed} (was ${previousDaily}, capped at ${TRIAL_CONFIG.DAILY_LIMIT_MINUTES})`);
   
   saveTrialData(data);
   
