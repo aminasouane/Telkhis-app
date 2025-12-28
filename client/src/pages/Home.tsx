@@ -8,7 +8,6 @@ import FileUpload from "@/components/FileUpload";
 import TranscriptionCard from "@/components/TranscriptionCard";
 import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
-import LanguageSelector from "@/components/LanguageSelector";
 import TrialExpiredModal from "@/components/TrialExpiredModal";
 import DailyLimitModal from "@/components/DailyLimitModal";
 import { getTrialStatus, getTrialData, type TrialStatus, TRIAL_CONFIG } from "@/services/localTrialService";
@@ -16,14 +15,27 @@ import { getUserStatus } from "@/services/userStatusService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/components/LanguageProvider";
 import { languageNames, type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info, History, Loader2 } from "lucide-react";
+import { Info, History, Loader2, Globe, ArrowLeft, ArrowRight } from "lucide-react";
 import { getSummaryById } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
 import { getAudioDuration } from "@/utils/audioUtils";
+import { 
+  SUPPORTED_LANGUAGES, 
+  DEFAULT_LANGUAGE, 
+  getTranslation, 
+  getDirection,
+  type Language as LanguageConfig
+} from "@shared/languages";
+
+const LANGUAGE_STORAGE_KEY = 'takhleesly_language';
+const WELCOME_COMPLETED_KEY = 'takhleesly_welcome_completed';
 
 // ============================================================
 // TRIAL DIAGNOSTIC LOGGING
@@ -100,6 +112,100 @@ interface ProcessingResult {
   error?: string;
 }
 
+// ============================================================
+// WELCOME SCREEN COMPONENT
+// Shows language selection on first visit
+// ============================================================
+function WelcomeScreen({ 
+  onComplete, 
+  selectedLanguage, 
+  onLanguageChange 
+}: { 
+  onComplete: () => void;
+  selectedLanguage: string;
+  onLanguageChange: (lang: string) => void;
+}) {
+  const direction = getDirection(selectedLanguage);
+  const t = (key: Parameters<typeof getTranslation>[1]) => getTranslation(selectedLanguage, key);
+  const ArrowIcon = direction === 'rtl' ? ArrowLeft : ArrowRight;
+
+  return (
+    <div 
+      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 p-4" 
+      dir={direction}
+    >
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Globe className="h-8 w-8 text-primary" />
+          </div>
+          <CardTitle className="text-3xl font-bold text-primary" data-testid="text-app-name">
+            {t('appName')}
+          </CardTitle>
+          <CardDescription className="text-lg" data-testid="text-welcome">
+            {t('welcome')}
+          </CardDescription>
+          <p className="text-sm text-muted-foreground" data-testid="text-welcome-message">
+            {t('welcomeMessage')}
+          </p>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          <div className="space-y-3">
+            <Label className="text-base font-medium flex items-center gap-2">
+              <Globe className="h-4 w-4 text-primary" />
+              {t('selectLanguage')}
+            </Label>
+            
+            <RadioGroup 
+              value={selectedLanguage} 
+              onValueChange={onLanguageChange}
+              className="grid gap-2"
+            >
+              {SUPPORTED_LANGUAGES.map((lang: LanguageConfig) => (
+                <div 
+                  key={lang.code}
+                  className={`flex items-center space-x-3 space-x-reverse rounded-lg border p-3 cursor-pointer transition-colors hover-elevate ${
+                    selectedLanguage === lang.code 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-border'
+                  }`}
+                  onClick={() => onLanguageChange(lang.code)}
+                  data-testid={`radio-language-${lang.code}`}
+                >
+                  <RadioGroupItem value={lang.code} id={`welcome-${lang.code}`} />
+                  <Label 
+                    htmlFor={`welcome-${lang.code}`} 
+                    className="flex-1 cursor-pointer flex justify-between items-center"
+                  >
+                    <span className="font-medium">{lang.nativeName}</span>
+                    <span className="text-xs text-muted-foreground">{lang.name}</span>
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+
+          <div className="text-center space-y-2 text-sm text-muted-foreground">
+            <p>{t('noLoginRequired')}</p>
+            <p>{t('dataStoredLocally')}</p>
+          </div>
+
+          <Button
+            onClick={onComplete}
+            className="w-full gap-2"
+            size="lg"
+            data-testid="button-start"
+          >
+            {t('startUsing')}
+            <ArrowIcon className="h-4 w-4" />
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function Home() {
   const [, navigate] = useLocation();
   const { appUserId, loading: authLoading } = useAuth();
@@ -116,7 +222,39 @@ export default function Home() {
   const { language, setLanguage } = useLanguage();
   const { recordUsage, refreshState } = useSubscription();
 
+  // Welcome screen state - check localStorage
+  const [showWelcome, setShowWelcome] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem(WELCOME_COMPLETED_KEY);
+    }
+    return true;
+  });
+
   const currentUserId = appUserId;
+
+  // Handle welcome screen completion
+  const handleWelcomeComplete = () => {
+    localStorage.setItem(WELCOME_COMPLETED_KEY, 'true');
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    setShowWelcome(false);
+  };
+
+  // Handle language change from welcome screen
+  const handleWelcomeLanguageChange = (newLang: string) => {
+    setLanguage(newLang as Language);
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
+  };
+
+  // Show welcome screen for first-time users
+  if (showWelcome) {
+    return (
+      <WelcomeScreen 
+        onComplete={handleWelcomeComplete}
+        selectedLanguage={language}
+        onLanguageChange={handleWelcomeLanguageChange}
+      />
+    );
+  }
 
   // NOTE: We intentionally do NOT redirect when trial expires.
   // The user can still use the app, but the summarize ACTION will be blocked.
@@ -472,8 +610,6 @@ export default function Home() {
                 </Button>
               </div>
 
-              <LanguageSelector value={language} onChange={setLanguage} />
-
               <Alert className="max-w-md mx-auto" data-testid="alert-language-info">
                 <Info className="h-4 w-4" />
                 <AlertDescription>
@@ -581,34 +717,26 @@ export default function Home() {
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                     data-testid="button-new-recording"
                   >
-                    تسجيل جديد ←
+                    تسجيل جديد
                   </button>
                 </div>
               </div>
 
               {result.error ? (
-                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center space-y-4" data-testid="error-container">
-                  <div className="text-destructive text-4xl">⚠️</div>
-                  <h3 className="text-lg font-semibold text-destructive">حدث خطأ أثناء المعالجة</h3>
-                  <p className="text-muted-foreground">{result.error}</p>
-                  <Button
-                    variant="outline"
-                    onClick={handleNewRecording}
-                    data-testid="button-retry-after-error"
-                  >
-                    المحاولة مرة أخرى
-                  </Button>
-                </div>
+                <Alert variant="destructive">
+                  <AlertDescription>{result.error}</AlertDescription>
+                </Alert>
               ) : (
                 <>
-                  <TranscriptionCard text={result.transcription} />
-
+                  {result.transcription && (
+                    <TranscriptionCard text={result.transcription} />
+                  )}
                   <SummaryCard
                     summary={result.summary}
                     keyPoints={result.keyPoints}
                     language={result.language}
-                    title={viewingSession?.title || generateSessionTitle(result.summary)}
-                    date={viewingSession?.date || new Date().toISOString()}
+                    title={generateSessionTitle(result.summary)}
+                    date={result.processedAt || new Date().toISOString()}
                   />
                 </>
               )}
@@ -619,17 +747,17 @@ export default function Home() {
 
       <Footer />
 
+      <TrialExpiredModal
+        open={showTrialExpiredModal}
+        onClose={() => setShowTrialExpiredModal(false)}
+        trialStatus={trialStatusForModal}
+      />
+
       <DailyLimitModal
         open={showDailyLimitModal}
         onClose={() => setShowDailyLimitModal(false)}
         hoursUntilReset={dailyLimitInfo.hours}
         minutesUntilReset={dailyLimitInfo.minutes}
-      />
-
-      <TrialExpiredModal
-        open={showTrialExpiredModal}
-        onClose={() => setShowTrialExpiredModal(false)}
-        trialStatus={trialStatusForModal}
       />
     </div>
   );

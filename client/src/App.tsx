@@ -9,7 +9,6 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { SubscriptionProvider } from "@/components/SubscriptionProvider";
 import Home from "@/pages/Home";
 import HistoryScreen from "@/pages/HistoryScreen";
-import Login from "@/pages/Login";
 import Subscribe from "@/pages/Subscribe";
 import Success from "@/pages/Success";
 import PaymentSuccess from "@/pages/PaymentSuccess";
@@ -24,7 +23,6 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/history" component={HistoryScreen} />
-      <Route path="/login" component={Login} />
       <Route path="/subscribe" component={Subscribe} />
       <Route path="/success" component={Success} />
       <Route path="/payment/success" component={PaymentSuccess} />
