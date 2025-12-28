@@ -46,7 +46,7 @@ The frontend is built with React, TypeScript, and Vite, utilizing Radix UI with 
 - **Chargily Pay**: Algeria's e-payment gateway, integrated for subscriptions via direct payment links and webhook verification.
 
 ### AI/ML Services
-- **whisper.cpp**: Local transcription using the `small` multilingual model (466MB) for Arabic, French, and Algerian dialect. Auto-converts audio to WAV.
+- **whisper.cpp**: Local transcription using the `small` multilingual model (466MB) for Arabic, French, and Algerian dialect. Auto-converts audio to WAV. Memory-optimized: uses 2 threads, greedy decoding (beam_size=1, best_of=1) to prevent OOM in Replit's 2GB container.
 - **Grok API (xAI)**: Utilizes the `grok-3` model via an OpenAI SDK compatibility layer for text summarization and key point extraction, supporting multiple languages with specific prompts.
 
 ### Database Services
