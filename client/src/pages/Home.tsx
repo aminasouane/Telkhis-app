@@ -35,7 +35,6 @@ import {
 } from "@shared/languages";
 
 const LANGUAGE_STORAGE_KEY = 'takhleesly_language';
-const WELCOME_COMPLETED_KEY = 'takhleesly_welcome_completed';
 
 // ============================================================
 // TRIAL DIAGNOSTIC LOGGING
@@ -222,23 +221,14 @@ export default function Home() {
   const { language, setLanguage } = useLanguage();
   const { recordUsage, refreshState } = useSubscription();
 
-  // Welcome screen state - check if user completed welcome flow
-  // Shows welcome if: never completed OR no language preference saved
-  const [showWelcome, setShowWelcome] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const welcomeCompleted = localStorage.getItem(WELCOME_COMPLETED_KEY);
-      const languageSaved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-      // Show welcome if neither flag is set (first visit or cleared storage)
-      return !welcomeCompleted || !languageSaved;
-    }
-    return true;
-  });
+  // Welcome screen state - ALWAYS show on every visit
+  // User must select language before accessing the app each time
+  const [showWelcome, setShowWelcome] = useState(true);
 
   const currentUserId = appUserId;
 
-  // Handle welcome screen completion
+  // Handle welcome screen completion - only save language, don't persist welcome state
   const handleWelcomeComplete = () => {
-    localStorage.setItem(WELCOME_COMPLETED_KEY, 'true');
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
     setShowWelcome(false);
   };
