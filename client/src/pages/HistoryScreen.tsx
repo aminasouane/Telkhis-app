@@ -1,80 +1,16 @@
-import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/components/AuthProvider";
 import Header from "@/components/Header";
-import HistoryList from "@/components/HistoryList";
 import { Button } from "@/components/ui/button";
-import { Plus, History, Loader2 } from "lucide-react";
-import { type Session } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
-import { getSummaries, deleteSummary } from "@/services/dbService";
+import { Card, CardContent } from "@/components/ui/card";
+import { Plus, History, Loader2, Sparkles, Lock } from "lucide-react";
 
 export default function HistoryScreen() {
   const [, navigate] = useLocation();
   const { appUserId, loading: authLoading } = useAuth();
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
-
-  // Use app user ID
-  const currentUserId = appUserId;
-
-  // Load summaries from database
-  useEffect(() => {
-    if (!currentUserId) return;
-
-    const loadSummaries = async () => {
-      setLoading(true);
-      const summaries = await getSummaries(currentUserId);
-      
-      // Convert summaries to Session format
-      const sessionsList: Session[] = summaries.map(summary => ({
-        id: summary.id!,
-        title: summary.title || '',
-        date: summary.created_at || new Date().toISOString(),
-        language: summary.language,
-        summary: summary.content,
-        transcript: summary.transcript || '',
-        keyPoints: summary.key_points || []
-      }));
-      
-      setSessions(sessionsList);
-      setLoading(false);
-    };
-
-    loadSummaries();
-  }, [currentUserId]);
-
-  const handleOpenSession = (session: Session) => {
-    navigate(`/?summary=${session.id}`);
-  };
-
-  const handlePrintSession = (session: Session) => {
-    navigate(`/?summary=${session.id}&print=true`);
-  };
-
-  const handleDeleteSession = async (id: string) => {
-    if (!currentUserId) return;
-    
-    const success = await deleteSummary(id, currentUserId);
-    
-    if (success) {
-      setSessions(sessions.filter(s => s.id !== id));
-      toast({
-        title: "تم الحذف",
-        description: "تم حذف التلخيص من قاعدة البيانات",
-      });
-    } else {
-      toast({
-        title: "غير مصرح",
-        description: "ليس لديك صلاحية لحذف هذا التلخيص",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Show loading while checking auth
-  if (authLoading || loading || !currentUserId) {
+  if (authLoading || !appUserId) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -107,18 +43,38 @@ export default function HistoryScreen() {
               data-testid="button-history"
             >
               <History className="h-5 w-5 ml-2" />
-              سجل التلخيصات (الصفحة الحالية)
+              سجل التلخيصات
             </Button>
           </div>
 
-          <div className="mt-12">
-            <HistoryList
-              sessions={sessions}
-              onOpenSession={handleOpenSession}
-              onPrintSession={handlePrintSession}
-              onDeleteSession={handleDeleteSession}
-            />
-          </div>
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="py-12 text-center space-y-6">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Lock className="h-8 w-8 text-primary" />
+              </div>
+              
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold flex items-center justify-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  ميزة مدفوعة قادمة قريبًا
+                </h2>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  حفظ التلخيصات السابقة والوصول إليها في أي وقت ستكون متاحة في الخطة المدفوعة.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  نحن نعمل على تجهيز هذه الميزة، شكرًا لصبرك!
+                </p>
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={() => navigate("/")}
+                data-testid="button-go-home"
+              >
+                العودة للصفحة الرئيسية
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>

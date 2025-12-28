@@ -37,7 +37,7 @@ export default function Footer() {
           
           <div className="text-xs text-muted-foreground text-center">
             <p>تلخيصلي - تلخيص ذكي للمحاضرات والتسجيلات الصوتية</p>
-            <p className="mt-1">{new Date().getFullYear()} جميع الحقوق محفوظة</p>
+            <p className="mt-1">© {new Date().getFullYear()} جميع الحقوق محفوظة</p>
           </div>
         </div>
       </div>

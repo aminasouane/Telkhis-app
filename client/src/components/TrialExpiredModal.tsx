@@ -1,4 +1,3 @@
-import { useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Clock, Calendar } from "lucide-react";
 import { type TrialStatus } from "@/services/localTrialService";
 import { TRIAL_CONFIG } from "@/config/trialConfig";
+import { useToast } from "@/hooks/use-toast";
 
 interface TrialExpiredModalProps {
   open: boolean;
@@ -23,11 +23,14 @@ export default function TrialExpiredModal({
   onClose,
   trialStatus
 }: TrialExpiredModalProps) {
-  const [, navigate] = useLocation();
+  const { toast } = useToast();
 
   const handleSubscribe = () => {
     onClose();
-    navigate("/subscribe");
+    toast({
+      title: "الاشتراكات المدفوعة قادمة قريبًا",
+      description: "نحن نعمل حاليًا على تجهيزها، شكرًا لاهتمامك!",
+    });
   };
 
   const handleContinue = () => {

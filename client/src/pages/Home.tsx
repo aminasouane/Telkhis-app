@@ -482,12 +482,23 @@ export default function Home() {
               </Alert>
 
               {isProcessing ? (
-                <div className="flex flex-col items-center gap-4 py-12">
-                  <div className="h-16 w-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                  <p className="text-lg font-medium">جاري المعالجة...</p>
-                  <p className="text-sm text-muted-foreground">
-                    يتم تحويل الصوت إلى نص وتلخيصه
-                  </p>
+                <div className="flex flex-col items-center gap-6 py-12 px-4">
+                  <div className="relative">
+                    <div className="h-20 w-20 border-4 border-primary/30 rounded-full" />
+                    <div className="absolute inset-0 h-20 w-20 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                  <div className="text-center space-y-3">
+                    <p className="text-xl font-semibold text-foreground">
+                      يتم الآن معالجة التسجيل وإنشاء التلخيص
+                    </p>
+                    <p className="text-muted-foreground">
+                      قد يستغرق ذلك من دقيقة إلى 3 دقائق حسب طول التسجيل
+                    </p>
+                    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>يرجى الانتظار وعدم إغلاق الصفحة</span>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <Tabs defaultValue="record" className="w-full">
@@ -613,7 +624,6 @@ export default function Home() {
         onClose={() => setShowDailyLimitModal(false)}
         hoursUntilReset={dailyLimitInfo.hours}
         minutesUntilReset={dailyLimitInfo.minutes}
-        dailyMinutesUsed={dailyLimitInfo.used}
       />
 
       <TrialExpiredModal
