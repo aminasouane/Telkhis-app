@@ -7,86 +7,103 @@ export default function AboutUs() {
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       <ScrollArea className="h-screen">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="container mx-auto px-4 py-8 max-w-4xl text-right">
+
+          {/* زر الرجوع */}
           <div className="mb-8">
             <Link href="/">
-              <Button 
-                variant="ghost" 
-                className="mb-4"
+              <Button
+                variant="ghost"
+                className="mb-4 flex items-center justify-end"
                 data-testid="button-back"
               >
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <ArrowRight className="mr-2 h-4 w-4" />
                 العودة للرئيسية
               </Button>
             </Link>
-            
-            <div className="flex items-center gap-3 mb-2">
-              <Users className="h-8 w-8 text-primary" />
+
+            {/* العنوان */}
+            <div className="flex items-center justify-end gap-3 mb-2">
               <h1 className="text-4xl font-bold text-foreground">
                 من نحن
               </h1>
+              <Users className="h-8 w-8 text-primary" />
             </div>
           </div>
 
-          <div className="space-y-8 text-foreground leading-relaxed">
+          {/* المحتوى */}
+          <div className="space-y-10 text-foreground leading-relaxed">
+
             <section className="space-y-4">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
+              <h2 className="text-2xl font-bold flex items-center justify-end gap-2">
+                <span>رسالتنا</span>
                 <Target className="h-6 w-6 text-primary" />
-                رسالتنا
               </h2>
+
               <p className="text-lg">
-                تلخيصلي هو تطبيق ذكي مصمم خصيصاً لمساعدة الطلاب والباحثين والمهنيين 
-                على تحويل المحاضرات والتسجيلات الصوتية إلى ملخصات مكتوبة واضحة وسهلة المراجعة.
+                <strong>تلخيصلي</strong> هو تطبيق ذكي مصمم خصيصًا لمساعدة الطلاب
+                والباحثين والمهنيين على تحويل المحاضرات والتسجيلات الصوتية إلى
+                ملخصات مكتوبة واضحة وسهلة المراجعة.
               </p>
+
               <p>
-                نؤمن بأن الوقت ثمين، ولذلك نوفر لك أداة تساعدك على استيعاب المحتوى 
-                بشكل أسرع وأكثر فعالية، مما يتيح لك التركيز على ما يهم حقاً.
+                نؤمن بأن الوقت ثمين، ولذلك نوفر لك أداة تساعدك على استيعاب المحتوى
+                بشكل أسرع وأكثر فعالية، مما يتيح لك التركيز على ما يهم فعلًا.
               </p>
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
+              <h2 className="text-2xl font-bold flex items-center justify-end gap-2">
+                <span>كيف يعمل تلخيصلي؟</span>
                 <Zap className="h-6 w-6 text-primary" />
-                كيف يعمل تلخيصلي؟
               </h2>
+
               <p>
-                يستخدم تلخيصلي أحدث تقنيات الذكاء الاصطناعي لتحويل الكلام إلى نص 
+                يستخدم تلخيصلي أحدث تقنيات الذكاء الاصطناعي لتحويل الكلام إلى نص،
                 ثم تلخيصه بشكل ذكي مع استخراج النقاط الرئيسية.
               </p>
-              <ul className="list-disc list-inside space-y-2 pr-4">
-                <li>تحويل الصوت إلى نص باستخدام تقنية Whisper المتقدمة</li>
+
+              <ul className="list-disc space-y-2 pr-6">
+                <li>تحويل الصوت إلى نص باستخدام تقنيات متقدمة للتعرف على الكلام</li>
                 <li>تلخيص ذكي للمحتوى مع الحفاظ على الأفكار الأساسية</li>
-                <li>استخراج النقاط الرئيسية لسهولة المراجعة</li>
+                <li>استخراج النقاط الرئيسية لتسهيل المراجعة</li>
                 <li>دعم اللغة العربية والفرنسية واللهجة الجزائرية</li>
               </ul>
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
+              <h2 className="text-2xl font-bold flex items-center justify-end gap-2">
+                <span>لماذا تلخيصلي؟</span>
                 <Award className="h-6 w-6 text-primary" />
-                لماذا تلخيصلي؟
               </h2>
-              <ul className="list-disc list-inside space-y-2 pr-4">
-                <li>واجهة سهلة الاستخدام بتصميم عربي أصيل</li>
+
+              <ul className="list-disc space-y-2 pr-6">
+                <li>واجهة سهلة الاستخدام بتصميم عربي واضح</li>
                 <li>دقة عالية في التعرف على الكلام</li>
                 <li>ملخصات ذكية ومنظمة</li>
-                <li>حفظ الملخصات ومشاركتها بسهولة</li>
-                <li>دعم ملفات صوتية متعددة الصيغ</li>
+                <li>إمكانية حفظ الملخصات ومشاركتها</li>
+                <li>دعم صيغ صوتية متعددة</li>
                 <li>تجربة مجانية للبدء</li>
               </ul>
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-2xl font-bold">تواصل معنا</h2>
+              <h2 className="text-2xl font-bold">
+                تواصل معنا
+              </h2>
               <p>
-                نحن نسعد بتلقي ملاحظاتكم واقتراحاتكم. يمكنكم التواصل معنا عبر:
+                نسعد بتلقي ملاحظاتكم واقتراحاتكم، ويمكنكم التواصل معنا عبر:
               </p>
-              <p className="text-primary font-medium text-lg" data-testid="text-contact-email">
+              <p
+                className="text-primary font-medium text-lg"
+                data-testid="text-contact-email"
+              >
                 support@telkhisli.com
               </p>
             </section>
           </div>
 
+          {/* زر البدء */}
           <div className="mt-12 pt-8 border-t text-center">
             <Link href="/">
               <Button size="lg" data-testid="button-start">
@@ -94,6 +111,7 @@ export default function AboutUs() {
               </Button>
             </Link>
           </div>
+
         </div>
       </ScrollArea>
     </div>

@@ -489,3 +489,16 @@
     color: #333 !important;
   }
 }
+
+/* RTL Prose - Fix BiDi for Arabic text with Latin words */
+.rtl-prose {
+  direction: rtl;
+  unicode-bidi: plaintext;
+  text-align: right;
+}
+
+/* LTR inline elements for Latin words in RTL context */
+.ltr-inline {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
