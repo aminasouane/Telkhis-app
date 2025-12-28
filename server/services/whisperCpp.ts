@@ -170,21 +170,24 @@ export async function ensureModelReady(): Promise<void> {
 
 function runWhisperBinary(wavPath: string, language: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    // CPU-only args for Replit environment (no GPU available)
+    // CPU-only args optimized for Replit's 2GB memory limit
     // IMPORTANT: Do NOT use -fa (enables flash attention which requires GPU)
+    // Memory optimization: greedy decoding instead of beam search
     const args = [
       "-m", MODEL_PATH,
       "-f", wavPath,
       "-l", language,
       "--no-timestamps",
       "-otxt",
-      "-t", "4",        // Use 4 CPU threads
+      "-t", "2",        // Reduced to 2 threads (less memory pressure)
       "-ng",            // No GPU (force CPU-only)
+      "-bs", "1",       // Greedy decoding (beam size 1 = much less memory)
+      "-bo", "1",       // Best of 1 (no extra memory for candidates)
     ];
 
     console.log(`[whisper.cpp] Running: ${WHISPER_BINARY} ${args.join(" ")}`);
 
-    const process = spawn(WHISPER_BINARY, args, {
+    const whisperProcess = spawn(WHISPER_BINARY, args, {
       cwd: WHISPER_DIR,
       timeout: 300000
     });
@@ -192,17 +195,21 @@ function runWhisperBinary(wavPath: string, language: string): Promise<string> {
     let stdout = "";
     let stderr = "";
 
-    process.stdout.on("data", (data) => {
+    whisperProcess.stdout.on("data", (data) => {
       stdout += data.toString();
     });
 
-    process.stderr.on("data", (data) => {
+    whisperProcess.stderr.on("data", (data) => {
       stderr += data.toString();
     });
 
-    process.on("close", (code) => {
+    whisperProcess.on("close", (code, signal) => {
       if (code !== 0) {
-        console.error(`[whisper.cpp] Process exited with code ${code}`);
+        // Log detailed exit info for debugging OOM kills
+        console.error(`[whisper.cpp] Process exited with code=${code}, signal=${signal}`);
+        if (signal === "SIGKILL" || code === null) {
+          console.error(`[whisper.cpp] SIGKILL detected - likely OOM (Out of Memory)`);
+        }
         console.error(`[whisper.cpp] stderr: ${stderr}`);
         reject(new Error(`Whisper process failed with code ${code}: ${stderr}`));
         return;
@@ -222,7 +229,7 @@ function runWhisperBinary(wavPath: string, language: string): Promise<string> {
       }
     });
 
-    process.on("error", (error) => {
+    whisperProcess.on("error", (error) => {
       reject(new Error(`Failed to spawn whisper process: ${error.message}`));
     });
   });

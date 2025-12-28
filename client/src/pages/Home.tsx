@@ -99,6 +99,7 @@ interface ProcessingResult {
   language: Language;
   audioDuration?: number;
   processedAt?: string;
+  error?: string;
 }
 
 export default function Home() {
@@ -310,9 +311,20 @@ export default function Home() {
       }
     } catch (error: any) {
       console.error("[FLOW] ERROR in processAudio:", error);
+      
+      // Set error result so user knows what happened
+      setResult({
+        transcription: "",
+        summary: "",
+        keyPoints: [],
+        language: language,
+        audioDuration: audioDuration,
+        error: error.message || "حدث خطأ أثناء معالجة الملف الصوتي",
+      });
+      
       toast({
         title: "خطأ في المعالجة",
-        description: error.message || "حدث خطأ أثناء معالجة الملف الصوتي",
+        description: error.message || "حدث خطأ أثناء معالجة الملف الصوتي. يرجى المحاولة مرة أخرى.",
         variant: "destructive",
       });
     } finally {
@@ -563,15 +575,32 @@ export default function Home() {
                 </div>
               </div>
 
-              <TranscriptionCard text={result.transcription} />
+              {result.error ? (
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center space-y-4" data-testid="error-container">
+                  <div className="text-destructive text-4xl">⚠️</div>
+                  <h3 className="text-lg font-semibold text-destructive">حدث خطأ أثناء المعالجة</h3>
+                  <p className="text-muted-foreground">{result.error}</p>
+                  <Button
+                    variant="outline"
+                    onClick={handleNewRecording}
+                    data-testid="button-retry-after-error"
+                  >
+                    المحاولة مرة أخرى
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <TranscriptionCard text={result.transcription} />
 
-              <SummaryCard
-                summary={result.summary}
-                keyPoints={result.keyPoints}
-                language={result.language}
-                title={viewingSession?.title || generateSessionTitle(result.summary)}
-                date={viewingSession?.date || new Date().toISOString()}
-              />
+                  <SummaryCard
+                    summary={result.summary}
+                    keyPoints={result.keyPoints}
+                    language={result.language}
+                    title={viewingSession?.title || generateSessionTitle(result.summary)}
+                    date={viewingSession?.date || new Date().toISOString()}
+                  />
+                </>
+              )}
             </div>
           )}
         </div>
