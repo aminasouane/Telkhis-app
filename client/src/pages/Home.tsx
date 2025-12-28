@@ -20,9 +20,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/components/LanguageProvider";
-import { languageNames, type Language, type Session } from "@shared/schema";
+import { type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info, History, Loader2, Globe, ArrowLeft, ArrowRight } from "lucide-react";
+import { History, Loader2, Globe, ArrowLeft, ArrowRight } from "lucide-react";
 import { getSummaryById } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
 import { getAudioDuration } from "@/utils/audioUtils";
@@ -222,10 +222,14 @@ export default function Home() {
   const { language, setLanguage } = useLanguage();
   const { recordUsage, refreshState } = useSubscription();
 
-  // Welcome screen state - check localStorage
+  // Welcome screen state - check if user completed welcome flow
+  // Shows welcome if: never completed OR no language preference saved
   const [showWelcome, setShowWelcome] = useState(() => {
     if (typeof window !== 'undefined') {
-      return !localStorage.getItem(WELCOME_COMPLETED_KEY);
+      const welcomeCompleted = localStorage.getItem(WELCOME_COMPLETED_KEY);
+      const languageSaved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      // Show welcome if neither flag is set (first visit or cleared storage)
+      return !welcomeCompleted || !languageSaved;
     }
     return true;
   });
@@ -245,24 +249,13 @@ export default function Home() {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
   };
 
-  // Show welcome screen for first-time users
-  if (showWelcome) {
-    return (
-      <WelcomeScreen 
-        onComplete={handleWelcomeComplete}
-        selectedLanguage={language}
-        onLanguageChange={handleWelcomeLanguageChange}
-      />
-    );
-  }
-
   // NOTE: We intentionally do NOT redirect when trial expires.
   // The user can still use the app, but the summarize ACTION will be blocked.
   // This provides a better UX - users can still browse, view history, etc.
 
-  // Load summary from URL parameter
+  // Load summary from URL parameter - must be before any early returns to follow React hooks rules
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId || showWelcome) return;
     
     const params = new URLSearchParams(window.location.search);
     const summaryId = params.get('summary');
@@ -294,7 +287,18 @@ export default function Home() {
         }
       });
     }
-  }, [currentUserId, navigate, toast]);
+  }, [currentUserId, navigate, toast, showWelcome]);
+
+  // Show welcome screen for first-time users (after all hooks are called)
+  if (showWelcome) {
+    return (
+      <WelcomeScreen 
+        onComplete={handleWelcomeComplete}
+        selectedLanguage={language}
+        onLanguageChange={handleWelcomeLanguageChange}
+      />
+    );
+  }
 
   // Show loading while checking auth
   if (authLoading || !currentUserId) {
@@ -609,13 +613,6 @@ export default function Home() {
                   عرض سجل التلخيصات
                 </Button>
               </div>
-
-              <Alert className="max-w-md mx-auto" data-testid="alert-language-info">
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  سيتم تلخيص المحاضرة بـ{language === "dz" ? "اللغة العربية" : languageNames[language]}
-                </AlertDescription>
-              </Alert>
 
               {isProcessing ? (
                 <div className="flex flex-col items-center gap-6 py-12 px-4">
