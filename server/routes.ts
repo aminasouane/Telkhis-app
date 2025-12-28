@@ -188,14 +188,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Process audio file endpoint (final processing)
   app.post("/api/process-audio", upload.single("audio"), async (req: Request, res) => {
-    console.log('[FLOW] /api/process-audio START - request received');
+    const startTime = Date.now();
+    const timings: Record<string, number> = {};
+    
+    console.log('[TIMING] /api/process-audio START');
     try {
       const file = (req as any).file;
       const language = req.body.language || "ar"; // Default to Arabic
       const clientDuration = req.body.audioDuration ? parseFloat(req.body.audioDuration) : null;
       const userId = req.body.userId || req.headers['x-user-id'] as string;
       
-      console.log(`[FLOW] File: ${file ? file.originalname : 'NONE'}, Size: ${file?.size || 0}, Language: ${language}, UserId: ${userId}`);
+      timings.upload = Date.now() - startTime;
+      console.log(`[TIMING] Upload received: ${timings.upload}ms | File: ${file?.originalname}, Size: ${file?.size || 0}`);
       
       if (!file) {
         console.log('[FLOW] ERROR: No audio file provided');
@@ -253,40 +257,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const wasAtLimit = !trialValidation.allowed;
       const limitReason = trialValidation.errorCode;
 
-      // Step 1: Transcribe audio using the buffer, filename, mimetype, and language
-      console.log(`[process-audio] Starting transcription...`);
+      // Step 1: Transcribe audio using Whisper.cpp
+      const transcriptionStart = Date.now();
+      console.log(`[TIMING] Whisper transcription START`);
       const transcription = await transcribeAudio(
         file.buffer,
         file.originalname,
         file.mimetype,
         language
       );
+      timings.transcription = Date.now() - transcriptionStart;
+      console.log(`[TIMING] Whisper transcription DONE: ${timings.transcription}ms | ${transcription.length} chars`);
 
       // Validate transcript before proceeding
       if (!transcription || transcription.trim().length === 0) {
-        console.log(`[process-audio] ERROR: Transcript is empty or null`);
+        console.log(`[TIMING] ERROR: Transcript is empty or null`);
         return res.status(400).json({ error: "Could not transcribe audio" });
       }
-      
-      console.log(`[process-audio] Transcript ready, length = ${transcription.length} chars`);
 
-      // Step 2: Summarize transcription using Grok API (non-streaming, full response)
-      console.log(`[process-audio] Starting Grok summarization (non-streaming)...`);
+      // Step 2: Summarize transcription using Grok API (non-streaming)
+      const summarizationStart = Date.now();
+      console.log(`[TIMING] Grok summarization START`);
       const grokResult = await summarizeWithGrok({
         transcript: transcription,
         language: language as "ar" | "fr" | "dz",
       });
-      console.log(`[process-audio] Grok response received. Summary length = ${grokResult.summary?.length || 0} chars`);
+      timings.summarization = Date.now() - summarizationStart;
+      console.log(`[TIMING] Grok summarization DONE: ${timings.summarization}ms | ${grokResult.summary?.length || 0} chars`);
 
       const processedAt = new Date().toISOString();
       
-      // Step 3: Try to save summary to database (non-blocking - user gets result even if save fails)
+      // Step 3: Save summary to database (non-blocking - user gets result even if save fails)
+      const dbSaveStart = Date.now();
+      console.log(`[TIMING] Database save START`);
       const title = grokResult.summary.split(' ').slice(0, 5).join(' ') + '...';
       
       let savedSummary = null;
       let saveError = null;
       
       try {
+        console.log(`[DB] Inserting summary for user ${userId}...`);
         const result = await supabaseAdmin
           .from('summaries')
           .insert({
@@ -304,13 +314,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         savedSummary = result.data;
         saveError = result.error;
         
+        timings.dbSave = Date.now() - dbSaveStart;
+        
         if (saveError) {
-          console.error('[process-audio] WARNING: Failed to save summary (will still return result):', saveError);
+          console.error(`[TIMING] Database save FAILED (${timings.dbSave}ms):`, saveError);
         } else {
-          console.log(`[process-audio] Summary saved. ID: ${savedSummary?.id}, Duration: ${audioDuration}s`);
+          console.log(`[TIMING] Database save DONE: ${timings.dbSave}ms | ID: ${savedSummary?.id}`);
         }
       } catch (dbError: any) {
-        console.error('[process-audio] WARNING: Database error (will still return result):', dbError.message);
+        timings.dbSave = Date.now() - dbSaveStart;
+        console.error(`[TIMING] Database save ERROR (${timings.dbSave}ms):`, dbError.message);
       }
       
       // ALWAYS return summary to user, even if save failed
@@ -322,7 +335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Determine if next attempt will be blocked (daily limit OR trial expiry)
       const isDailyLimitReached = newDailyRemaining <= 0;
-      const isTrialExpired = limitReason === "TRIAL_EXPIRED";
+      const isTrialExpired = limitReason === "TRIAL_DAYS_EXPIRED";
       const nextBlocked = isDailyLimitReached || isTrialExpired;
       const nextBlockReason = isTrialExpired ? "days_expired" : (isDailyLimitReached ? "daily_limit" : null);
       
@@ -348,10 +361,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       };
       
-      console.log(`FINAL_SUMMARY: start - about to send response`);
-      console.log(`[process-audio] Sending response to client. Summary length = ${responsePayload.summary?.length || 0}, Transcript length = ${responsePayload.transcription?.length || 0}`);
-      res.json(responsePayload);
-      console.log(`FINAL_SUMMARY: response sent successfully`);
+      timings.total = Date.now() - startTime;
+      console.log(`[TIMING] ====== PERFORMANCE SUMMARY ======`);
+      console.log(`[TIMING] Upload:        ${timings.upload}ms`);
+      console.log(`[TIMING] Transcription: ${timings.transcription}ms`);
+      console.log(`[TIMING] Summarization: ${timings.summarization}ms`);
+      console.log(`[TIMING] Total:         ${timings.total}ms`);
+      console.log(`[TIMING] ==================================`);
+      
+      // Include timings in response for client debugging
+      res.json({ ...responsePayload, _timings: timings });
+      console.log(`[TIMING] Response sent`);
     } catch (error: any) {
       console.error("FINAL_SUMMARY: ERROR in processing:", error);
       

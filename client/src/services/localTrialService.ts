@@ -138,20 +138,20 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   // For analytics: total minutes remaining (not used for blocking in MVP)
   const totalMinutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - data.totalMinutesUsed);
   
-  // Check trial validity:
-  // 1. Days expired (7 days from first use)
-  // 2. Total minutes exhausted (30 minutes total)
+  // ============================================================
+  // TRIAL VALIDITY (MVP v3.1):
+  // 1. Days expired (7 days from first use) → blocks user
+  // 2. Daily limit exhausted (30 min/day) → blocks user (handled separately)
+  // 
+  // NOTE: totalMinutesUsed is NOT used for blocking - analytics only.
+  // ============================================================
   let state: TrialStateType;
   let reason: TrialStatus["reason"] = undefined;
   
-  const isTotalMinutesExhausted = data.totalMinutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES;
-  
+  // Only block based on days expired - total minutes is analytics only
   if (isDaysExpired) {
     state = "EXPIRED";
     reason = "days_expired";
-  } else if (isTotalMinutesExhausted) {
-    state = "USED_UP";
-    reason = "minutes_exhausted";
   } else {
     state = "ACTIVE";
   }
@@ -174,7 +174,9 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   };
 }
 
-export type BlockReason = "daily_limit" | "total_limit" | "days_expired" | "minutes_exhausted";
+// MVP v3.1: Only daily_limit and days_expired are used for blocking
+// total_limit/minutes_exhausted are removed - totalMinutesUsed is analytics only
+export type BlockReason = "daily_limit" | "days_expired";
 
 // Check if a specific audio duration can be processed
 // MVP LOGIC:

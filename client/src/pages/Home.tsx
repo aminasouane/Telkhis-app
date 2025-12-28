@@ -51,15 +51,16 @@ function logTrialCheck(
 }
 
 // ============================================================
-// CENTRALIZED BLOCKING LOGIC
+// CENTRALIZED BLOCKING LOGIC (MVP v3.1)
 // Checks if user can start a new recording based on Trial limits:
-// - 30 minutes PER DAY
-// - 210 minutes TOTAL (30 × 7 days)
+// - 30 minutes PER DAY (resets at midnight)
 // - 7 days validity from first use
-// Returns { allowed, blockReason } - blocks BEFORE starting new recording
+// 
+// NOTE: totalMinutesUsed is NOT used for blocking - it's analytics only.
+// User gets 30 min/day for 7 days. No total_limit blocking.
 // ============================================================
 
-type BlockReason = 'daily_limit' | 'total_limit' | 'days_expired' | null;
+type BlockReason = 'daily_limit' | 'days_expired' | null;
 
 function canStartNewSummary(userId: string): { 
   allowed: boolean; 
@@ -83,11 +84,8 @@ function canStartNewSummary(userId: string): {
     return { allowed: false, blockReason: 'daily_limit', status };
   }
   
-  // Check 3: Total limit exhausted (210 minutes total)
-  if (status.minutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
-    console.log(`[canStartNewSummary] BLOCKED: Total limit reached (${status.minutesUsed.toFixed(1)}/${TRIAL_CONFIG.MAX_AUDIO_MINUTES} min)`);
-    return { allowed: false, blockReason: 'total_limit', status };
-  }
+  // NO Check 3: totalMinutesUsed is NOT used for blocking
+  // User gets 30 min/day for 7 days - total is tracked for analytics only
   
   // All checks passed - allow new recording
   console.log('[canStartNewSummary] ALLOWED: Trial active');
@@ -342,7 +340,7 @@ export default function Home() {
           });
           setShowDailyLimitModal(true);
         } else {
-          // Show trial expired modal for total_limit or days_expired
+          // Show trial expired modal for days_expired
           setTrialStatusForModal(check.status);
           setShowTrialExpiredModal(true);
         }
@@ -415,7 +413,7 @@ export default function Home() {
         });
         setShowDailyLimitModal(true);
       } else {
-        // Show trial expired modal for total_limit or days_expired
+        // Show trial expired modal for days_expired
         setTrialStatusForModal(check.status);
         setShowTrialExpiredModal(true);
       }

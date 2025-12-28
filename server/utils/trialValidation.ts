@@ -82,10 +82,14 @@ export async function validateTrialUsage(
     const totalMinutesRemaining = Math.max(0, TRIAL_CONFIG.MAX_AUDIO_MINUTES - totalMinutesUsed);
     const dailyMinutesRemaining = Math.max(0, TRIAL_CONFIG.DAILY_LIMIT_MINUTES - dailyMinutesUsed);
     
-    // TRIAL LIMITS:
+    // ============================================================
+    // TRIAL LIMITS (MVP v3.1):
     // 1. 7 days validity from first use
-    // 2. 30 minutes per day
-    // 3. 210 minutes total (30 × 7)
+    // 2. 30 minutes per day (resets at midnight)
+    // 
+    // NOTE: totalMinutesUsed is tracked for ANALYTICS only.
+    // NO blocking based on total - user gets 30 min/day for 7 days.
+    // ============================================================
     
     // Check 1: 7-day trial expiry
     if (firstUseDate) {
@@ -119,19 +123,8 @@ export async function validateTrialUsage(
       };
     }
     
-    // Check 3: Total limit (210 minutes)
-    if (totalMinutesUsed >= TRIAL_CONFIG.MAX_AUDIO_MINUTES) {
-      console.log(`[trialValidation] Total limit exhausted: ${totalMinutesUsed.toFixed(2)} / ${TRIAL_CONFIG.MAX_AUDIO_MINUTES} minutes used`);
-      return {
-        allowed: false,
-        reason: `لقد استنفدت الحد المجاني (${TRIAL_CONFIG.MAX_AUDIO_MINUTES} دقيقة). اشترك لمتابعة استخدام التطبيق.`,
-        errorCode: "TRIAL_TOTAL_LIMIT_REACHED",
-        totalMinutesUsed,
-        dailyMinutesUsed,
-        minutesRemaining: 0,
-        dailyMinutesRemaining,
-      };
-    }
+    // NO Check 3: totalMinutesUsed is NOT used for blocking
+    // User gets 30 min/day for 7 days - total is tracked for analytics only
     
     // All checks passed - user can proceed
     return {
