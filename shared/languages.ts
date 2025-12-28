@@ -78,8 +78,8 @@ export const translations: Record<string, Translations> = {
     dataStoredLocally: 'Vos données seront sauvegardées localement'
   },
   en: {
-    appName: 'Takhleesly',
-    welcome: 'Welcome to Takhleesly',
+    appName: 'تلخيصلي',
+    welcome: 'مرحبا بك في تلخيصلي',
     welcomeMessage: 'Smart transcription and summarization for lectures and audio recordings',
     selectLanguage: 'Select your language',
     startUsing: 'Get Started',
@@ -92,8 +92,8 @@ export const translations: Record<string, Translations> = {
     welcomeMessage: 'تلخيص ذكي للدروس والتسجيلات الصوتية',
     selectLanguage: 'اختار اللغة لي تحبها',
     startUsing: 'ابدا الاستخدام',
-    noLoginRequired: 'تقدر تستعمل التطبيق بلا ما تسجل',
-    dataStoredLocally: 'البيانات تاعك راح تتحفظ تلقائياً في جهازك'
+    noLoginRequired: 'يمكنك استخدام التطبيق بدون تسجيل الدخول',
+    dataStoredLocally: 'البيانات الخاصة بك ستحفظ تلقائياً في جهازك'
   }
 };
 

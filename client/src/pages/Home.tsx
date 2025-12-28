@@ -22,15 +22,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/components/LanguageProvider";
 import { type Language, type Session } from "@shared/schema";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { History, Loader2, Globe, ArrowLeft, ArrowRight } from "lucide-react";
+import { History, Loader2, Globe, ArrowLeft } from "lucide-react";
 import { getSummaryById } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
 import { getAudioDuration } from "@/utils/audioUtils";
 import { 
   SUPPORTED_LANGUAGES, 
-  DEFAULT_LANGUAGE, 
-  getTranslation, 
-  getDirection,
   type Language as LanguageConfig
 } from "@shared/languages";
 
@@ -113,7 +110,7 @@ interface ProcessingResult {
 
 // ============================================================
 // WELCOME SCREEN COMPONENT
-// Shows language selection on first visit
+// Shows summary language selection - UI always in Arabic
 // ============================================================
 function WelcomeScreen({ 
   onComplete, 
@@ -124,14 +121,11 @@ function WelcomeScreen({
   selectedLanguage: string;
   onLanguageChange: (lang: string) => void;
 }) {
-  const direction = getDirection(selectedLanguage);
-  const t = (key: Parameters<typeof getTranslation>[1]) => getTranslation(selectedLanguage, key);
-  const ArrowIcon = direction === 'rtl' ? ArrowLeft : ArrowRight;
-
+  // UI is always in Arabic (RTL), only summary output uses selectedLanguage
   return (
     <div 
       className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 p-4" 
-      dir={direction}
+      dir="rtl"
     >
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
@@ -139,13 +133,13 @@ function WelcomeScreen({
             <Globe className="h-8 w-8 text-primary" />
           </div>
           <CardTitle className="text-3xl font-bold text-primary" data-testid="text-app-name">
-            {t('appName')}
+            تلخيصلي
           </CardTitle>
           <CardDescription className="text-lg" data-testid="text-welcome">
-            {t('welcome')}
+            مرحباً بك
           </CardDescription>
           <p className="text-sm text-muted-foreground" data-testid="text-welcome-message">
-            {t('welcomeMessage')}
+            لخّص محاضراتك بسرعة وسهولة باستخدام الذكاء الاصطناعي
           </p>
         </CardHeader>
 
@@ -153,7 +147,7 @@ function WelcomeScreen({
           <div className="space-y-3">
             <Label className="text-base font-medium flex items-center gap-2">
               <Globe className="h-4 w-4 text-primary" />
-              {t('selectLanguage')}
+              اختر لغة التلخيص
             </Label>
             
             <RadioGroup 
@@ -186,8 +180,8 @@ function WelcomeScreen({
           </div>
 
           <div className="text-center space-y-2 text-sm text-muted-foreground">
-            <p>{t('noLoginRequired')}</p>
-            <p>{t('dataStoredLocally')}</p>
+            <p>لا حاجة لتسجيل الدخول</p>
+            <p>بياناتك محفوظة محلياً على جهازك</p>
           </div>
 
           <Button
@@ -196,8 +190,8 @@ function WelcomeScreen({
             size="lg"
             data-testid="button-start"
           >
-            {t('startUsing')}
-            <ArrowIcon className="h-4 w-4" />
+            ابدأ الآن
+            <ArrowLeft className="h-4 w-4" />
           </Button>
         </CardContent>
       </Card>
