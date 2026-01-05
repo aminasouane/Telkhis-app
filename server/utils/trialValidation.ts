@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "../supabase-admin";
+import * as db from "../db";
 import { 
   TRIAL_LIMITS, 
   checkTrialStatus,
@@ -20,48 +20,14 @@ export async function validateTrialUsage(
   audioDurationSeconds: number
 ): Promise<TrialValidationResult> {
   const audioDurationMinutes = audioDurationSeconds / 60;
-  const today = getToday();
   
   console.log(`[trialValidation] Checking user ${userId} for ${audioDurationMinutes.toFixed(2)} minutes`);
   
   try {
-    const { data: summaries, error } = await supabaseAdmin
-      .from('summaries')
-      .select('audio_duration, created_at')
-      .eq('user_id', userId);
-    
-    if (error) {
-      console.error('[trialValidation] Error querying summaries:', error);
-      return {
-        allowed: true,
-        totalMinutesUsed: 0,
-        dailyMinutesUsed: 0,
-        minutesRemaining: TRIAL_LIMITS.MAX_AUDIO_MINUTES,
-        dailyMinutesRemaining: TRIAL_LIMITS.DAILY_LIMIT_MINUTES,
-      };
-    }
-    
-    let totalMinutesUsed = 0;
-    let dailyMinutesUsed = 0;
-    let firstUseDateStr: string | null = null;
-    
-    for (const summary of summaries || []) {
-      const durationSeconds = summary.audio_duration || 0;
-      const durationMinutes = durationSeconds / 60;
-      
-      totalMinutesUsed += durationMinutes;
-      
-      const createdDate = summary.created_at?.split('T')[0];
-      if (createdDate === today) {
-        dailyMinutesUsed += durationMinutes;
-      }
-      
-      if (summary.created_at) {
-        if (!firstUseDateStr || summary.created_at < firstUseDateStr) {
-          firstUseDateStr = summary.created_at;
-        }
-      }
-    }
+    const totalMinutesUsed = db.getTotalUsage(userId);
+    const todayUsage = db.getTodayUsage(userId);
+    const dailyMinutesUsed = todayUsage?.minutes_used || 0;
+    const firstUseDateStr = db.getFirstUsageDate(userId);
     
     console.log(`[trialValidation] Usage - Total: ${totalMinutesUsed.toFixed(2)} min, Today: ${dailyMinutesUsed.toFixed(2)} min, FirstUse: ${firstUseDateStr || 'new user'}`);
     

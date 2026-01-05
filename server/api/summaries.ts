@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { supabaseAdmin } from "../supabase-admin";
+import * as db from "../db";
 
 export async function getSummaries(req: Request, res: Response) {
   try {
@@ -9,19 +9,8 @@ export async function getSummaries(req: Request, res: Response) {
       return res.status(400).json({ error: "User ID is required" });
     }
 
-    // Fetch summaries for the authenticated user only
-    const { data: summaries, error } = await supabaseAdmin
-      .from('summaries')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching summaries:', error);
-      return res.status(500).json({ error: "Failed to fetch summaries" });
-    }
-
-    res.json({ summaries: summaries || [] });
+    const summaries = db.getSummaries(userId);
+    res.json({ summaries });
   } catch (error) {
     console.error('Error in getSummaries:', error);
     res.status(500).json({ error: "Internal server error" });
@@ -37,15 +26,9 @@ export async function getSummaryById(req: Request, res: Response) {
       return res.status(400).json({ error: "User ID is required" });
     }
 
-    // Fetch summary and verify ownership
-    const { data: summary, error } = await supabaseAdmin
-      .from('summaries')
-      .select('*')
-      .eq('id', id)
-      .eq('user_id', userId)
-      .single();
+    const summary = db.getSummaryById(id, userId);
 
-    if (error || !summary) {
+    if (!summary) {
       return res.status(404).json({ error: "Summary not found" });
     }
 
@@ -65,16 +48,10 @@ export async function deleteSummary(req: Request, res: Response) {
       return res.status(400).json({ error: "User ID is required" });
     }
 
-    // Delete summary only if user owns it
-    const { error } = await supabaseAdmin
-      .from('summaries')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
+    const deleted = db.deleteSummary(id, userId);
 
-    if (error) {
-      console.error('Error deleting summary:', error);
-      return res.status(500).json({ error: "Failed to delete summary" });
+    if (!deleted) {
+      return res.status(404).json({ error: "Summary not found" });
     }
 
     res.json({ success: true });

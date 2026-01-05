@@ -6,13 +6,13 @@ import { transcribeAudio } from "./openai";
 import { summarizeWithGrok } from "./services/summarizeWithGrok";
 import { validateAndGetDuration } from "./utils/audioDuration";
 import { validateTrialUsage } from "./utils/trialValidation";
-import { supabaseAdmin } from "./supabase-admin";
+import * as db from "./db";
 import { createGuestSession } from "./api/guest-session";
 import { saveSummary } from "./api/save-summary";
 import { getSummaries, getSummaryById, deleteSummary } from "./api/summaries";
 import { migrateGuest } from "./api/migrate-guest";
 import { getTrialStatus } from "./api/trial-status";
-import { upsertUser, getUserSettings, updateUserSettings } from "./api/user";
+import { getUser, upsertUser, getUserSettings, updateUserSettings } from "./api/user";
 import { handleCreateCheckout } from "./api/chargily-checkout";
 import { handleChargilyWebhook } from "./api/chargily-webhook";
 
@@ -48,6 +48,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/trial-status", getTrialStatus);
   
   // User management endpoints
+  app.get("/api/user", getUser);
   app.post("/api/user/upsert", upsertUser);
   app.get("/api/user/settings", getUserSettings);
   app.post("/api/user/settings", updateUserSettings);
@@ -297,30 +298,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       try {
         console.log(`[DB] Inserting summary for user ${userId}...`);
-        const result = await supabaseAdmin
-          .from('summaries')
-          .insert({
-            user_id: userId,
-            title,
-            content: grokResult.summary,
-            transcript: transcription,
-            key_points: grokResult.keyPoints || [],
-            language,
-            audio_duration: audioDuration,
-          })
-          .select()
-          .single();
+        savedSummary = db.saveSummary({
+          userId,
+          title,
+          content: grokResult.summary,
+          transcript: transcription,
+          keyPoints: grokResult.keyPoints || [],
+          language,
+          audioDuration: audioDuration,
+        });
         
-        savedSummary = result.data;
-        saveError = result.error;
+        db.recordUsage(userId, audioDuration / 60);
         
         timings.dbSave = Date.now() - dbSaveStart;
-        
-        if (saveError) {
-          console.error(`[TIMING] Database save FAILED (${timings.dbSave}ms):`, saveError);
-        } else {
-          console.log(`[TIMING] Database save DONE: ${timings.dbSave}ms | ID: ${savedSummary?.id}`);
-        }
+        console.log(`[TIMING] Database save DONE: ${timings.dbSave}ms | ID: ${savedSummary?.id}`);
       } catch (dbError: any) {
         timings.dbSave = Date.now() - dbSaveStart;
         console.error(`[TIMING] Database save ERROR (${timings.dbSave}ms):`, dbError.message);

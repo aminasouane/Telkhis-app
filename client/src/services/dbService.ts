@@ -1,7 +1,5 @@
-import { supabase } from "@/lib/supabaseClient";
 import type { Language } from "@shared/schema";
 
-// Types for database operations
 export interface UserData {
   id: string;
   email: string | null;
@@ -22,7 +20,7 @@ export interface SummaryData {
   language: Language;
   shared?: boolean;
   created_at?: string;
-  audio_duration?: number; // Duration in seconds
+  audio_duration?: number;
 }
 
 export interface SubscriptionData {
@@ -45,32 +43,18 @@ export interface UserSettings {
   notifications_enabled: boolean;
 }
 
-/**
- * Get user data by ID
- */
 export async function getUserData(userId: string): Promise<UserData | null> {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    if (error) {
-      console.error('Error fetching user data:', error);
-      return null;
-    }
-
-    return data;
+    const response = await fetch(`/api/user?userId=${userId}`);
+    if (!response.ok) return null;
+    const { user } = await response.json();
+    return user;
   } catch (error) {
     console.error('Error in getUserData:', error);
     return null;
   }
 }
 
-/**
- * Create or update user data via backend API
- */
 export async function upsertUser(userId: string, email: string, name?: string): Promise<UserData | null> {
   try {
     const response = await fetch('/api/user/upsert', {
@@ -94,10 +78,6 @@ export async function upsertUser(userId: string, email: string, name?: string): 
   }
 }
 
-/**
- * Save a new summary to the database via backend API
- * This ensures server-side trial validation and authoritative usage tracking
- */
 export async function saveSummary(summaryData: SummaryData & { processedAt?: string }): Promise<SummaryData | null> {
   try {
     const response = await fetch('/api/save-summary', {
@@ -112,16 +92,14 @@ export async function saveSummary(summaryData: SummaryData & { processedAt?: str
         transcript: summaryData.transcript,
         keyPoints: summaryData.key_points,
         language: summaryData.language,
-        audioDuration: summaryData.audio_duration, // Duration in seconds
-        processedAt: summaryData.processedAt, // ISO timestamp from server
+        audioDuration: summaryData.audio_duration,
+        processedAt: summaryData.processedAt,
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Error saving summary:', errorData);
-      
-      // Re-throw with error details for the caller to handle
       throw new Error(errorData.message || errorData.error || 'Failed to save summary');
     }
 
@@ -133,9 +111,6 @@ export async function saveSummary(summaryData: SummaryData & { processedAt?: str
   }
 }
 
-/**
- * Get all summaries for a user via backend API
- */
 export async function getSummaries(userId: string): Promise<SummaryData[]> {
   try {
     const response = await fetch(`/api/summaries?userId=${userId}`);
@@ -153,9 +128,6 @@ export async function getSummaries(userId: string): Promise<SummaryData[]> {
   }
 }
 
-/**
- * Get a single summary by ID via backend API (only if owned by user)
- */
 export async function getSummaryById(summaryId: string, userId: string): Promise<SummaryData | null> {
   try {
     const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`);
@@ -173,9 +145,6 @@ export async function getSummaryById(summaryId: string, userId: string): Promise
   }
 }
 
-/**
- * Delete a summary via backend API (only if owned by user)
- */
 export async function deleteSummary(summaryId: string, userId: string): Promise<boolean> {
   try {
     const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`, {
@@ -194,83 +163,32 @@ export async function deleteSummary(summaryId: string, userId: string): Promise<
   }
 }
 
-/**
- * Get user's active subscription
- */
 export async function getUserSubscription(userId: string): Promise<SubscriptionData | null> {
   try {
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-      console.error('Error fetching subscription:', error);
+    const response = await fetch(`/api/payment/latest?userId=${userId}`);
+    
+    if (!response.ok) {
+      console.error('Failed to fetch subscription');
       return null;
     }
 
-    return data || null;
+    const { payment } = await response.json();
+    return payment || null;
   } catch (error) {
     console.error('Error in getUserSubscription:', error);
     return null;
   }
 }
 
-/**
- * Update user's subscription
- */
 export async function updateSubscription(
   userId: string, 
   planName: string, 
   endDate?: string
 ): Promise<SubscriptionData | null> {
-  try {
-    // First, cancel any existing active subscriptions
-    await supabase
-      .from('subscriptions')
-      .update({ status: 'cancelled' })
-      .eq('user_id', userId)
-      .eq('status', 'active');
-
-    // Create new subscription
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .insert({
-        user_id: userId,
-        plan_name: planName,
-        status: 'active',
-        start_date: new Date().toISOString(),
-        end_date: endDate || null
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating subscription:', error);
-      return null;
-    }
-
-    // Update user's subscription_type
-    const subscriptionType = planName.toLowerCase().replace(' ', '_') as 'free' | 'premium' | 'pro_plus';
-    await supabase
-      .from('users')
-      .update({ subscription_type: subscriptionType })
-      .eq('id', userId);
-
-    return data;
-  } catch (error) {
-    console.error('Error in updateSubscription:', error);
-    return null;
-  }
+  console.warn('updateSubscription: Direct subscription updates are handled by payment webhooks');
+  return null;
 }
 
-/**
- * Get user settings via backend API
- */
 export async function getUserSettings(userId: string): Promise<UserSettings | null> {
   try {
     const response = await fetch(`/api/user/settings?userId=${userId}`);
@@ -288,9 +206,6 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
   }
 }
 
-/**
- * Update user settings via backend API
- */
 export async function updateUserSettings(settings: UserSettings): Promise<UserSettings | null> {
   try {
     const response = await fetch('/api/user/settings', {

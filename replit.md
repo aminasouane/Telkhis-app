@@ -37,8 +37,8 @@ The frontend is built with React, TypeScript, and Vite, utilizing Radix UI with 
 - **Payment Flow**: Users select a plan, the frontend requests a direct payment link from the backend, redirecting the user to Chargily. Post-payment, Chargily webhooks update the subscription status, activating a permanent subscription.
 
 ### System Design Choices
-- **Database**: PostgreSQL (Neon serverless) with Drizzle ORM, managed primarily through Supabase. Tables include `users`, `subscriptions`, `summaries`, `settings`, and `payments`.
-- **Authentication**: Supabase Auth for user authentication and session management.
+- **Database**: SQLite (better-sqlite3) for simplified MVP architecture. Tables include `users`, `subscriptions`, `summaries`, `settings`, and `usage`. Database file stored at `data/database.sqlite`.
+- **Authentication**: Simplified userId-based authentication for MVP (no external auth provider). Users are identified by auto-generated UUIDs stored in localStorage.
 - **Payment Integration**: Chargily Pay is integrated for processing subscription payments in Algeria, supporting various local payment methods.
 
 ## External Dependencies
@@ -51,8 +51,7 @@ The frontend is built with React, TypeScript, and Vite, utilizing Radix UI with 
 - **Grok API (xAI)**: Utilizes the `grok-3` model via an OpenAI SDK compatibility layer for text summarization and key point extraction, supporting multiple languages with specific prompts.
 
 ### Database Services
-- **Neon Database**: Serverless PostgreSQL.
-- **Supabase**: Provides PostgreSQL database, authentication, and storage.
+- **SQLite**: Local file-based database using better-sqlite3. Simple, serverless, and self-contained for MVP. Located at `data/database.sqlite`.
 
 ### Frontend Libraries/APIs
 - **Media Recording API**: For native audio capture.

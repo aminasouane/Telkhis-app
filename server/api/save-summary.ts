@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
-import { supabaseAdmin } from "../supabase-admin";
+import * as db from "../db";
 import { checkTrialStatus, incrementTrialMinutes } from "../middleware/trialGuard";
+import { TRIAL_LIMITS } from "../../shared/trial";
 
 interface SaveSummaryRequest {
   userId: string;
@@ -8,22 +9,19 @@ interface SaveSummaryRequest {
   content: string;
   transcript: string;
   keyPoints: string[];
-  language: 'ar' | 'fr' | 'dz';
-  audioDuration?: number; // في ثواني (seconds)
-  processedAt?: string; // ISO timestamp from /api/process-audio
+  language: 'ar' | 'fr' | 'en' | 'dz';
+  audioDuration?: number;
+  processedAt?: string;
 }
 
 export async function saveSummary(req: Request, res: Response) {
   try {
     const { userId, title, content, transcript, keyPoints, language, audioDuration, processedAt } = req.body as SaveSummaryRequest;
 
-    // Validate required fields
     if (!userId || !content || !language) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Validate audio duration
-    // Accept 0 for very short clips, but reject null/undefined/negative values
     if (audioDuration === null || audioDuration === undefined || typeof audioDuration !== 'number' || audioDuration < 0) {
       return res.status(400).json({ 
         error: "Missing or invalid audio duration",
@@ -31,7 +29,6 @@ export async function saveSummary(req: Request, res: Response) {
       });
     }
 
-    // REQUIRED: Freshness check to prevent replay attacks
     if (!processedAt || typeof processedAt !== 'string') {
       return res.status(400).json({
         error: "Missing processing timestamp",
@@ -39,7 +36,6 @@ export async function saveSummary(req: Request, res: Response) {
       });
     }
 
-    // Validate timestamp is recent (within last 5 minutes)
     try {
       const processedTime = new Date(processedAt).getTime();
       
@@ -60,8 +56,7 @@ export async function saveSummary(req: Request, res: Response) {
         });
       }
       
-      // Also reject future timestamps (clock skew protection)
-      if (processedTime > now + 60000) { // Allow 1 minute clock skew
+      if (processedTime > now + 60000) {
         return res.status(403).json({
           error: "Invalid timestamp",
           message: "الطابع الزمني غير صالح"
@@ -74,11 +69,8 @@ export async function saveSummary(req: Request, res: Response) {
       });
     }
 
-    // Sanity check: transcript length should correlate with duration
-    // Very rough heuristic: ~2-4 words per second for typical speech
-    // If duration is long but transcript is suspiciously short, reject it
     const wordCount = transcript.trim().split(/\s+/).length;
-    const expectedMinWords = Math.max(1, Math.floor(audioDuration * 1.5)); // 1.5 words/sec minimum
+    const expectedMinWords = Math.max(1, Math.floor(audioDuration * 1.5));
     
     if (wordCount < expectedMinWords && audioDuration > 10) {
       return res.status(403).json({
@@ -87,22 +79,18 @@ export async function saveSummary(req: Request, res: Response) {
       });
     }
 
-    // Check trial status BEFORE saving (enforced server-side)
     const trialStatus = await checkTrialStatus(userId);
     
-    // Check if trial has expired (30 minutes used)
     if (trialStatus.isExpired) {
       return res.status(403).json({ 
         error: "Trial expired",
-        message: "انتهت التجربة المجانية (30 دقيقة). يرجى الاشتراك لمتابعة الاستخدام.",
+        message: "انتهت التجربة المجانية. يرجى الاشتراك لمتابعة الاستخدام.",
         trialStatus 
       });
     }
 
-    // Convert audio duration from seconds to minutes (rounded to 2 decimals)
     const audioMinutes = Math.round((audioDuration / 60) * 100) / 100;
 
-    // Check if this summary would exceed trial limit
     if (trialStatus.minutesUsed + audioMinutes > trialStatus.minutesLimit) {
       return res.status(403).json({ 
         error: "Trial limit exceeded",
@@ -113,39 +101,28 @@ export async function saveSummary(req: Request, res: Response) {
       });
     }
 
-    // Use PostgreSQL transaction for atomicity
-    // First, save the summary
-    const { data: summary, error: summaryError } = await supabaseAdmin
-      .from('summaries')
-      .insert({
-        user_id: userId,
-        title: title || content.split(' ').slice(0, 5).join(' ') + '...',
-        content,
-        transcript: transcript || '',
-        key_points: keyPoints || [],
-        language,
-        audio_duration: audioDuration || null
-      })
-      .select()
-      .single();
-
-    if (summaryError) {
-      console.error('Error saving summary:', summaryError);
-      return res.status(500).json({ error: "Failed to save summary" });
+    if (trialStatus.dailyMinutesUsed + audioMinutes > trialStatus.dailyLimit) {
+      return res.status(403).json({ 
+        error: "Daily limit exceeded",
+        code: "TRIAL_DAILY_LIMIT_REACHED",
+        message: `وصلت للحد اليومي (${TRIAL_LIMITS.DAILY_LIMIT_MINUTES} دقيقة). يرجى المحاولة غداً.`,
+        trialStatus,
+        audioMinutes
+      });
     }
 
-    // Atomically increment trial minutes (will fail if concurrent updates)
-    const { error: incrementError } = await supabaseAdmin.rpc('increment_trial_minutes', {
-      p_user_id: userId,
-      p_minutes: audioMinutes
+    const summary = db.saveSummary({
+      userId,
+      title: title || content.split(' ').slice(0, 5).join(' ') + '...',
+      content,
+      transcript: transcript || '',
+      keyPoints: keyPoints || [],
+      language,
+      audioDuration: audioDuration || undefined
     });
 
-    // If RPC doesn't exist, fall back to manual update
-    if (incrementError) {
-      await incrementTrialMinutes(userId, audioMinutes);
-    }
+    await incrementTrialMinutes(userId, audioMinutes);
 
-    // Get updated trial status
     const updatedTrialStatus = await checkTrialStatus(userId);
 
     res.json({
