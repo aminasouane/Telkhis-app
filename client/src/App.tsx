@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,6 +8,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import { AuthProvider } from "@/components/AuthProvider";
 import { SubscriptionProvider } from "@/components/SubscriptionProvider";
+import { initializeTrialSync } from "@/services/trialSyncService";
 import Home from "@/pages/Home";
 import HistoryScreen from "@/pages/HistoryScreen";
 import Subscribe from "@/pages/Subscribe";
@@ -36,6 +38,18 @@ function Router() {
 }
 
 function App() {
+  const [trialSynced, setTrialSynced] = useState(false);
+
+  useEffect(() => {
+    initializeTrialSync().then(() => {
+      setTrialSynced(true);
+      console.log('[App] Trial sync completed');
+    }).catch((err) => {
+      console.error('[App] Trial sync failed:', err);
+      setTrialSynced(true);
+    });
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
