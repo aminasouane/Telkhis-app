@@ -46,7 +46,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/summaries/:id", deleteSummary);
   app.post("/api/migrate-guest", migrateGuest);
   app.get("/api/trial-status", getTrialStatus);
-  
+
   // User management endpoints
   app.get("/api/user", getUser);
   app.post("/api/user/upsert", upsertUser);
@@ -65,7 +65,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chargily Pay endpoints (with authentication)
   const { requireAuth } = await import("./middleware/auth");
   app.post("/api/chargily/create-checkout", requireAuth, handleCreateCheckout);
-  
+
   // Webhook endpoint with raw body capture for signature verification
   app.post(
     "/api/chargily/webhook",
@@ -122,7 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const file = (req as any).file;
       const language = req.body.language || "ar";
       const audioDuration = req.body.audioDuration ? parseFloat(req.body.audioDuration) : null;
-      
+
       if (!file) {
         return res.status(400).json({ error: "No audio file provided" });
       }
@@ -176,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Error in live processing:", error);
-      
+
       // Return empty response on error to not break recording
       res.json({
         transcription: "",
@@ -191,17 +191,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/process-audio", upload.single("audio"), async (req: Request, res) => {
     const startTime = Date.now();
     const timings: Record<string, number> = {};
-    
+
     console.log('[TIMING] /api/process-audio START');
     try {
       const file = (req as any).file;
       const language = req.body.language || "ar"; // Default to Arabic
       const clientDuration = req.body.audioDuration ? parseFloat(req.body.audioDuration) : null;
       const userId = req.body.userId || req.headers['x-user-id'] as string;
-      
+
       timings.upload = Date.now() - startTime;
       console.log(`[TIMING] Upload received: ${timings.upload}ms | File: ${file?.originalname}, Size: ${file?.size || 0}`);
-      
+
       if (!file) {
         console.log('[FLOW] ERROR: No audio file provided');
         return res.status(400).json({ error: "No audio file provided" });
@@ -209,7 +209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // REQUIRED: userId must be present for trial validation - prevents bypass
       if (!userId) {
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: "User ID required",
           errorCode: "UNAUTHORIZED",
           message: "يجب تسجيل الدخول لاستخدام هذه الخدمة"
@@ -229,7 +229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         clientDuration
       );
       const audioDuration = durationResult.duration;
-      
+
       console.log(`[process-audio] Duration: ${audioDuration.toFixed(2)}s (source: ${durationResult.source})`);
 
       // Enforce 5-minute duration limit using server-validated duration
@@ -246,14 +246,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // MVP RULE: Current operation ALWAYS completes - blocking only affects NEXT attempt
       // The recording has already started, so we MUST process it and return results
       const trialValidation = await validateTrialUsage(userId, audioDuration);
-      
+
       // Log current status but DO NOT BLOCK - user has already started recording
       if (!trialValidation.allowed) {
         console.log(`[process-audio] User ${userId} at limit (${trialValidation.errorCode}) - but completing current operation`);
       } else {
         console.log(`[process-audio] User ${userId} trial OK. Usage: total=${trialValidation.totalMinutesUsed.toFixed(2)}min, today=${trialValidation.dailyMinutesUsed.toFixed(2)}min`);
       }
-      
+
       // Store current limit status to include in response (for client to show appropriate UI after completion)
       const wasAtLimit = !trialValidation.allowed;
       const limitReason = trialValidation.errorCode;
@@ -287,15 +287,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[TIMING] Grok summarization DONE: ${timings.summarization}ms | ${grokResult.summary?.length || 0} chars`);
 
       const processedAt = new Date().toISOString();
-      
+
       // Step 3: Save summary to database (non-blocking - user gets result even if save fails)
       const dbSaveStart = Date.now();
       console.log(`[TIMING] Database save START`);
       const title = grokResult.summary.split(' ').slice(0, 5).join(' ') + '...';
-      
+
       let savedSummary = null;
       let saveError = null;
-      
+
       try {
         console.log(`[DB] Inserting summary for user ${userId}...`);
         savedSummary = db.saveSummary({
@@ -307,29 +307,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           language,
           audioDuration: audioDuration,
         });
-        
+
         db.recordUsage(userId, audioDuration / 60);
-        
+
         timings.dbSave = Date.now() - dbSaveStart;
         console.log(`[TIMING] Database save DONE: ${timings.dbSave}ms | ID: ${savedSummary?.id}`);
       } catch (dbError: any) {
         timings.dbSave = Date.now() - dbSaveStart;
         console.error(`[TIMING] Database save ERROR (${timings.dbSave}ms):`, dbError.message);
       }
-      
+
       // ALWAYS return summary to user, even if save failed
 
       // Calculate post-save usage to inform client about NEXT attempt
       const audioDurationMinutes = audioDuration / 60;
       const newDailyUsage = trialValidation.dailyMinutesUsed + audioDurationMinutes;
       const newDailyRemaining = Math.max(0, 30 - newDailyUsage); // 30 min daily limit
-      
+
       // Determine if next attempt will be blocked (daily limit OR trial expiry)
       const isDailyLimitReached = newDailyRemaining <= 0;
       const isTrialExpired = limitReason === "TRIAL_DAYS_EXPIRED";
       const nextBlocked = isDailyLimitReached || isTrialExpired;
       const nextBlockReason = isTrialExpired ? "days_expired" : (isDailyLimitReached ? "daily_limit" : null);
-      
+
       // Return results with server-validated duration (authoritative for usage tracking)
       // Include trial info so client can show appropriate modals for NEXT attempt
       const responsePayload = {
@@ -351,7 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           nextBlockReason, // Reason for next block: 'daily_limit' or 'days_expired'
         },
       };
-      
+
       timings.total = Date.now() - startTime;
       console.log(`[TIMING] ====== PERFORMANCE SUMMARY ======`);
       console.log(`[TIMING] Upload:        ${timings.upload}ms`);
@@ -359,22 +359,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[TIMING] Summarization: ${timings.summarization}ms`);
       console.log(`[TIMING] Total:         ${timings.total}ms`);
       console.log(`[TIMING] ==================================`);
-      
+
       // Include timings in response for client debugging
       res.json({ ...responsePayload, _timings: timings });
       console.log(`[TIMING] Response sent`);
     } catch (error: any) {
       console.error("FINAL_SUMMARY: ERROR in processing:", error);
-      
+
       // ALWAYS return a response - never leave client hanging
       const errorResponse = {
         error: error.message || "Failed to process audio",
-        errorCode: error.message?.includes("OPENAI_API_KEY") ? "API_KEY_MISSING" : "PROCESSING_ERROR",
+        errorCode: error.message?.includes("XAI_API_KEY") ? "API_KEY_MISSING" : "PROCESSING_ERROR",
         transcription: "",
         summary: "",
         keyPoints: [],
       };
-      
+
       console.log(`FINAL_SUMMARY: sending error response`);
       return res.status(500).json(errorResponse);
     }

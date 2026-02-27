@@ -18,7 +18,7 @@ export async function transcribeAudio(
 ): Promise<string> {
   console.log(`[transcribeAudio] Using whisper.cpp for transcription`);
   console.log(`[transcribeAudio] File: ${filename}, Language: ${language}`);
-  
+
   const transcription = await transcribeWithWhisperCpp(audioBuffer, filename, language);
   return transcription;
 }
