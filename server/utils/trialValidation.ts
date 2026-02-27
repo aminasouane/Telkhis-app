@@ -1,8 +1,7 @@
 import * as db from "../db";
-import { 
-  TRIAL_LIMITS, 
+import {
+  TRIAL_LIMITS,
   checkTrialStatus,
-  getTodayDateString as getToday
 } from "../../shared/trial";
 
 export interface TrialValidationResult {
@@ -20,26 +19,26 @@ export async function validateTrialUsage(
   audioDurationSeconds: number
 ): Promise<TrialValidationResult> {
   const audioDurationMinutes = audioDurationSeconds / 60;
-  
+
   console.log(`[trialValidation] Checking user ${userId} for ${audioDurationMinutes.toFixed(2)} minutes`);
-  
+
   try {
-    const totalMinutesUsed = db.getTotalUsage(userId);
-    const todayUsage = db.getTodayUsage(userId);
+    const totalMinutesUsed = await db.getTotalUsage(userId);
+    const todayUsage = await db.getTodayUsage(userId);
     const dailyMinutesUsed = todayUsage?.minutes_used || 0;
-    const firstUseDateStr = db.getFirstUsageDate(userId);
-    
+    const firstUseDateStr = await db.getFirstUsageDate(userId);
+
     console.log(`[trialValidation] Usage - Total: ${totalMinutesUsed.toFixed(2)} min, Today: ${dailyMinutesUsed.toFixed(2)} min, FirstUse: ${firstUseDateStr || 'new user'}`);
-    
+
     const totalMinutesRemaining = Math.max(0, TRIAL_LIMITS.MAX_AUDIO_MINUTES - totalMinutesUsed);
     const dailyMinutesRemaining = Math.max(0, TRIAL_LIMITS.DAILY_LIMIT_MINUTES - dailyMinutesUsed);
-    
+
     const trialCheck = checkTrialStatus({
       firstUseDateStr,
       totalMinutesUsed,
       dailyMinutesUsed,
     });
-    
+
     if (!trialCheck.allowed) {
       console.log(`[trialValidation] BLOCKED: ${trialCheck.errorCode} - ${trialCheck.reason}`);
       return {
@@ -52,7 +51,7 @@ export async function validateTrialUsage(
         dailyMinutesRemaining: 0,
       };
     }
-    
+
     return {
       allowed: true,
       totalMinutesUsed,
@@ -60,7 +59,7 @@ export async function validateTrialUsage(
       minutesRemaining: totalMinutesRemaining,
       dailyMinutesRemaining,
     };
-    
+
   } catch (err) {
     console.error('[trialValidation] Unexpected error:', err);
     return {

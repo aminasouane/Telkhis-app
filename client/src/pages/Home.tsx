@@ -26,8 +26,8 @@ import { History, Loader2, Globe, ArrowLeft } from "lucide-react";
 import { getSummaryById } from "@/services/dbService";
 import { useSubscription } from "@/components/SubscriptionProvider";
 import { getAudioDuration } from "@/utils/audioUtils";
-import { 
-  SUPPORTED_LANGUAGES, 
+import {
+  SUPPORTED_LANGUAGES,
   type Language as LanguageConfig
 } from "@shared/languages";
 
@@ -66,34 +66,34 @@ function logTrialCheck(
 // - 210 minutes total limit
 // ============================================================
 
-import { 
+import {
   checkTrialStatus as checkTrialStatusShared,
   type BlockReason
 } from "@shared/trial";
 
-function canStartNewSummary(userId: string): { 
-  allowed: boolean; 
+function canStartNewSummary(userId: string): {
+  allowed: boolean;
   blockReason: BlockReason;
   status: TrialStatus;
 } {
   const status = getTrialStatus(userId);
   const data = getTrialData(userId);
-  
+
   // Log at before_start stage
   logTrialCheck('before_start', status);
-  
+
   // Use shared validation logic
   const check = checkTrialStatusShared({
     firstUseDateStr: data?.firstUseDate || null,
     totalMinutesUsed: status.minutesUsed,
     dailyMinutesUsed: status.dailyMinutesUsed,
   });
-  
+
   if (!check.allowed) {
     console.log(`[canStartNewSummary] BLOCKED: ${check.blockReason} - ${check.reason}`);
     return { allowed: false, blockReason: check.blockReason, status };
   }
-  
+
   console.log('[canStartNewSummary] ALLOWED: Trial active');
   return { allowed: true, blockReason: null, status };
 }
@@ -112,19 +112,19 @@ interface ProcessingResult {
 // WELCOME SCREEN COMPONENT
 // Shows summary language selection - UI always in Arabic
 // ============================================================
-function WelcomeScreen({ 
-  onComplete, 
-  selectedLanguage, 
-  onLanguageChange 
-}: { 
+function WelcomeScreen({
+  onComplete,
+  selectedLanguage,
+  onLanguageChange
+}: {
   onComplete: () => void;
   selectedLanguage: string;
   onLanguageChange: (lang: string) => void;
 }) {
   // UI is always in Arabic (RTL), only summary output uses selectedLanguage
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 p-4" 
+    <div
+      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 p-4"
       dir="rtl"
     >
       <Card className="w-full max-w-md">
@@ -149,26 +149,25 @@ function WelcomeScreen({
               <Globe className="h-4 w-4 text-primary" />
               اختر لغة التلخيص
             </Label>
-            
-            <RadioGroup 
-              value={selectedLanguage} 
+
+            <RadioGroup
+              value={selectedLanguage}
               onValueChange={onLanguageChange}
               className="grid gap-2"
             >
               {SUPPORTED_LANGUAGES.map((lang: LanguageConfig) => (
-                <div 
+                <div
                   key={lang.code}
-                  className={`flex items-center space-x-3 space-x-reverse rounded-lg border p-3 cursor-pointer transition-colors hover-elevate ${
-                    selectedLanguage === lang.code 
-                      ? 'border-primary bg-primary/5' 
-                      : 'border-border'
-                  }`}
+                  className={`flex items-center space-x-3 space-x-reverse rounded-lg border p-3 cursor-pointer transition-colors hover-elevate ${selectedLanguage === lang.code
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border'
+                    }`}
                   onClick={() => onLanguageChange(lang.code)}
                   data-testid={`radio-language-${lang.code}`}
                 >
                   <RadioGroupItem value={lang.code} id={`welcome-${lang.code}`} />
-                  <Label 
-                    htmlFor={`welcome-${lang.code}`} 
+                  <Label
+                    htmlFor={`welcome-${lang.code}`}
                     className="flex-1 cursor-pointer flex justify-between items-center"
                   >
                     <span className="font-medium">{lang.nativeName}</span>
@@ -201,7 +200,7 @@ function WelcomeScreen({
 
 export default function Home() {
   const [, navigate] = useLocation();
-  const { appUserId, loading: authLoading } = useAuth();
+  const { appUserId, loading: authLoading, isAuthenticated, showAuthModal, session } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<ProcessingResult | null>(null);
   const [liveResult, setLiveResult] = useState<ProcessingResult | null>(null);
@@ -215,23 +214,7 @@ export default function Home() {
   const { language, setLanguage } = useLanguage();
   const { recordUsage, refreshState } = useSubscription();
 
-  // Welcome screen state - ALWAYS show on every visit
-  // User must select language before accessing the app each time
-  const [showWelcome, setShowWelcome] = useState(true);
-
   const currentUserId = appUserId;
-
-  // Handle welcome screen completion - only save language, don't persist welcome state
-  const handleWelcomeComplete = () => {
-    localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
-    setShowWelcome(false);
-  };
-
-  // Handle language change from welcome screen
-  const handleWelcomeLanguageChange = (newLang: string) => {
-    setLanguage(newLang as Language);
-    localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
-  };
 
   // NOTE: We intentionally do NOT redirect when trial expires.
   // The user can still use the app, but the summarize ACTION will be blocked.
@@ -239,12 +222,12 @@ export default function Home() {
 
   // Load summary from URL parameter - must be before any early returns to follow React hooks rules
   useEffect(() => {
-    if (!currentUserId || showWelcome) return;
-    
+    if (!currentUserId) return;
+
     const params = new URLSearchParams(window.location.search);
     const summaryId = params.get('summary');
     const shouldPrint = params.get('print') === 'true';
-    
+
     if (summaryId) {
       getSummaryById(summaryId, currentUserId).then((summary) => {
         if (summary) {
@@ -271,21 +254,10 @@ export default function Home() {
         }
       });
     }
-  }, [currentUserId, navigate, toast, showWelcome]);
+  }, [currentUserId, navigate, toast]);
 
-  // Show welcome screen for first-time users (after all hooks are called)
-  if (showWelcome) {
-    return (
-      <WelcomeScreen 
-        onComplete={handleWelcomeComplete}
-        selectedLanguage={language}
-        onLanguageChange={handleWelcomeLanguageChange}
-      />
-    );
-  }
-
-  // Show loading while checking auth
-  if (authLoading || !currentUserId) {
+  // Show loading only while auth is resolving
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -303,12 +275,22 @@ export default function Home() {
     // The current operation is always allowed to complete.
     // Server-side validation handles limit enforcement.
     // Blocking for NEXT attempt happens after processing completes.
-    
+
     console.log('[FLOW] processAudio START - sending audio to server');
     console.log(`[FLOW] Audio size: ${audioBlob.size} bytes, duration: ${audioDuration}s`);
-    
+
+    // Client-side pre-check: warn before upload if duration known and exceeds 45 min
+    if (audioDuration && audioDuration > 2700) {
+      toast({
+        title: "⏱️ مدة التسجيل طويلة جداً",
+        description: `الحد الأقصى لكل جلسة هو 45 دقيقة. مدة ملفك: ${Math.ceil(audioDuration / 60)} دقيقة. يُرجى تقسيم التسجيل لأجزاء أصغر.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsProcessing(true);
-    
+
     try {
       const formData = new FormData();
       formData.append("audio", audioBlob, filename);
@@ -316,28 +298,34 @@ export default function Home() {
       if (audioDuration) {
         formData.append("audioDuration", audioDuration.toString());
       }
-      // Send userId for server-side trial validation
       if (currentUserId) {
         formData.append("userId", currentUserId);
+      }
+
+      // Build auth headers
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
       }
 
       console.log('[FLOW] Sending fetch request to /api/process-audio...');
       const response = await fetch("/api/process-audio", {
         method: "POST",
+        headers,
         body: formData,
       });
       console.log(`[FLOW] Received response: status=${response.status}, ok=${response.ok}`);
 
       if (!response.ok) {
         const errorData = await response.json();
-        
+
         // Handle server-side trial validation errors
         if (errorData.errorCode) {
           console.log(`[processAudio] Server rejected: ${errorData.errorCode}`);
-          
+
           // Refresh local state to sync with server
           refreshState();
-          
+
           // Show daily limit modal
           if (errorData.errorCode === "TRIAL_DAILY_LIMIT_REACHED") {
             const status = getUserStatus(currentUserId!);
@@ -350,23 +338,34 @@ export default function Home() {
             setIsProcessing(false);
             return;
           }
-          
+
           // Show trial expired modal for total limit or days expired
-          if (errorData.errorCode === "TRIAL_TOTAL_LIMIT_REACHED" || 
-              errorData.errorCode === "TRIAL_DAYS_EXPIRED" ||
-              errorData.errorCode === "TRIAL_EXHAUSTED") {
+          if (errorData.errorCode === "TRIAL_TOTAL_LIMIT_REACHED" ||
+            errorData.errorCode === "TRIAL_DAYS_EXPIRED" ||
+            errorData.errorCode === "TRIAL_EXHAUSTED") {
             setTrialStatusForModal(getTrialStatus(currentUserId!));
             setShowTrialExpiredModal(true);
             setIsProcessing(false);
             return;
           }
         }
-        
+
+        // Show friendly message for duration limit
+        if (errorData.errorCode === "DURATION_EXCEEDED") {
+          toast({
+            title: "⏱️ مدة التسجيل طويلة جداً",
+            description: `الحد الأقصى لكل جلسة هو 45 دقيقة. مدة ملفك: ${Math.ceil((errorData.duration || 0) / 60)} دقيقة. يُرجى تقسيم التسجيل لأجزاء أصغر.`,
+            variant: "destructive",
+          });
+          setIsProcessing(false);
+          return;
+        }
+
         throw new Error(errorData.error || "فشلت معالجة الملف الصوتي");
       }
 
       const data = await response.json();
-      
+
       // Log received response for debugging
       console.log('[processAudio] Response received from server:', {
         transcriptionLength: data.transcription?.length || 0,
@@ -374,7 +373,7 @@ export default function Home() {
         keyPointsCount: data.keyPoints?.length || 0,
         savedSummaryId: data.savedSummaryId,
       });
-      
+
       const resultData = {
         transcription: data.transcription,
         summary: data.summary,
@@ -385,20 +384,20 @@ export default function Home() {
         // Include server timestamp for validation
         processedAt: data.processedAt,
       };
-      
+
       console.log('[processAudio] Setting result state with summary:', resultData.summary?.substring(0, 100) + '...');
       setResult(resultData);
-      
+
       // ============================================================
       // AFTER_SUMMARY STAGE: Record usage and check if NEXT attempt blocked
       // Use server-provided trial status (more accurate than local)
       // ============================================================
       const effectiveDuration = data.audioDuration ?? audioDuration;
       const audioDurationMinutes = effectiveDuration ? effectiveDuration / 60 : 0;
-      
+
       // Use server-provided trial status if available
       const serverTrialStatus = data.trialStatus;
-      
+
       // Record local usage for UX (server already tracked in database)
       if (effectiveDuration && effectiveDuration > 0) {
         try {
@@ -408,10 +407,10 @@ export default function Home() {
           console.error("Error recording local usage:", error);
         }
       }
-      
+
       // Log server-provided status
       console.log('[Trial Check] Server status after processing:', serverTrialStatus);
-      
+
       // Check if NEXT attempt would be blocked (informational only - current operation completed)
       // Use server-provided info which is more accurate
       if (serverTrialStatus?.nextBlocked) {
@@ -419,7 +418,7 @@ export default function Home() {
         setTrialStatusForModal(getTrialStatus(currentUserId));
         setTimeout(() => setShowTrialExpiredModal(true), 1500);
       }
-      
+
       // Check if server saved successfully
       if (data.savedSummaryId) {
         toast({
@@ -435,7 +434,7 @@ export default function Home() {
       }
     } catch (error: any) {
       console.error("[FLOW] ERROR in processAudio:", error);
-      
+
       // Set error result so user knows what happened
       setResult({
         transcription: "",
@@ -445,7 +444,7 @@ export default function Home() {
         audioDuration: audioDuration,
         error: error.message || "حدث خطأ أثناء معالجة الملف الصوتي",
       });
-      
+
       toast({
         title: "خطأ في المعالجة",
         description: error.message || "حدث خطأ أثناء معالجة الملف الصوتي. يرجى المحاولة مرة أخرى.",
@@ -458,15 +457,20 @@ export default function Home() {
   };
 
   const handleFileUpload = async (file: File) => {
+    // Require authentication before processing
+    if (!isAuthenticated) {
+      showAuthModal('signup');
+      return;
+    }
+
     // ============================================================
     // BEFORE_START CHECK: Block if trial limits exhausted
-    // Uses same logic as handleBeforeRecording for consistency
     // ============================================================
     if (currentUserId) {
       const check = canStartNewSummary(currentUserId);
       if (!check.allowed) {
         console.log(`[handleFileUpload] BLOCKED at start: ${check.blockReason}`);
-        
+
         if (check.blockReason === 'daily_limit') {
           // Show daily limit modal - reset at midnight
           const status = getUserStatus(currentUserId);
@@ -484,11 +488,11 @@ export default function Home() {
         return; // Block the action (but UI remains usable)
       }
     }
-    
+
     try {
       // Calculate audio duration before processing
       const duration = await getAudioDuration(file);
-      
+
       // Check duration limit (5 minutes = 300 seconds)
       if (duration > 300) {
         toast({
@@ -498,7 +502,7 @@ export default function Home() {
         });
         return;
       }
-      
+
       // Limits not exhausted - proceed with processing
       processAudio(file, file.name, duration);
     } catch (error) {
@@ -533,14 +537,20 @@ export default function Home() {
   // Handles: daily_limit, total_limit, days_expired
   // ============================================================
   const handleBeforeRecording = (): boolean => {
-    if (!currentUserId) {
-      return true; // Allow if no user context
+    // Require authentication before recording
+    if (!isAuthenticated) {
+      showAuthModal('signup');
+      return false; // Block recording
     }
-    
+
+    if (!currentUserId) {
+      return true;
+    }
+
     const check = canStartNewSummary(currentUserId);
     if (!check.allowed) {
       console.log(`[handleBeforeRecording] BLOCKED: ${check.blockReason}`);
-      
+
       if (check.blockReason === 'daily_limit') {
         // Show daily limit modal - reset at midnight
         const status = getUserStatus(currentUserId);
@@ -557,10 +567,10 @@ export default function Home() {
       }
       return false; // Block - do NOT start recording
     }
-    
+
     return true; // Allow recording
   };
-  
+
   const handleRecordingStart = () => {
     // Called AFTER recording has started - set UI state
     setIsRecording(true);
@@ -628,8 +638,13 @@ export default function Home() {
                     </TabsTrigger>
                   </TabsList>
 
+                  {/* Duration limit info */}
+                  <p className="text-center text-xs text-muted-foreground mt-3">
+                    ⏱️ الحد الأقصى لكل جلسة: <span className="font-medium text-foreground">45 دقيقة</span> — لتسجيلات أطول يُرجى تقسيمها إلى أجزاء
+                  </p>
+
                   <TabsContent value="record" className="mt-8 space-y-8">
-                    <RecordingControl 
+                    <RecordingControl
                       onRecordingComplete={handleRecordingComplete}
                       onLiveUpdate={handleLiveUpdate}
                       onBeforeRecording={handleBeforeRecording}

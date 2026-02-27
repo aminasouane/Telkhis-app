@@ -17,21 +17,21 @@ export interface SubscriptionPlan {
   price: number; // Price in USD
   priceDZD: number; // Price in DZD (Algerian Dinar)
   currency: "USD" | "DZD";
-  
+
   // Limits
   lectures: number; // Number of lectures allowed
   lecturesDuration: number; // Duration per lecture in minutes
   totalMinutes: number; // Total minutes = lectures * lecturesDuration
-  
+
   // Features
   features: string[];
   featuresAr: string[];
-  
+
   // Display
   popular?: boolean;
   badge?: string;
   badgeAr?: string;
-  
+
   // Chargily IDs (will be set when creating products/prices in Chargily)
   chargilyProductId?: string;
   chargilyPriceId?: string;
@@ -52,7 +52,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     description: "Perfect for trying out the service after the free trial",
     descriptionAr: "مثالية لتجربة الخدمة بعد النسخة المجانية",
     price: 4.99,
-    priceDZD: 67400, // ~4.99 USD * 135 DZD (rounded)
+    priceDZD: 1200, // الأساسية على موقع Chargily
     currency: "DZD",
     lectures: 5,
     lecturesDuration: 45,
@@ -74,7 +74,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     badge: "Starter",
     badgeAr: "للمبتدئين",
   },
-  
+
   student: {
     id: "student",
     name: "Student Plan",
@@ -82,7 +82,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     description: "Most popular plan for university students",
     descriptionAr: "الخطة الأكثر طلباً للطلاب الجامعيين",
     price: 19.00,
-    priceDZD: 256500, // ~19 USD * 135 DZD (rounded)
+    priceDZD: 4700, // الطلابية على موقع Chargily
     currency: "DZD",
     lectures: 30,
     lecturesDuration: 45,
@@ -107,7 +107,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     badge: "Most Popular",
     badgeAr: "الأكثر طلباً",
   },
-  
+
   professional: {
     id: "professional",
     name: "Professional Plan",
@@ -115,7 +115,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     description: "For teachers, researchers, and heavy users",
     descriptionAr: "للأساتذة، الباحثين، وأصحاب الاستخدام المكثف",
     price: 34.99,
-    priceDZD: 472400, // ~34.99 USD * 135 DZD (rounded)
+    priceDZD: 9000, // Professional - يُحدَّد لاحقاً
     currency: "DZD",
     lectures: 60,
     lecturesDuration: 45,
@@ -182,12 +182,12 @@ export type ChargilyCheckoutData = z.infer<typeof chargilyCheckoutSchema>;
 /**
  * Payment status types
  */
-export type PaymentStatus = 
-  | "pending" 
-  | "processing" 
-  | "paid" 
-  | "failed" 
-  | "canceled" 
+export type PaymentStatus =
+  | "pending"
+  | "processing"
+  | "paid"
+  | "failed"
+  | "canceled"
   | "refunded";
 
 /**

@@ -1,12 +1,26 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { getOrCreateAppUserId } from "@/services/appUserService";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import type { User, Session } from "@supabase/supabase-js";
 import type { Language } from "@shared/schema";
 
 interface AuthContextType {
-  appUserId: string;
+  // Supabase auth state
+  user: User | null;
+  session: Session | null;
+  isAuthenticated: boolean;
   loading: boolean;
+  // App user ID (Supabase user.id)
+  appUserId: string;
+  // Preferred language
   userPreferredLanguage: Language;
   updatePreferredLanguage: (language: Language) => void;
+  // Auth actions
+  signOut: () => Promise<void>;
+  // Modal control
+  showAuthModal: (tab?: 'login' | 'signup') => void;
+  isAuthModalOpen: boolean;
+  authModalTab: 'login' | 'signup';
+  closeAuthModal: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,57 +30,71 @@ const PREFERRED_LANGUAGE_KEY = 'preferred_language';
 function getStoredLanguage(): Language {
   try {
     const stored = localStorage.getItem(PREFERRED_LANGUAGE_KEY);
-    if (stored === 'ar' || stored === 'fr' || stored === 'dz') {
-      return stored;
-    }
-  } catch (error) {
-    console.error('Error reading preferred language:', error);
-  }
+    if (stored === 'ar' || stored === 'fr' || stored === 'dz') return stored;
+  } catch { }
   return 'ar';
 }
 
-function storeLanguage(language: Language): void {
-  try {
-    localStorage.setItem(PREFERRED_LANGUAGE_KEY, language);
-  } catch (error) {
-    console.error('Error storing preferred language:', error);
-  }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [appUserId, setAppUserId] = useState<string>('');
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [userPreferredLanguage, setUserPreferredLanguage] = useState<Language>('ar');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('signup');
 
   useEffect(() => {
-    initializeAppUser();
+    // Load stored language
+    setUserPreferredLanguage(getStoredLanguage());
+
+    // Get current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const initializeAppUser = () => {
-    try {
-      const userId = getOrCreateAppUserId();
-      setAppUserId(userId);
-      
-      const storedLanguage = getStoredLanguage();
-      setUserPreferredLanguage(storedLanguage);
-      
-      setLoading(false);
-    } catch (error) {
-      console.error('Error initializing app user:', error);
-      setLoading(false);
-    }
-  };
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+  }, []);
 
-  const updatePreferredLanguage = (language: Language) => {
-    storeLanguage(language);
+  const showAuthModal = useCallback((tab: 'login' | 'signup' = 'signup') => {
+    setAuthModalTab(tab);
+    setIsAuthModalOpen(true);
+  }, []);
+
+  const closeAuthModal = useCallback(() => {
+    setIsAuthModalOpen(false);
+  }, []);
+
+  const updatePreferredLanguage = useCallback((language: Language) => {
+    try { localStorage.setItem(PREFERRED_LANGUAGE_KEY, language); } catch { }
     setUserPreferredLanguage(language);
-  };
+  }, []);
 
-  const value = {
-    appUserId,
+  const value: AuthContextType = {
+    user,
+    session,
+    isAuthenticated: !!user,
     loading,
+    appUserId: user?.id ?? '',
     userPreferredLanguage,
     updatePreferredLanguage,
+    signOut,
+    showAuthModal,
+    isAuthModalOpen,
+    authModalTab,
+    closeAuthModal,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

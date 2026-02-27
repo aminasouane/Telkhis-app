@@ -1,93 +1,21 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+/**
+ * Database layer - Supabase Postgres
+ * Replaces the previous SQLite (better-sqlite3) implementation.
+ * All operations use supabaseAdmin (service_role) to bypass RLS.
+ */
+import { supabaseAdmin } from './supabase-admin';
 
-const DB_PATH = path.join(process.cwd(), 'data', 'database.sqlite');
-
-function ensureDataDir() {
-  const dataDir = path.dirname(DB_PATH);
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-}
-
-ensureDataDir();
-
-export const db = new Database(DB_PATH);
-
-db.pragma('journal_mode = WAL');
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    created_at TEXT DEFAULT (datetime('now')),
-    subscription_type TEXT DEFAULT 'free' CHECK(subscription_type IN ('free', 'premium', 'pro_plus'))
-  );
-
-  CREATE TABLE IF NOT EXISTS summaries (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    title TEXT,
-    content TEXT NOT NULL,
-    transcript TEXT,
-    key_points TEXT,
-    language TEXT DEFAULT 'ar',
-    audio_duration INTEGER,
-    shared INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS usage (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL,
-    date TEXT NOT NULL,
-    minutes_used REAL DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
-    UNIQUE(user_id, date),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS subscriptions (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    plan_name TEXT NOT NULL,
-    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'expired', 'cancelled')),
-    start_date TEXT NOT NULL,
-    end_date TEXT,
-    payment_provider TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS settings (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL UNIQUE,
-    preferred_language TEXT DEFAULT 'ar',
-    notifications_enabled INTEGER DEFAULT 1,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_summaries_user_id ON summaries(user_id);
-  CREATE INDEX IF NOT EXISTS idx_usage_user_date ON usage(user_id, date);
-  CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
-`);
-
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface User {
   id: string;
+  email: string | null;
+  name: string | null;
+  auth_provider: string;
+  user_type: string;
+  subscription_type: string;
   created_at: string;
-  subscription_type: 'free' | 'premium' | 'pro_plus';
+  updated_at: string;
 }
 
 export interface Summary {
@@ -99,12 +27,11 @@ export interface Summary {
   key_points: string[];
   language: string;
   audio_duration: number | null;
-  shared: boolean;
   created_at: string;
 }
 
 export interface Usage {
-  id: number;
+  id: string;
   user_id: string;
   date: string;
   minutes_used: number;
@@ -117,10 +44,15 @@ export interface Subscription {
   user_id: string;
   plan_name: string;
   status: 'active' | 'expired' | 'cancelled';
+  trial_minutes_used: number;
+  trial_minutes_limit: number;
+  trial_daily_limit: number;
+  trial_start_date: string;
+  payment_provider: string | null;
   start_date: string;
   end_date: string | null;
-  payment_provider: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Settings {
@@ -132,19 +64,59 @@ export interface Settings {
   updated_at: string;
 }
 
-export function getOrCreateUser(userId: string): User {
-  const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as User | undefined;
-  if (existing) return existing;
-  
-  db.prepare('INSERT INTO users (id) VALUES (?)').run(userId);
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as User;
+// ─── User operations ──────────────────────────────────────────────────────────
+
+export async function getOrCreateUser(userId: string, email?: string, name?: string, provider?: string): Promise<User> {
+  // Try to get existing user
+  const { data: existing } = await supabaseAdmin
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (existing) return existing as User;
+
+  // Create new user
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .insert({
+      id: userId,
+      email: email || null,
+      name: name || null,
+      auth_provider: provider || 'email',
+      user_type: 'free',
+      subscription_type: 'free',
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to create user: ${error.message}`);
+
+  // Create default trial subscription
+  await supabaseAdmin.from('subscriptions').insert({
+    user_id: userId,
+    plan_name: 'trial',
+    status: 'active',
+    trial_minutes_used: 0,
+    trial_minutes_limit: 210,
+    trial_daily_limit: 30,
+  });
+
+  return data as User;
 }
 
-export function getUser(userId: string): User | undefined {
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as User | undefined;
+export async function getUser(userId: string): Promise<User | undefined> {
+  const { data } = await supabaseAdmin
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+  return data as User | undefined;
 }
 
-export function saveSummary(data: {
+// ─── Summary operations ───────────────────────────────────────────────────────
+
+export async function saveSummary(data: {
   userId: string;
   title: string;
   content: string;
@@ -152,154 +124,224 @@ export function saveSummary(data: {
   keyPoints: string[];
   language: string;
   audioDuration?: number;
-}): Summary {
-  const id = generateUUID();
-  const keyPointsJson = JSON.stringify(data.keyPoints || []);
-  
-  getOrCreateUser(data.userId);
-  
-  db.prepare(`
-    INSERT INTO summaries (id, user_id, title, content, transcript, key_points, language, audio_duration)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, data.userId, data.title, data.content, data.transcript, keyPointsJson, data.language, data.audioDuration || null);
-  
-  const row = db.prepare('SELECT * FROM summaries WHERE id = ?').get(id) as any;
-  return {
-    ...row,
-    key_points: JSON.parse(row.key_points || '[]'),
-    shared: Boolean(row.shared)
-  };
+}): Promise<Summary> {
+  // Ensure user exists
+  await getOrCreateUser(data.userId);
+
+  const { data: row, error } = await supabaseAdmin
+    .from('summaries')
+    .insert({
+      user_id: data.userId,
+      title: data.title,
+      content: data.content,
+      transcript: data.transcript,
+      key_points: data.keyPoints || [],
+      language: data.language,
+      audio_duration: data.audioDuration || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to save summary: ${error.message}`);
+  return row as Summary;
 }
 
-export function getSummaries(userId: string): Summary[] {
-  const rows = db.prepare('SELECT * FROM summaries WHERE user_id = ? ORDER BY created_at DESC').all(userId) as any[];
-  return rows.map(row => ({
-    ...row,
-    key_points: JSON.parse(row.key_points || '[]'),
-    shared: Boolean(row.shared)
-  }));
+export async function getSummaries(userId: string): Promise<Summary[]> {
+  const { data, error } = await supabaseAdmin
+    .from('summaries')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(`Failed to get summaries: ${error.message}`);
+  return (data || []) as Summary[];
 }
 
-export function getSummaryById(summaryId: string, userId: string): Summary | undefined {
-  const row = db.prepare('SELECT * FROM summaries WHERE id = ? AND user_id = ?').get(summaryId, userId) as any;
-  if (!row) return undefined;
-  return {
-    ...row,
-    key_points: JSON.parse(row.key_points || '[]'),
-    shared: Boolean(row.shared)
-  };
+export async function getSummaryById(summaryId: string, userId: string): Promise<Summary | undefined> {
+  const { data } = await supabaseAdmin
+    .from('summaries')
+    .select('*')
+    .eq('id', summaryId)
+    .eq('user_id', userId)
+    .single();
+  return data as Summary | undefined;
 }
 
-export function deleteSummary(summaryId: string, userId: string): boolean {
-  const result = db.prepare('DELETE FROM summaries WHERE id = ? AND user_id = ?').run(summaryId, userId);
-  return result.changes > 0;
+export async function deleteSummary(summaryId: string, userId: string): Promise<boolean> {
+  const { error } = await supabaseAdmin
+    .from('summaries')
+    .delete()
+    .eq('id', summaryId)
+    .eq('user_id', userId);
+  return !error;
 }
 
-export function getTodayUsage(userId: string): Usage | undefined {
+// ─── Usage operations ─────────────────────────────────────────────────────────
+
+export async function getTodayUsage(userId: string): Promise<Usage | undefined> {
   const today = new Date().toISOString().split('T')[0];
-  return db.prepare('SELECT * FROM usage WHERE user_id = ? AND date = ?').get(userId, today) as Usage | undefined;
+  const { data } = await supabaseAdmin
+    .from('usage')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .single();
+  return data as Usage | undefined;
 }
 
-export function getTotalUsage(userId: string): number {
-  const result = db.prepare('SELECT COALESCE(SUM(minutes_used), 0) as total FROM usage WHERE user_id = ?').get(userId) as { total: number };
-  return result.total;
+export async function getTotalUsage(userId: string): Promise<number> {
+  const { data } = await supabaseAdmin
+    .from('usage')
+    .select('minutes_used')
+    .eq('user_id', userId);
+  if (!data) return 0;
+  return data.reduce((sum: number, row: any) => sum + (row.minutes_used || 0), 0);
 }
 
-export function getFirstUsageDate(userId: string): string | null {
-  const result = db.prepare('SELECT MIN(date) as first_date FROM usage WHERE user_id = ?').get(userId) as { first_date: string | null };
-  return result.first_date;
+export async function getFirstUsageDate(userId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from('usage')
+    .select('date')
+    .eq('user_id', userId)
+    .order('date', { ascending: true })
+    .limit(1)
+    .single();
+  return data?.date || null;
 }
 
-export function recordUsage(userId: string, minutes: number): Usage {
+export async function recordUsage(userId: string, minutes: number): Promise<Usage> {
   const today = new Date().toISOString().split('T')[0];
-  const existing = getTodayUsage(userId);
-  
-  getOrCreateUser(userId);
-  
+  await getOrCreateUser(userId);
+
+  const { data: existing } = await supabaseAdmin
+    .from('usage')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .single();
+
   if (existing) {
-    db.prepare(`
-      UPDATE usage SET minutes_used = minutes_used + ?, updated_at = datetime('now')
-      WHERE user_id = ? AND date = ?
-    `).run(minutes, userId, today);
+    const { data, error } = await supabaseAdmin
+      .from('usage')
+      .update({ minutes_used: (existing.minutes_used || 0) + minutes })
+      .eq('user_id', userId)
+      .eq('date', today)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update usage: ${error.message}`);
+    return data as Usage;
   } else {
-    db.prepare(`
-      INSERT INTO usage (user_id, date, minutes_used)
-      VALUES (?, ?, ?)
-    `).run(userId, today, minutes);
+    const { data, error } = await supabaseAdmin
+      .from('usage')
+      .insert({ user_id: userId, date: today, minutes_used: minutes })
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to insert usage: ${error.message}`);
+    return data as Usage;
   }
-  
-  return db.prepare('SELECT * FROM usage WHERE user_id = ? AND date = ?').get(userId, today) as Usage;
 }
 
-export function getActiveSubscription(userId: string): Subscription | undefined {
-  return db.prepare(`
-    SELECT * FROM subscriptions 
-    WHERE user_id = ? AND status = 'active'
-    ORDER BY created_at DESC
-    LIMIT 1
-  `).get(userId) as Subscription | undefined;
+// ─── Subscription operations ──────────────────────────────────────────────────
+
+export async function getActiveSubscription(userId: string): Promise<Subscription | undefined> {
+  const { data } = await supabaseAdmin
+    .from('subscriptions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+  return data as Subscription | undefined;
 }
 
-export function createSubscription(data: {
+export async function createSubscription(data: {
   userId: string;
   planName: string;
+  planId?: string;
+  totalMinutes?: number;
   endDate?: string;
   paymentProvider?: string;
-}): Subscription {
-  db.prepare(`UPDATE subscriptions SET status = 'cancelled' WHERE user_id = ? AND status = 'active'`).run(data.userId);
-  
-  const id = generateUUID();
-  const startDate = new Date().toISOString();
-  
-  db.prepare(`
-    INSERT INTO subscriptions (id, user_id, plan_name, status, start_date, end_date, payment_provider)
-    VALUES (?, ?, ?, 'active', ?, ?, ?)
-  `).run(id, data.userId, data.planName, startDate, data.endDate || null, data.paymentProvider || null);
-  
-  const subscriptionType = data.planName.toLowerCase().replace(' ', '_') as 'free' | 'premium' | 'pro_plus';
-  db.prepare('UPDATE users SET subscription_type = ? WHERE id = ?').run(subscriptionType, data.userId);
-  
-  return db.prepare('SELECT * FROM subscriptions WHERE id = ?').get(id) as Subscription;
+}): Promise<Subscription> {
+  // Cancel existing active subscriptions
+  await supabaseAdmin
+    .from('subscriptions')
+    .update({ status: 'cancelled' })
+    .eq('user_id', data.userId)
+    .eq('status', 'active');
+
+  const { data: row, error } = await supabaseAdmin
+    .from('subscriptions')
+    .insert({
+      user_id: data.userId,
+      plan_name: data.planName,
+      status: 'active',
+      start_date: new Date().toISOString(),
+      end_date: data.endDate || null,
+      payment_provider: data.paymentProvider || null,
+      trial_minutes_limit: data.totalMinutes ?? null,
+      trial_minutes_used: 0,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to create subscription: ${error.message}`);
+
+  // Update user's subscription_type
+  const subsType = data.planId || data.planName.toLowerCase().replace(/ /g, '_');
+  await supabaseAdmin
+    .from('users')
+    .update({ subscription_type: subsType })
+    .eq('id', data.userId);
+
+  return row as Subscription;
 }
 
-export function getSettings(userId: string): Settings | undefined {
-  return db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId) as Settings | undefined;
+// ─── Settings operations ──────────────────────────────────────────────────────
+
+export async function getSettings(userId: string): Promise<Settings | undefined> {
+  const { data } = await supabaseAdmin
+    .from('settings')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+  return data as Settings | undefined;
 }
 
-export function upsertSettings(data: {
+export async function upsertSettings(data: {
   userId: string;
   preferredLanguage?: string;
   notificationsEnabled?: boolean;
-}): Settings {
-  const existing = getSettings(data.userId);
-  
+}): Promise<Settings> {
+  const existing = await getSettings(data.userId);
+
   if (existing) {
-    const updates: string[] = [];
-    const values: any[] = [];
-    
-    if (data.preferredLanguage !== undefined) {
-      updates.push('preferred_language = ?');
-      values.push(data.preferredLanguage);
-    }
-    if (data.notificationsEnabled !== undefined) {
-      updates.push('notifications_enabled = ?');
-      values.push(data.notificationsEnabled ? 1 : 0);
-    }
-    
-    if (updates.length > 0) {
-      updates.push("updated_at = datetime('now')");
-      values.push(data.userId);
-      db.prepare(`UPDATE settings SET ${updates.join(', ')} WHERE user_id = ?`).run(...values);
-    }
-  } else {
-    const id = generateUUID();
-    db.prepare(`
-      INSERT INTO settings (id, user_id, preferred_language, notifications_enabled)
-      VALUES (?, ?, ?, ?)
-    `).run(id, data.userId, data.preferredLanguage || 'ar', data.notificationsEnabled !== false ? 1 : 0);
+    const updates: Record<string, any> = {};
+    if (data.preferredLanguage !== undefined) updates.preferred_language = data.preferredLanguage;
+    if (data.notificationsEnabled !== undefined) updates.notifications_enabled = data.notificationsEnabled;
+
+    const { data: row, error } = await supabaseAdmin
+      .from('settings')
+      .update(updates)
+      .eq('user_id', data.userId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update settings: ${error.message}`);
+    return row as Settings;
   }
-  
-  return db.prepare('SELECT * FROM settings WHERE user_id = ?').get(data.userId) as Settings;
+
+  const { data: row, error } = await supabaseAdmin
+    .from('settings')
+    .insert({
+      user_id: data.userId,
+      preferred_language: data.preferredLanguage || 'ar',
+      notifications_enabled: data.notificationsEnabled !== false,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to insert settings: ${error.message}`);
+  return row as Settings;
 }
 
-console.log('[SQLite] Database initialized at:', DB_PATH);
+console.log('[Supabase] Database layer initialized');

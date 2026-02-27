@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -6,9 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { LanguageProvider } from "@/components/LanguageProvider";
-import { AuthProvider } from "@/components/AuthProvider";
+import { AuthProvider, useAuth } from "@/components/AuthProvider";
 import { SubscriptionProvider } from "@/components/SubscriptionProvider";
-import { initializeTrialSync } from "@/services/trialSyncService";
 import Home from "@/pages/Home";
 import HistoryScreen from "@/pages/HistoryScreen";
 import Subscribe from "@/pages/Subscribe";
@@ -19,6 +18,34 @@ import AboutUs from "@/pages/AboutUs";
 import TermsAndConditions from "@/pages/TermsAndConditions";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import NotFound from "@/pages/not-found";
+
+// Syncs authenticated Supabase user with the server DB on login
+function UserSync() {
+  const { user, session } = useAuth();
+
+  useEffect(() => {
+    if (!user || !session) return;
+
+    // Register/update the user in our Supabase DB
+    fetch('/api/user/upsert', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        userId: user.id,
+        email: user.email,
+        name: user.user_metadata?.name || user.user_metadata?.full_name || null,
+        provider: user.app_metadata?.provider || 'email',
+      }),
+    }).catch(err => {
+      console.warn('[UserSync] Failed to sync user:', err);
+    });
+  }, [user?.id, session?.access_token]);
+
+  return null;
+}
 
 function Router() {
   return (
@@ -38,18 +65,6 @@ function Router() {
 }
 
 function App() {
-  const [trialSynced, setTrialSynced] = useState(false);
-
-  useEffect(() => {
-    initializeTrialSync().then(() => {
-      setTrialSynced(true);
-      console.log('[App] Trial sync completed');
-    }).catch((err) => {
-      console.error('[App] Trial sync failed:', err);
-      setTrialSynced(true);
-    });
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -57,6 +72,7 @@ function App() {
           <AuthProvider>
             <SubscriptionProvider>
               <LanguageProvider>
+                <UserSync />
                 <Toaster />
                 <Router />
               </LanguageProvider>

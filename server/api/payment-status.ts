@@ -13,7 +13,7 @@ export async function getLatestPayment(req: Request, res: Response) {
       });
     }
 
-    const subscription = db.getActiveSubscription(userId);
+    const subscription = await db.getActiveSubscription(userId);
 
     if (!subscription) {
       return res.status(200).json({

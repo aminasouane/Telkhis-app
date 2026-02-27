@@ -15,6 +15,7 @@ import { getTrialStatus } from "./api/trial-status";
 import { getUser, upsertUser, getUserSettings, updateUserSettings } from "./api/user";
 import { handleCreateCheckout } from "./api/chargily-checkout";
 import { handleChargilyWebhook } from "./api/chargily-webhook";
+import { handleGetUserStatus } from "./api/user-status";
 
 // Configure multer for memory storage
 const upload = multer({
@@ -133,13 +134,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid language selection" });
       }
 
-      // Optional: Enforce 5-minute duration limit if duration is provided
-      if (audioDuration && audioDuration > 300) {
+      // Enforce max 45-minute (2700s) per-session limit
+      if (audioDuration && audioDuration > 2700) {
         return res.status(403).json({
-          error: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق)",
+          error: "مدة التسجيل الصوتي تتجاوز الحد المسموح (45 دقيقة). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
           errorCode: "DURATION_EXCEEDED",
           duration: audioDuration,
-          maxDuration: 300
+          maxDuration: 2700
         });
       }
 
@@ -197,7 +198,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const file = (req as any).file;
       const language = req.body.language || "ar"; // Default to Arabic
       const clientDuration = req.body.audioDuration ? parseFloat(req.body.audioDuration) : null;
-      const userId = req.body.userId || req.headers['x-user-id'] as string;
+      // Support both JWT-authenticated user and legacy header/body userId
+      const userId = req.authenticatedUserId || req.body.userId || req.headers['x-user-id'] as string;
 
       timings.upload = Date.now() - startTime;
       console.log(`[TIMING] Upload received: ${timings.upload}ms | File: ${file?.originalname}, Size: ${file?.size || 0}`);
@@ -232,13 +234,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[process-audio] Duration: ${audioDuration.toFixed(2)}s (source: ${durationResult.source})`);
 
-      // Enforce 5-minute duration limit using server-validated duration
-      if (audioDuration > 300) {
+      // Enforce max 45-minute (2700s) per-session limit
+      if (audioDuration > 2700) {
         return res.status(403).json({
-          error: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
+          error: "مدة التسجيل الصوتي تتجاوز الحد المسموح (45 دقيقة). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
           errorCode: "DURATION_EXCEEDED",
           duration: audioDuration,
-          maxDuration: 300
+          maxDuration: 2700
         });
       }
 
@@ -298,7 +300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         console.log(`[DB] Inserting summary for user ${userId}...`);
-        savedSummary = db.saveSummary({
+        savedSummary = await db.saveSummary({
           userId,
           title,
           content: grokResult.summary,
@@ -308,7 +310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           audioDuration: audioDuration,
         });
 
-        db.recordUsage(userId, audioDuration / 60);
+        await db.recordUsage(userId, audioDuration / 60);
 
         timings.dbSave = Date.now() - dbSaveStart;
         console.log(`[TIMING] Database save DONE: ${timings.dbSave}ms | ID: ${savedSummary?.id}`);

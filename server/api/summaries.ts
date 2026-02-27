@@ -4,12 +4,8 @@ import * as db from "../db";
 export async function getSummaries(req: Request, res: Response) {
   try {
     const userId = req.query.userId as string;
-
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required" });
-    }
-
-    const summaries = db.getSummaries(userId);
+    if (!userId) return res.status(400).json({ error: "User ID is required" });
+    const summaries = await db.getSummaries(userId);
     res.json({ summaries });
   } catch (error) {
     console.error('Error in getSummaries:', error);
@@ -21,17 +17,9 @@ export async function getSummaryById(req: Request, res: Response) {
   try {
     const { id } = req.params;
     const userId = req.query.userId as string;
-
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required" });
-    }
-
-    const summary = db.getSummaryById(id, userId);
-
-    if (!summary) {
-      return res.status(404).json({ error: "Summary not found" });
-    }
-
+    if (!userId) return res.status(400).json({ error: "User ID is required" });
+    const summary = await db.getSummaryById(id, userId);
+    if (!summary) return res.status(404).json({ error: "Summary not found" });
     res.json({ summary });
   } catch (error) {
     console.error('Error in getSummaryById:', error);
@@ -43,17 +31,9 @@ export async function deleteSummary(req: Request, res: Response) {
   try {
     const { id } = req.params;
     const userId = req.body.userId || req.query.userId;
-
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required" });
-    }
-
-    const deleted = db.deleteSummary(id, userId);
-
-    if (!deleted) {
-      return res.status(404).json({ error: "Summary not found" });
-    }
-
+    if (!userId) return res.status(400).json({ error: "User ID is required" });
+    const deleted = await db.deleteSummary(id, userId);
+    if (!deleted) return res.status(404).json({ error: "Summary not found" });
     res.json({ success: true });
   } catch (error) {
     console.error('Error in deleteSummary:', error);

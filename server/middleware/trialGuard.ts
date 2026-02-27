@@ -17,31 +17,31 @@ export interface TrialInfo {
 }
 
 export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
-  const totalMinutesUsed = db.getTotalUsage(userId);
-  const todayUsage = db.getTodayUsage(userId);
+  const totalMinutesUsed = await db.getTotalUsage(userId);
+  const todayUsage = await db.getTodayUsage(userId);
   const dailyMinutesUsed = todayUsage?.minutes_used || 0;
-  const firstUseDate = db.getFirstUsageDate(userId);
-  
+  const firstUseDate = await db.getFirstUsageDate(userId);
+
   let daysUsed = 0;
   if (firstUseDate) {
     const firstDate = new Date(firstUseDate);
     const now = new Date();
     daysUsed = Math.floor((now.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
   }
-  
+
   const minutesLimit = TRIAL_LIMITS.MAX_AUDIO_MINUTES;
   const dailyLimit = TRIAL_LIMITS.DAILY_LIMIT_MINUTES;
-  
+
   const minutesRemaining = Math.max(0, minutesLimit - totalMinutesUsed);
   const dailyRemaining = Math.max(0, dailyLimit - dailyMinutesUsed);
-  
+
   const totalLimitReached = totalMinutesUsed >= minutesLimit;
   const dailyLimitReached = dailyMinutesUsed >= dailyLimit;
   const daysExpired = daysUsed >= TRIAL_LIMITS.VALIDITY_DAYS;
-  
+
   const isExpired = totalLimitReached || daysExpired;
   const canUseService = !isExpired && !dailyLimitReached;
-  
+
   return {
     userId,
     isExpired,
@@ -58,7 +58,7 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
 }
 
 export async function incrementTrialMinutes(userId: string, minutesToAdd: number): Promise<void> {
-  db.recordUsage(userId, minutesToAdd);
+  await db.recordUsage(userId, minutesToAdd);
 }
 
 export async function trialGuardMiddleware(
@@ -67,18 +67,18 @@ export async function trialGuardMiddleware(
   next: NextFunction
 ) {
   try {
-    const userId = req.body.userId || req.query.userId;
-    
+    const userId = req.authenticatedUserId || req.body.userId || req.query.userId;
+
     if (!userId) {
       return res.status(401).json({ error: "User ID required" });
     }
 
     const trialStatus = await checkTrialStatus(userId as string);
-    
+
     if (trialStatus.isExpired) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: "Trial expired",
-        trialStatus 
+        trialStatus
       });
     }
 
