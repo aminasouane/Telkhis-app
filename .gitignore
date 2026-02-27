@@ -4,7 +4,7 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
-.env    
+.env
 .antigravity-server
 .gemini
 .cache
@@ -14,3 +14,5 @@ vite.config.ts.*
 .ssh/
 logs/
 ssl/
+.bash_history
+.npm/
