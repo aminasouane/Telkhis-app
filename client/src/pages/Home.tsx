@@ -10,8 +10,7 @@ import SummaryCard from "@/components/SummaryCard";
 import EmptyState from "@/components/EmptyState";
 import TrialExpiredModal from "@/components/TrialExpiredModal";
 import DailyLimitModal from "@/components/DailyLimitModal";
-import { getTrialStatus, getTrialData, type TrialStatus, TRIAL_CONFIG } from "@/services/localTrialService";
-import { getUserStatus } from "@/services/userStatusService";
+import { useUserStatus } from "@/hooks/useUserStatus";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,70 +32,7 @@ import {
 
 const LANGUAGE_STORAGE_KEY = 'takhleesly_language';
 
-// ============================================================
-// TRIAL DIAGNOSTIC LOGGING
-// Logs trial state at each stage for debugging
-// ============================================================
-type TrialCheckStage = 'before_start' | 'after_transcription' | 'after_summary';
 
-function logTrialCheck(
-  stage: TrialCheckStage,
-  status: TrialStatus,
-  audioDuration?: number
-) {
-  console.log('[Trial Check]', {
-    stage,
-    usedMinutesToday: status.dailyMinutesUsed,
-    dailyLimit: TRIAL_CONFIG.DAILY_LIMIT_MINUTES,
-    dailyMinutesRemaining: status.dailyMinutesRemaining,
-    totalMinutesUsed: status.minutesUsed,
-    totalLimit: TRIAL_CONFIG.MAX_AUDIO_MINUTES,
-    totalMinutesRemaining: status.minutesRemaining,
-    audioDuration: audioDuration ?? 'N/A',
-    state: status.state,
-    canUseTrial: status.canUseTrial,
-  });
-}
-
-// ============================================================
-// CENTRALIZED BLOCKING LOGIC (MVP v3.1)
-// Uses shared checkTrialStatus for consistent validation:
-// - 30 minutes PER DAY (resets at midnight)
-// - 7 days validity from first use
-// - 210 minutes total limit
-// ============================================================
-
-import {
-  checkTrialStatus as checkTrialStatusShared,
-  type BlockReason
-} from "@shared/trial";
-
-function canStartNewSummary(userId: string): {
-  allowed: boolean;
-  blockReason: BlockReason;
-  status: TrialStatus;
-} {
-  const status = getTrialStatus(userId);
-  const data = getTrialData(userId);
-
-  // Log at before_start stage
-  logTrialCheck('before_start', status);
-
-  // Use shared validation logic
-  const check = checkTrialStatusShared({
-    firstUseDateStr: data?.firstUseDate || null,
-    totalMinutesUsed: status.minutesUsed,
-    dailyMinutesUsed: status.dailyMinutesUsed,
-  });
-
-  if (!check.allowed) {
-    console.log(`[canStartNewSummary] BLOCKED: ${check.blockReason} - ${check.reason}`);
-    return { allowed: false, blockReason: check.blockReason, status };
-  }
-
-  console.log('[canStartNewSummary] ALLOWED: Trial active');
-  return { allowed: true, blockReason: null, status };
-}
 
 interface ProcessingResult {
   transcription: string;
@@ -208,11 +144,10 @@ export default function Home() {
   const [viewingSession, setViewingSession] = useState<Session | null>(null);
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
   const [showDailyLimitModal, setShowDailyLimitModal] = useState(false);
-  const [trialStatusForModal, setTrialStatusForModal] = useState<TrialStatus | null>(null);
   const [dailyLimitInfo, setDailyLimitInfo] = useState({ hours: 0, minutes: 0, used: 0 });
   const { toast } = useToast();
   const { language, setLanguage } = useLanguage();
-  const { recordUsage, refreshState } = useSubscription();
+  const { refetch: refetchStatus, status: userStatus } = useUserStatus();
 
   const currentUserId = appUserId;
 
@@ -323,15 +258,19 @@ export default function Home() {
         if (errorData.errorCode) {
           console.log(`[processAudio] Server rejected: ${errorData.errorCode}`);
 
-          // Refresh local state to sync with server
-          refreshState();
+          // Refresh Supabase status
+          refetchStatus();
 
           // Show daily limit modal
           if (errorData.errorCode === "TRIAL_DAILY_LIMIT_REACHED") {
-            const status = getUserStatus(currentUserId!);
+            const now = new Date();
+            const midnight = new Date();
+            midnight.setDate(midnight.getDate() + 1);
+            midnight.setHours(0, 0, 0, 0);
+            const diff = midnight.getTime() - now.getTime();
             setDailyLimitInfo({
-              hours: status.hoursUntilReset,
-              minutes: status.minutesUntilReset,
+              hours: Math.floor(diff / (1000 * 60 * 60)),
+              minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
               used: errorData.usage?.dailyMinutesUsed || 0,
             });
             setShowDailyLimitModal(true);
@@ -343,7 +282,6 @@ export default function Home() {
           if (errorData.errorCode === "TRIAL_TOTAL_LIMIT_REACHED" ||
             errorData.errorCode === "TRIAL_DAYS_EXPIRED" ||
             errorData.errorCode === "TRIAL_EXHAUSTED") {
-            setTrialStatusForModal(getTrialStatus(currentUserId!));
             setShowTrialExpiredModal(true);
             setIsProcessing(false);
             return;
@@ -398,24 +336,11 @@ export default function Home() {
       // Use server-provided trial status if available
       const serverTrialStatus = data.trialStatus;
 
-      // Record local usage for UX (server already tracked in database)
-      if (effectiveDuration && effectiveDuration > 0) {
-        try {
-          recordUsage(audioDurationMinutes);
-          console.log(`[processAudio] Local usage recorded: ${audioDurationMinutes.toFixed(2)} minutes`);
-        } catch (error) {
-          console.error("Error recording local usage:", error);
-        }
-      }
+      // After successful processing, refresh status from Supabase
+      refetchStatus();
 
-      // Log server-provided status
-      console.log('[Trial Check] Server status after processing:', serverTrialStatus);
-
-      // Check if NEXT attempt would be blocked (informational only - current operation completed)
-      // Use server-provided info which is more accurate
+      // Check if NEXT attempt would be blocked (from server response)
       if (serverTrialStatus?.nextBlocked) {
-        // Show trial expired modal after delay (so user sees result first)
-        setTrialStatusForModal(getTrialStatus(currentUserId));
         setTimeout(() => setShowTrialExpiredModal(true), 1500);
       }
 
@@ -466,38 +391,37 @@ export default function Home() {
     // ============================================================
     // BEFORE_START CHECK: Block if trial limits exhausted
     // ============================================================
-    if (currentUserId) {
-      const check = canStartNewSummary(currentUserId);
-      if (!check.allowed) {
-        console.log(`[handleFileUpload] BLOCKED at start: ${check.blockReason}`);
+    // Check server-side status (from Supabase — cannot be manipulated)
+    if (!userStatus.canProcess) {
+      console.log(`[handleFileUpload] BLOCKED: ${userStatus.blockReason}`);
 
-        if (check.blockReason === 'daily_limit') {
-          // Show daily limit modal - reset at midnight
-          const status = getUserStatus(currentUserId);
-          setDailyLimitInfo({
-            hours: status.hoursUntilReset,
-            minutes: status.minutesUntilReset,
-            used: check.status.dailyMinutesUsed,
-          });
-          setShowDailyLimitModal(true);
-        } else {
-          // Show trial expired modal for days_expired OR total_limit
-          setTrialStatusForModal(check.status);
-          setShowTrialExpiredModal(true);
-        }
-        return; // Block the action (but UI remains usable)
+      if (userStatus.blockReason === 'daily_limit') {
+        const now = new Date();
+        const midnight = new Date();
+        midnight.setDate(midnight.getDate() + 1);
+        midnight.setHours(0, 0, 0, 0);
+        const diff = midnight.getTime() - now.getTime();
+        setDailyLimitInfo({
+          hours: Math.floor(diff / (1000 * 60 * 60)),
+          minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+          used: userStatus.dailyMinutesUsed,
+        });
+        setShowDailyLimitModal(true);
+      } else {
+        setShowTrialExpiredModal(true);
       }
+      return;
     }
 
     try {
       // Calculate audio duration before processing
       const duration = await getAudioDuration(file);
 
-      // Check duration limit (5 minutes = 300 seconds)
-      if (duration > 300) {
+      // Client-side pre-check: warn if duration exceeds 45 minutes
+      if (duration > 2700) {
         toast({
-          title: "تنبيه",
-          description: "مدة التسجيل الصوتي تتجاوز الحد المسموح (5 دقائق). يرجى تقصير التسجيل والمحاولة مرة أخرى.",
+          title: "⏱️ مدة التسجيل طويلة جداً",
+          description: `الحد الأقصى لكل جلسة هو 45 دقيقة. مدة ملفك: ${Math.ceil(duration / 60)} دقيقة. يُرجى تقسيم التسجيل لأجزاء أصغر.`,
           variant: "destructive",
         });
         return;
@@ -540,35 +464,36 @@ export default function Home() {
     // Require authentication before recording
     if (!isAuthenticated) {
       showAuthModal('signup');
-      return false; // Block recording
+      return false;
     }
 
-    if (!currentUserId) {
-      return true;
-    }
+    // Use server-side status from Supabase (no localStorage)
+    if (!userStatus.canProcess) {
+      console.log(`[handleBeforeRecording] BLOCKED: ${userStatus.blockReason}`);
 
-    const check = canStartNewSummary(currentUserId);
-    if (!check.allowed) {
-      console.log(`[handleBeforeRecording] BLOCKED: ${check.blockReason}`);
+      if (userStatus.blockReason === 'daily_limit') {
+        // Calculate hours until midnight reset
+        const now = new Date();
+        const midnight = new Date();
+        midnight.setDate(midnight.getDate() + 1);
+        midnight.setHours(0, 0, 0, 0);
+        const diff = midnight.getTime() - now.getTime();
+        const hoursUntilReset = Math.floor(diff / (1000 * 60 * 60));
+        const minutesUntilReset = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-      if (check.blockReason === 'daily_limit') {
-        // Show daily limit modal - reset at midnight
-        const status = getUserStatus(currentUserId);
         setDailyLimitInfo({
-          hours: status.hoursUntilReset,
-          minutes: status.minutesUntilReset,
-          used: check.status.dailyMinutesUsed,
+          hours: hoursUntilReset,
+          minutes: minutesUntilReset,
+          used: userStatus.dailyMinutesUsed,
         });
         setShowDailyLimitModal(true);
       } else {
-        // Show trial expired modal for days_expired OR total_limit
-        setTrialStatusForModal(check.status);
         setShowTrialExpiredModal(true);
       }
-      return false; // Block - do NOT start recording
+      return false;
     }
 
-    return true; // Allow recording
+    return true;
   };
 
   const handleRecordingStart = () => {
@@ -746,7 +671,7 @@ export default function Home() {
       <TrialExpiredModal
         open={showTrialExpiredModal}
         onClose={() => setShowTrialExpiredModal(false)}
-        trialStatus={trialStatusForModal}
+        trialStatus={null}
       />
 
       <DailyLimitModal

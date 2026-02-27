@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
 import { SubscriptionProvider } from "@/components/SubscriptionProvider";
+import { SettingsSync } from "@/components/SettingsSync";
 import Home from "@/pages/Home";
 import HistoryScreen from "@/pages/HistoryScreen";
 import Subscribe from "@/pages/Subscribe";
@@ -72,6 +73,7 @@ function App() {
           <AuthProvider>
             <SubscriptionProvider>
               <LanguageProvider>
+                <SettingsSync />
                 <UserSync />
                 <Toaster />
                 <Router />

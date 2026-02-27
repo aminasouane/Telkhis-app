@@ -4,19 +4,14 @@ import type { User, Session } from "@supabase/supabase-js";
 import type { Language } from "@shared/schema";
 
 interface AuthContextType {
-  // Supabase auth state
   user: User | null;
   session: Session | null;
   isAuthenticated: boolean;
   loading: boolean;
-  // App user ID (Supabase user.id)
   appUserId: string;
-  // Preferred language
   userPreferredLanguage: Language;
   updatePreferredLanguage: (language: Language) => void;
-  // Auth actions
   signOut: () => Promise<void>;
-  // Modal control
   showAuthModal: (tab?: 'login' | 'signup') => void;
   isAuthModalOpen: boolean;
   authModalTab: 'login' | 'signup';
@@ -44,17 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('signup');
 
   useEffect(() => {
-    // Load stored language
     setUserPreferredLanguage(getStoredLanguage());
 
-    // Get current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Subscribe to auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -102,8 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 }

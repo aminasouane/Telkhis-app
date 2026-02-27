@@ -312,6 +312,7 @@ export async function upsertSettings(data: {
   userId: string;
   preferredLanguage?: string;
   notificationsEnabled?: boolean;
+  theme?: string;
 }): Promise<Settings> {
   const existing = await getSettings(data.userId);
 
@@ -319,6 +320,7 @@ export async function upsertSettings(data: {
     const updates: Record<string, any> = {};
     if (data.preferredLanguage !== undefined) updates.preferred_language = data.preferredLanguage;
     if (data.notificationsEnabled !== undefined) updates.notifications_enabled = data.notificationsEnabled;
+    if (data.theme !== undefined) updates.theme = data.theme;
 
     const { data: row, error } = await supabaseAdmin
       .from('settings')
@@ -336,6 +338,7 @@ export async function upsertSettings(data: {
       user_id: data.userId,
       preferred_language: data.preferredLanguage || 'ar',
       notifications_enabled: data.notificationsEnabled !== false,
+      theme: data.theme || 'light',
     })
     .select()
     .single();

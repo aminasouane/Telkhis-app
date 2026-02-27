@@ -39,12 +39,13 @@ export async function getUserSettings(req: Request, res: Response) {
 
 export async function updateUserSettings(req: Request, res: Response) {
   try {
-    const { user_id, preferred_language, notifications_enabled } = req.body;
+    const { user_id, preferred_language, notifications_enabled, theme } = req.body;
     if (!user_id) return res.status(400).json({ error: "User ID is required" });
     const settings = await db.upsertSettings({
       userId: user_id,
       preferredLanguage: preferred_language,
-      notificationsEnabled: notifications_enabled
+      notificationsEnabled: notifications_enabled,
+      theme,
     });
     res.json({ settings });
   } catch (error) {

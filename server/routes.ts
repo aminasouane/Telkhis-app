@@ -53,6 +53,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/user/upsert", upsertUser);
   app.get("/api/user/settings", getUserSettings);
   app.post("/api/user/settings", updateUserSettings);
+  app.get("/api/user/status", handleGetUserStatus); // Supabase-based trial/subscription status
 
   // Payment status endpoint
   const { getLatestPayment } = await import("./api/payment-status");
