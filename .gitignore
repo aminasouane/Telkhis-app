@@ -8,3 +8,9 @@ vite.config.ts.*
 .antigravity-server
 .gemini
 .cache
+*.sqlite-wal
+*.sqlite-shm
+.pm2/
+.ssh/
+logs/
+ssl/
