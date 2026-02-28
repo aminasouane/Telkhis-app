@@ -23,6 +23,39 @@ export async function validateTrialUsage(
   console.log(`[trialValidation] Checking user ${userId} for ${audioDurationMinutes.toFixed(2)} minutes`);
 
   try {
+    // ── Admin bypass: full access, no limits ──
+    const role = await db.getUserRole(userId);
+    if (role === "admin") {
+      console.log(`[trialValidation] ADMIN user ${userId} — bypassing all limits`);
+      return {
+        allowed: true,
+        totalMinutesUsed: 0,
+        dailyMinutesUsed: 0,
+        minutesRemaining: 999999,
+        dailyMinutesRemaining: 999999,
+      };
+    }
+
+    // ── Check for active paid subscription ──
+    const subscription = await db.getActiveSubscription(userId);
+    const isPaid =
+      subscription !== null &&
+      subscription !== undefined &&
+      subscription.plan_name !== "trial" &&
+      subscription.status === "active";
+
+    if (isPaid) {
+      console.log(`[trialValidation] PAID user ${userId} — unlimited daily usage`);
+      return {
+        allowed: true,
+        totalMinutesUsed: 0,
+        dailyMinutesUsed: 0,
+        minutesRemaining: 999999,
+        dailyMinutesRemaining: 999999,
+      };
+    }
+
+    // ── Free trial validation ──
     const totalMinutesUsed = await db.getTotalUsage(userId);
     const todayUsage = await db.getTodayUsage(userId);
     const dailyMinutesUsed = todayUsage?.minutes_used || 0;

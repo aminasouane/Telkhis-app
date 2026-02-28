@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import {
     Users, FileText, CreditCard, TrendingUp, Search, RefreshCw, Shield,
-    ChevronLeft, Clock, Mail, Calendar, ArrowLeft, Settings
+    ChevronLeft, Clock, Mail, Calendar, ArrowLeft, Settings, ArrowRight
 } from "lucide-react";
 
 function StatCard({ icon: Icon, title, value, subtitle, color }: {
@@ -216,6 +216,17 @@ export default function AdminDashboard() {
             <Header />
 
             <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8 space-y-6">
+
+                {/* Back button */}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 text-muted-foreground hover:text-primary"
+                    onClick={() => navigate("/")}
+                >
+                    <ArrowRight className="h-4 w-4" />
+                    العودة للصفحة الرئيسية
+                </Button>
 
                 <Tabs defaultValue="users" className="w-full">
                     {/* Header with Title and TabsList */}

@@ -463,6 +463,35 @@ export async function getAdminStats(): Promise<{
   };
 }
 
+
+export async function getAdminGrowthStats(days: number = 30): Promise<{
+  userGrowth: { date: string; newUsers: number; cumulative: number }[];
+  summaryActivity: { date: string; count: number }[];
+  planDistribution: Record<string, number>;
+}> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const [usersRes, summariesRes, subsRes] = await Promise.all([
+    supabaseAdmin.from("users").select("created_at").gte("created_at", since).order("created_at", { ascending: true }),
+    supabaseAdmin.from("summaries").select("created_at").gte("created_at", since).order("created_at", { ascending: true }),
+    supabaseAdmin.from("subscriptions").select("plan_name").eq("status", "active"),
+  ]);
+  function countByDay(rows: { created_at: string }[]): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const row of (rows || [])) { const day = row.created_at.split("T")[0]; counts[day] = (counts[day] || 0) + 1; }
+    return counts;
+  }
+  const allDays: string[] = [];
+  for (let i = days - 1; i >= 0; i--) { const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000); allDays.push(d.toISOString().split("T")[0]); }
+  const usersByDay = countByDay(usersRes.data || []);
+  const summariesByDay = countByDay(summariesRes.data || []);
+  const { count: totalBefore } = await supabaseAdmin.from("users").select("id", { count: "exact", head: true }).lt("created_at", since);
+  let cumulative = totalBefore || 0;
+  const userGrowth = allDays.map(date => { const newUsers = usersByDay[date] || 0; cumulative += newUsers; return { date, newUsers, cumulative }; });
+  const summaryActivity = allDays.map(date => ({ date, count: summariesByDay[date] || 0 }));
+  const planDist: Record<string, number> = {};
+  for (const sub of (subsRes.data || [])) { const plan = sub.plan_name || "trial"; planDist[plan] = (planDist[plan] || 0) + 1; }
+  return { userGrowth, summaryActivity, planDistribution: planDist };
+}
 export async function getAllUsersWithStats(params?: {
   search?: string;
   planFilter?: string;

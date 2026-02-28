@@ -73,6 +73,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/settings", requireAdmin, getAdminSettings);
   app.patch("/api/admin/settings", requireAdmin, updateAdminSetting);
 
+  // Admin growth stats
+  const { getAdminGrowthStatsHandler } = await import("./api/admin");
+  app.get("/api/admin/growth", requireAdmin, getAdminGrowthStatsHandler);
+
   // Payment status endpoint
   const { getLatestPayment } = await import("./api/payment-status");
   app.get("/api/payment/latest", getLatestPayment);

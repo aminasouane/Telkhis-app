@@ -102,3 +102,19 @@ export async function updateAdminSetting(req: Request, res: Response) {
         res.status(500).json({ error: "Internal server error" });
     }
 }
+
+/**
+ * GET /api/admin/growth?days=30
+ * Returns user growth and summary activity for charting.
+ */
+export async function getAdminGrowthStatsHandler(req: Request, res: Response) {
+    try {
+        const days = Math.min(parseInt(req.query.days as string) || 30, 90);
+        const data = await db.getAdminGrowthStats(days);
+        res.json(data);
+    } catch (error) {
+        console.error("[Admin] Growth stats error:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+}
+
