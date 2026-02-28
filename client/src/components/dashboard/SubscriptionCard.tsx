@@ -1,4 +1,5 @@
 import { useUserStatus } from "@/hooks/useUserStatus";
+import { useAdminRole } from "@/hooks/useAdmin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,9 +43,10 @@ function getTimeUntilMidnight(): { hours: number; minutes: number } {
 
 export default function SubscriptionCard() {
     const { status, isLoading, refetch } = useUserStatus();
+    const { isAdmin, isLoading: adminLoading } = useAdminRole();
     const [, navigate] = useLocation();
 
-    if (isLoading) {
+    if (isLoading || adminLoading) {
         return (
             <div className="flex items-center justify-center py-8">
                 <RefreshCw className="h-6 w-6 animate-spin text-primary" />
@@ -52,8 +54,8 @@ export default function SubscriptionCard() {
         );
     }
 
-    /* ── ADMIN: بطاقة خاصة بدون أي حدود ── */
-    if (status.planName === "admin") {
+    /* ── ADMIN: full access card ── */
+    if (isAdmin) {
         return (
             <div className="space-y-4" dir="rtl">
                 <Card className="shadow-sm border-0 bg-primary/5">

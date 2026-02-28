@@ -51,8 +51,10 @@ export function useUserStatus() {
             return res.json();
         },
         enabled: isAuthenticated && !!appUserId,
-        staleTime: 30_000,        // consider fresh for 30s
+        staleTime: 0,             // always consider stale → re-fetch on every mount
+        gcTime: 60_000,           // keep in cache for 60s
         refetchOnWindowFocus: true,
+        refetchInterval: 30_000,  // also auto-refresh every 30s
     });
 
     return {
