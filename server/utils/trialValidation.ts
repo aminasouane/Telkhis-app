@@ -36,7 +36,7 @@ export async function validateTrialUsage(
       };
     }
 
-    // ── Check for active paid subscription ──
+    // ── Check for active paid subscription (no daily limits) ──
     const subscription = await db.getActiveSubscription(userId);
     const isPaid =
       subscription !== null &&
@@ -45,7 +45,7 @@ export async function validateTrialUsage(
       subscription.status === "active";
 
     if (isPaid) {
-      console.log(`[trialValidation] PAID user ${userId} — unlimited daily usage`);
+      console.log(`[trialValidation] PAID user ${userId} — no daily limit`);
       return {
         allowed: true,
         totalMinutesUsed: 0,
@@ -55,33 +55,65 @@ export async function validateTrialUsage(
       };
     }
 
-    // ── Free trial validation ──
+    // ── Free trial: read DYNAMIC limits from DB (admin can change these) ──
+    const sysSettings = await db.getSystemSettings();
+    const dynamicLimits = sysSettings['TRIAL_LIMITS'] || TRIAL_LIMITS;
+
     const totalMinutesUsed = await db.getTotalUsage(userId);
     const todayUsage = await db.getTodayUsage(userId);
     const dailyMinutesUsed = todayUsage?.minutes_used || 0;
     const firstUseDateStr = await db.getFirstUsageDate(userId);
 
     console.log(`[trialValidation] Usage - Total: ${totalMinutesUsed.toFixed(2)} min, Today: ${dailyMinutesUsed.toFixed(2)} min, FirstUse: ${firstUseDateStr || 'new user'}`);
+    console.log(`[trialValidation] Limits from DB: MAX=${dynamicLimits.MAX_AUDIO_MINUTES} min, DAILY=${dynamicLimits.DAILY_LIMIT_MINUTES} min, DAYS=${dynamicLimits.VALIDITY_DAYS}`);
 
-    const totalMinutesRemaining = Math.max(0, TRIAL_LIMITS.MAX_AUDIO_MINUTES - totalMinutesUsed);
-    const dailyMinutesRemaining = Math.max(0, TRIAL_LIMITS.DAILY_LIMIT_MINUTES - dailyMinutesUsed);
+    const totalMinutesRemaining = Math.max(0, dynamicLimits.MAX_AUDIO_MINUTES - totalMinutesUsed);
+    const dailyMinutesRemaining = Math.max(0, dynamicLimits.DAILY_LIMIT_MINUTES - dailyMinutesUsed);
 
-    const trialCheck = checkTrialStatus({
-      firstUseDateStr,
-      totalMinutesUsed,
-      dailyMinutesUsed,
-    });
+    // Check trial status with dynamic limits
+    const isDailyLimitReached = dailyMinutesUsed >= dynamicLimits.DAILY_LIMIT_MINUTES;
+    const isTotalLimitReached = totalMinutesUsed >= dynamicLimits.MAX_AUDIO_MINUTES;
 
-    if (!trialCheck.allowed) {
-      console.log(`[trialValidation] BLOCKED: ${trialCheck.errorCode} - ${trialCheck.reason}`);
+    let isExpired = false;
+    if (firstUseDateStr) {
+      const firstUse = new Date(firstUseDateStr);
+      const daysPassed = Math.floor((Date.now() - firstUse.getTime()) / (1000 * 60 * 60 * 24));
+      isExpired = daysPassed >= dynamicLimits.VALIDITY_DAYS;
+    }
+
+    if (isExpired) {
       return {
         allowed: false,
-        reason: trialCheck.reason,
-        errorCode: trialCheck.errorCode,
+        reason: "Trial period expired",
+        errorCode: "TRIAL_DAYS_EXPIRED",
         totalMinutesUsed,
         dailyMinutesUsed,
-        minutesRemaining: trialCheck.blockReason === 'daily_limit' ? totalMinutesRemaining : 0,
+        minutesRemaining: 0,
         dailyMinutesRemaining: 0,
+      };
+    }
+
+    if (isDailyLimitReached) {
+      return {
+        allowed: false,
+        reason: "Daily limit reached",
+        errorCode: "DAILY_LIMIT_REACHED",
+        totalMinutesUsed,
+        dailyMinutesUsed,
+        minutesRemaining: totalMinutesRemaining,
+        dailyMinutesRemaining: 0,
+      };
+    }
+
+    if (isTotalLimitReached) {
+      return {
+        allowed: false,
+        reason: "Total trial minutes exhausted",
+        errorCode: "TRIAL_MINUTES_EXHAUSTED",
+        totalMinutesUsed,
+        dailyMinutesUsed,
+        minutesRemaining: 0,
+        dailyMinutesRemaining,
       };
     }
 

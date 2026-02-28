@@ -10,12 +10,13 @@ import SummariesTab from "@/components/dashboard/SummariesTab";
 import SettingsTab from "@/components/dashboard/SettingsTab";
 import AdminStatsTab from "@/components/dashboard/AdminStatsTab";
 import { useUserStatus } from "@/hooks/useUserStatus";
+import { useAdminRole } from "@/hooks/useAdmin";
 
 export default function Dashboard() {
     const [, navigate] = useLocation();
     const { user, isAuthenticated, loading: authLoading } = useAuth();
+    const { isAdmin } = useAdminRole();  // uses /api/user/role — reliable, not affected by loading defaults
     const { status } = useUserStatus();
-    const isAdmin = status?.planName === "admin";
 
     // Redirect if not authenticated
     if (!authLoading && !isAuthenticated) {
