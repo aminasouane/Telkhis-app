@@ -23,15 +23,16 @@ const DEFAULT_STATUS: UserStatus = {
     trialState: "ACTIVE",
     planName: "trial",
     minutesUsed: 0,
-    minutesLimit: 210,
-    minutesRemaining: 210,
+    minutesLimit: 0,
+    minutesRemaining: 0,
     dailyMinutesUsed: 0,
-    dailyMinutesLimit: 30,
-    dailyMinutesRemaining: 30,
-    daysRemaining: 7,
+    dailyMinutesLimit: null,
+    dailyMinutesRemaining: null,
+    daysRemaining: null,
     canProcess: true,
     blockReason: null,
 };
+
 
 export function useUserStatus() {
     const { session, isAuthenticated, appUserId } = useAuth();
