@@ -46,7 +46,10 @@ export default function SubscriptionCard() {
     const { isAdmin, isLoading: adminLoading } = useAdminRole();
     const [, navigate] = useLocation();
 
-    if (isLoading || adminLoading) {
+    // Consider it still loading if status hasn't fetched actual values yet (dailyMinutesLimit is null for trial)
+    const isDataPending = status.planName === "trial" && status.dailyMinutesLimit === null;
+
+    if (isLoading || adminLoading || isDataPending) {
         return (
             <div className="flex items-center justify-center py-8">
                 <RefreshCw className="h-6 w-6 animate-spin text-primary" />

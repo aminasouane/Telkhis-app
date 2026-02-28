@@ -52,10 +52,11 @@ export function useUserStatus() {
             return res.json();
         },
         enabled: isAuthenticated && !!appUserId,
-        staleTime: 0,             // always consider stale → re-fetch on every mount
+        staleTime: 10_000,        // تعتبر قديمة بعد 10 ثوانٍ - يكفي لضمان التحديث بدون إعادة مسح عشوائية
         gcTime: 60_000,           // keep in cache for 60s
         refetchOnWindowFocus: true,
         refetchInterval: 30_000,  // also auto-refresh every 30s
+        placeholderData: (prev) => prev, // keeps old data while fetching new, prevents flickering zero/nulls
     });
 
     return {
