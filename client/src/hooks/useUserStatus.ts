@@ -23,12 +23,12 @@ const DEFAULT_STATUS: UserStatus = {
     trialState: "ACTIVE",
     planName: "trial",
     minutesUsed: 0,
-    minutesLimit: 0,
-    minutesRemaining: 0,
+    minutesLimit: 210,
+    minutesRemaining: 210,
     dailyMinutesUsed: 0,
-    dailyMinutesLimit: null,
-    dailyMinutesRemaining: null,
-    daysRemaining: null,
+    dailyMinutesLimit: 30,
+    dailyMinutesRemaining: 30,
+    daysRemaining: 7,
     canProcess: true,
     blockReason: null,
 };
@@ -59,9 +59,13 @@ export function useUserStatus() {
         placeholderData: (prev) => prev, // keeps old data while fetching new, prevents flickering zero/nulls
     });
 
+    const isReadyToFetch = isAuthenticated && !!appUserId;
+
     return {
         status: query.data ?? DEFAULT_STATUS,
-        isLoading: query.isLoading,
+        // It's effectively loading if the query is loading OR if we're waiting for auth payload to enable the query
+        // but haven't received data or an error yet.
+        isLoading: query.isLoading || (!isReadyToFetch && !query.data && !query.error),
         refetch: query.refetch,
         error: query.error,
     };
