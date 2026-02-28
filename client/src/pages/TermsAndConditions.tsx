@@ -14,7 +14,7 @@ export default function TermsAndConditions() {
             <Link href="/">
               <Button
                 variant="ghost"
-                className="mb-4 flex items-center justify-end"
+                className="mb-4 flex items-center justify-start"
                 data-testid="button-back"
               >
                 <ArrowRight className="mr-2 h-4 w-4" />
@@ -23,7 +23,7 @@ export default function TermsAndConditions() {
             </Link>
 
             {/* العنوان */}
-            <div className="flex items-center justify-end gap-3 mb-2">
+            <div className="flex items-center justify-start gap-3 mb-2">
               <h1 className="text-4xl font-bold text-foreground">
                 الشروط والأحكام
               </h1>

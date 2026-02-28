@@ -582,7 +582,7 @@ export default function Home() {
                         <div className="flex items-center gap-2">
                           <div className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
                           <h3 className="text-lg font-semibold">التلخيص اللحظي</h3>
-                          <Badge variant="secondary" className="mr-auto">
+                          <Badge variant="secondary" className="me-auto">
                             تحديث تلقائي
                           </Badge>
                         </div>

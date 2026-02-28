@@ -12,10 +12,12 @@ import { saveSummary } from "./api/save-summary";
 import { getSummaries, getSummaryById, deleteSummary } from "./api/summaries";
 import { migrateGuest } from "./api/migrate-guest";
 import { getTrialStatus } from "./api/trial-status";
-import { getUser, upsertUser, getUserSettings, updateUserSettings } from "./api/user";
+import { getUser, upsertUser, getUserSettings, updateUserSettings, updateProfile, deleteAccount } from "./api/user";
 import { handleCreateCheckout } from "./api/chargily-checkout";
 import { handleChargilyWebhook } from "./api/chargily-webhook";
 import { handleGetUserStatus } from "./api/user-status";
+import { getAdminStats, getAdminUsers, getAdminUserDetail, getUserRole } from "./api/admin";
+import { requireAdmin } from "./middleware/requireAdmin";
 
 // Configure multer for memory storage
 const upload = multer({
@@ -40,20 +42,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Secure API endpoints for guest and user management
+  const { optionalAuth } = await import("./middleware/auth");
   app.post("/api/guest-session", createGuestSession);
-  app.post("/api/save-summary", saveSummary);
-  app.get("/api/summaries", getSummaries);
-  app.get("/api/summaries/:id", getSummaryById);
-  app.delete("/api/summaries/:id", deleteSummary);
+  app.post("/api/save-summary", optionalAuth, saveSummary);
+  app.get("/api/summaries", optionalAuth, getSummaries);
+  app.get("/api/summaries/:id", optionalAuth, getSummaryById);
+  app.delete("/api/summaries/:id", optionalAuth, deleteSummary);
   app.post("/api/migrate-guest", migrateGuest);
   app.get("/api/trial-status", getTrialStatus);
 
   // User management endpoints
   app.get("/api/user", getUser);
   app.post("/api/user/upsert", upsertUser);
-  app.get("/api/user/settings", getUserSettings);
-  app.post("/api/user/settings", updateUserSettings);
+
+  // Settings & Profile (Protected by requireAuth)
+  const { requireAuth } = await import("./middleware/auth");
+  app.get("/api/user/settings", requireAuth, getUserSettings);
+  app.post("/api/user/settings", requireAuth, updateUserSettings);
   app.get("/api/user/status", handleGetUserStatus); // Supabase-based trial/subscription status
+  app.patch("/api/user/profile", requireAuth, updateProfile);
+  app.delete("/api/user/account", requireAuth, deleteAccount);
+
+  // Admin endpoints (protected by requireAdmin: JWT + DB role check)
+  app.get("/api/user/role", requireAuth, getUserRole);
+  app.get("/api/admin/stats", requireAdmin, getAdminStats);
+  app.get("/api/admin/users", requireAdmin, getAdminUsers);
+  app.get("/api/admin/users/:id", requireAdmin, getAdminUserDetail);
+
+  const { getAdminSettings, updateAdminSetting } = await import("./api/admin");
+  app.get("/api/admin/settings", requireAdmin, getAdminSettings);
+  app.patch("/api/admin/settings", requireAdmin, updateAdminSetting);
 
   // Payment status endpoint
   const { getLatestPayment } = await import("./api/payment-status");
@@ -65,7 +83,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/payment-links/status", checkPaymentLinksStatus);
 
   // Chargily Pay endpoints (with authentication)
-  const { requireAuth } = await import("./middleware/auth");
   app.post("/api/chargily/create-checkout", requireAuth, handleCreateCheckout);
 
   // Webhook endpoint with raw body capture for signature verification

@@ -22,8 +22,20 @@ export async function saveSummary(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    // IDOR Protection for save-summary
+    if (req.authenticatedUserId) {
+      if (req.authenticatedUserId !== userId) {
+        return res.status(403).json({ error: "Forbidden: Cannot save summary for another user" });
+      }
+    } else {
+      const isRegistered = await db.getUser(userId);
+      if (isRegistered) {
+        return res.status(401).json({ error: "Unauthorized: Please log in to save a summary to your account" });
+      }
+    }
+
     if (audioDuration === null || audioDuration === undefined || typeof audioDuration !== 'number' || audioDuration < 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: "Missing or invalid audio duration",
         message: "مدة التسجيل الصوتي غير صالحة"
       });
@@ -38,24 +50,24 @@ export async function saveSummary(req: Request, res: Response) {
 
     try {
       const processedTime = new Date(processedAt).getTime();
-      
+
       if (isNaN(processedTime)) {
         return res.status(400).json({
           error: "Invalid timestamp format",
           message: "تنسيق الطابع الزمني غير صالح"
         });
       }
-      
+
       const now = Date.now();
       const fiveMinutesMs = 5 * 60 * 1000;
-      
+
       if (now - processedTime > fiveMinutesMs) {
         return res.status(403).json({
           error: "Stale summary data",
           message: "انتهت صلاحية البيانات. يرجى معالجة الملف الصوتي مرة أخرى."
         });
       }
-      
+
       if (processedTime > now + 60000) {
         return res.status(403).json({
           error: "Invalid timestamp",
@@ -71,7 +83,7 @@ export async function saveSummary(req: Request, res: Response) {
 
     const wordCount = transcript.trim().split(/\s+/).length;
     const expectedMinWords = Math.max(1, Math.floor(audioDuration * 1.5));
-    
+
     if (wordCount < expectedMinWords && audioDuration > 10) {
       return res.status(403).json({
         error: "Suspicious data mismatch",
@@ -80,19 +92,19 @@ export async function saveSummary(req: Request, res: Response) {
     }
 
     const trialStatus = await checkTrialStatus(userId);
-    
+
     if (trialStatus.isExpired) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: "Trial expired",
         message: "انتهت التجربة المجانية. يرجى الاشتراك لمتابعة الاستخدام.",
-        trialStatus 
+        trialStatus
       });
     }
 
     const audioMinutes = Math.round((audioDuration / 60) * 100) / 100;
 
     if (trialStatus.minutesUsed + audioMinutes > trialStatus.minutesLimit) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: "Trial limit exceeded",
         message: `هذا التسجيل (${audioMinutes} دقيقة) سيتجاوز حد التجربة المجانية (${trialStatus.minutesRemaining} دقيقة متبقية). يرجى الاشتراك لمتابعة الاستخدام.`,
         trialStatus,
@@ -102,7 +114,7 @@ export async function saveSummary(req: Request, res: Response) {
     }
 
     if (trialStatus.dailyMinutesUsed + audioMinutes > trialStatus.dailyLimit) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: "Daily limit exceeded",
         code: "TRIAL_DAILY_LIMIT_REACHED",
         message: `وصلت للحد اليومي (${TRIAL_LIMITS.DAILY_LIMIT_MINUTES} دقيقة). يرجى المحاولة غداً.`,
@@ -111,7 +123,7 @@ export async function saveSummary(req: Request, res: Response) {
       });
     }
 
-    const summary = db.saveSummary({
+    const summary = await db.saveSummary({
       userId,
       title: title || content.split(' ').slice(0, 5).join(' ') + '...',
       content,

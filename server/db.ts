@@ -64,6 +64,39 @@ export interface Settings {
   updated_at: string;
 }
 
+// ─── System Settings ──────────────────────────────────────────────────────────
+
+export async function getSystemSettings(): Promise<Record<string, any>> {
+  const { data, error } = await supabaseAdmin
+    .from('system_settings')
+    .select('key, value');
+  if (error) {
+    console.error("Error fetching system settings:", error);
+    return {};
+  }
+  const settings: Record<string, any> = {};
+  data?.forEach(row => {
+    settings[row.key] = row.value;
+  });
+  return settings;
+}
+
+export async function updateSystemSetting(key: string, value: any, description?: string): Promise<boolean> {
+  const { error } = await supabaseAdmin
+    .from('system_settings')
+    .upsert({
+      key,
+      value,
+      description,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'key' });
+  if (error) {
+    console.error("Error updating system setting:", error);
+    return false;
+  }
+  return true;
+}
+
 // ─── User operations ──────────────────────────────────────────────────────────
 
 export async function getOrCreateUser(userId: string, email?: string, name?: string, provider?: string): Promise<User> {
@@ -345,6 +378,140 @@ export async function upsertSettings(data: {
 
   if (error) throw new Error(`Failed to insert settings: ${error.message}`);
   return row as Settings;
+}
+
+// ─── Admin operations ─────────────────────────────────────────────────────────
+
+export async function getUserRole(userId: string): Promise<string> {
+  const { data } = await supabaseAdmin
+    .from('users')
+    .select('role')
+    .eq('id', userId)
+    .single();
+  return data?.role || 'user';
+}
+
+export async function updateUserProfile(userId: string, updates: { name?: string }): Promise<User> {
+  const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (updates.name !== undefined) updateData.name = updates.name;
+
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .update(updateData)
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to update profile: ${error.message}`);
+  return data as User;
+}
+
+export async function deleteUserAccount(userId: string): Promise<boolean> {
+  // Delete in order: usage → summaries → settings → subscriptions → payments → user
+  await supabaseAdmin.from('usage').delete().eq('user_id', userId);
+  await supabaseAdmin.from('summaries').delete().eq('user_id', userId);
+  await supabaseAdmin.from('settings').delete().eq('user_id', userId);
+  await supabaseAdmin.from('payments').delete().eq('user_id', userId);
+  await supabaseAdmin.from('subscriptions').delete().eq('user_id', userId);
+  const { error } = await supabaseAdmin.from('users').delete().eq('id', userId);
+  if (error) throw new Error(`Failed to delete user: ${error.message}`);
+
+  // Also delete from auth.users
+  try {
+    await supabaseAdmin.auth.admin.deleteUser(userId);
+  } catch (e) {
+    console.error('[DB] Failed to delete auth user (may already be deleted):', e);
+  }
+  return true;
+}
+
+export async function getAdminStats(): Promise<{
+  totalUsers: number;
+  paidUsers: number;
+  trialUsers: number;
+  totalSummaries: number;
+  summariesToday: number;
+  totalPayments: number;
+  revenueTotal: number;
+}> {
+  const today = new Date().toISOString().split('T')[0];
+
+  const [usersRes, paidSubsRes, summariesRes, todaySummariesRes, paymentsRes] = await Promise.all([
+    supabaseAdmin.from('users').select('id', { count: 'exact', head: true }),
+    supabaseAdmin.from('subscriptions').select('id', { count: 'exact', head: true })
+      .neq('plan_name', 'trial').eq('status', 'active'),
+    supabaseAdmin.from('summaries').select('id', { count: 'exact', head: true }),
+    supabaseAdmin.from('summaries').select('id', { count: 'exact', head: true })
+      .gte('created_at', `${today}T00:00:00`),
+    supabaseAdmin.from('payments').select('amount').eq('status', 'paid'),
+  ]);
+
+  const totalUsers = usersRes.count || 0;
+  const paidUsers = paidSubsRes.count || 0;
+  const totalSummaries = summariesRes.count || 0;
+  const summariesToday = todaySummariesRes.count || 0;
+  const revenueTotal = (paymentsRes.data || []).reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+
+  return {
+    totalUsers,
+    paidUsers,
+    trialUsers: totalUsers - paidUsers,
+    totalSummaries,
+    summariesToday,
+    totalPayments: (paymentsRes.data || []).length,
+    revenueTotal,
+  };
+}
+
+export async function getAllUsersWithStats(params?: {
+  search?: string;
+  planFilter?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{ users: any[]; total: number }> {
+  const page = params?.page || 1;
+  const limit = params?.limit || 20;
+  const offset = (page - 1) * limit;
+
+  let query = supabaseAdmin
+    .from('users')
+    .select('*, subscriptions!subscriptions_user_id_fkey(plan_name, status, trial_minutes_used, trial_minutes_limit, start_date, end_date)', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (params?.search) {
+    query = query.or(`email.ilike.%${params.search}%,name.ilike.%${params.search}%`);
+  }
+
+  const { data, count, error } = await query;
+  if (error) throw new Error(`Failed to get users: ${error.message}`);
+
+  // If plan filter, filter in JS after join (Supabase doesn't support nested filters well)
+  let users = data || [];
+  if (params?.planFilter && params.planFilter !== 'all') {
+    users = users.filter((u: any) => {
+      const activeSub = (u.subscriptions || []).find((s: any) => s.status === 'active');
+      return activeSub?.plan_name === params.planFilter;
+    });
+  }
+
+  return { users, total: count || 0 };
+}
+
+export async function getUserDetailForAdmin(userId: string): Promise<any> {
+  const [user, subs, summaries, usage] = await Promise.all([
+    supabaseAdmin.from('users').select('*').eq('id', userId).single(),
+    supabaseAdmin.from('subscriptions').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+    supabaseAdmin.from('summaries').select('id, title, language, audio_duration, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(20),
+    supabaseAdmin.from('usage').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(30),
+  ]);
+
+  return {
+    user: user.data,
+    subscriptions: subs.data || [],
+    summaries: summaries.data || [],
+    usage: usage.data || [],
+  };
 }
 
 console.log('[Supabase] Database layer initialized');

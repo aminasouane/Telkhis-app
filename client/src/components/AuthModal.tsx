@@ -79,7 +79,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signup' }: Au
         setLoading(true);
         setError('');
         try {
-            const { error } = await supabase.auth.signUp({
+            const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
@@ -88,6 +88,14 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signup' }: Au
                 },
             });
             if (error) throw error;
+
+            // Supabase email enumeration protection returns fake success if email exists
+            if (data.user && data.user.identities && data.user.identities.length === 0) {
+                setError('هذا البريد الإلكتروني مسجل بالفعل. يرجى تسجيل الدخول.');
+                setLoading(false);
+                return;
+            }
+
             setSuccessMessage('تم إنشاء حسابك! يرجى التحقق من بريدك الإلكتروني لتفعيل الحساب.');
         } catch (err: any) {
             const msg = err.message || '';

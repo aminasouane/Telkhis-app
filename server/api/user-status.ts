@@ -16,7 +16,31 @@ export async function handleGetUserStatus(req: Request, res: Response) {
     }
 
     try {
-        // Check if user has an active paid subscription first
+        // 1. Check if user is an admin
+        const role = await db.getUserRole(userId);
+        if (role === "admin") {
+            return res.json({
+                isPaid: true,
+                hasTrial: false,
+                trialState: "PAID",
+                planName: "admin",
+                minutesUsed: 0,
+                minutesLimit: 999999,
+                minutesRemaining: 999999,
+                dailyMinutesUsed: 0,
+                dailyMinutesLimit: null,
+                dailyMinutesRemaining: null,
+                daysRemaining: null,
+                canProcess: true,
+                blockReason: null,
+            });
+        }
+
+        // 2. Fetch system settings for dynamic limits
+        const sysSettings = await db.getSystemSettings();
+        const dynamicTrialLimits = sysSettings['TRIAL_LIMITS'] || TRIAL_LIMITS;
+
+        // 3. Check if user has an active paid subscription first
         const subscription = await getActiveSubscription(userId);
         const isPaid =
             subscription !== null &&
@@ -56,36 +80,47 @@ export async function handleGetUserStatus(req: Request, res: Response) {
 
         const totalMinutesRemaining = Math.max(
             0,
-            TRIAL_LIMITS.MAX_AUDIO_MINUTES - totalMinutesUsed
+            dynamicTrialLimits.MAX_AUDIO_MINUTES - totalMinutesUsed
         );
         const dailyMinutesRemaining = Math.max(
             0,
-            TRIAL_LIMITS.DAILY_LIMIT_MINUTES - dailyMinutesUsed
+            dynamicTrialLimits.DAILY_LIMIT_MINUTES - dailyMinutesUsed
         );
 
-        const trialCheck = checkTrialStatus({
-            firstUseDateStr,
-            totalMinutesUsed,
-            dailyMinutesUsed,
-        });
-
-        // Calculate days remaining
-        let daysRemaining: number = TRIAL_LIMITS.VALIDITY_DAYS;
+        // We replicate checkTrialStatus logic here with dynamic limits
+        let isExpired = false;
+        let daysPassed = 0;
         if (firstUseDateStr) {
             const firstUse = new Date(firstUseDateStr);
-            const daysPassed = Math.floor(
-                (Date.now() - firstUse.getTime()) / (1000 * 60 * 60 * 24)
-            );
-            daysRemaining = Math.max(0, TRIAL_LIMITS.VALIDITY_DAYS - daysPassed);
+            daysPassed = Math.floor((Date.now() - firstUse.getTime()) / (1000 * 60 * 60 * 24));
+            isExpired = daysPassed >= dynamicTrialLimits.VALIDITY_DAYS;
         }
 
-        const trialState = !trialCheck.allowed
-            ? trialCheck.blockReason === "days_expired"
-                ? "EXPIRED"
-                : trialCheck.blockReason === "daily_limit"
-                    ? "DAILY_LIMIT"
-                    : "USED_UP"
-            : "ACTIVE";
+        const isDailyLimitReached = dailyMinutesUsed >= dynamicTrialLimits.DAILY_LIMIT_MINUTES;
+        const isTotalLimitReached = totalMinutesUsed >= dynamicTrialLimits.MAX_AUDIO_MINUTES;
+
+        let blockReason = null;
+        if (isExpired) blockReason = 'days_expired';
+        else if (isDailyLimitReached) blockReason = 'daily_limit';
+        else if (isTotalLimitReached) blockReason = 'total_limit';
+
+        const canProcess = blockReason === null;
+
+        // Calculate days remaining
+        const daysRemaining = Math.max(0, dynamicTrialLimits.VALIDITY_DAYS - daysPassed);
+
+        let trialState: "ACTIVE" | "EXPIRED" | "DAILY_LIMIT" | "USED_UP";
+        if (blockReason === null) {
+            trialState = "ACTIVE";
+        } else if (blockReason === "days_expired") {
+            trialState = "EXPIRED";
+        } else if (blockReason === "daily_limit") {
+            trialState = "DAILY_LIMIT";
+        } else if (blockReason === "total_limit") {
+            trialState = "USED_UP";
+        } else {
+            trialState = "ACTIVE"; // Fallback, though blockReason should cover all cases
+        }
 
         return res.json({
             isPaid: false,
@@ -93,14 +128,14 @@ export async function handleGetUserStatus(req: Request, res: Response) {
             trialState,
             planName: "trial",
             minutesUsed: totalMinutesUsed,
-            minutesLimit: TRIAL_LIMITS.MAX_AUDIO_MINUTES,
+            minutesLimit: dynamicTrialLimits.MAX_AUDIO_MINUTES,
             minutesRemaining: totalMinutesRemaining,
-            dailyMinutesUsed,
-            dailyMinutesLimit: TRIAL_LIMITS.DAILY_LIMIT_MINUTES,
-            dailyMinutesRemaining,
+            dailyMinutesUsed: dailyMinutesUsed,
+            dailyMinutesLimit: dynamicTrialLimits.DAILY_LIMIT_MINUTES,
+            dailyMinutesRemaining: dailyMinutesRemaining,
             daysRemaining,
-            canProcess: trialCheck.allowed,
-            blockReason: trialCheck.allowed ? null : trialCheck.blockReason,
+            canProcess,
+            blockReason,
         });
     } catch (err) {
         console.error("[user-status] Error:", err);

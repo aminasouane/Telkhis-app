@@ -9,15 +9,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Moon, Sun, User, LogOut, Crown, UserPlus, LogIn } from "lucide-react";
+import { Moon, Sun, User, LogOut, Crown, UserPlus, LogIn, LayoutDashboard, Shield } from "lucide-react";
 import AuthModal from "@/components/AuthModal";
 import { useLocation } from "wouter";
+import { useAdminRole } from "@/hooks/useAdmin";
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
   const { user, isAuthenticated, signOut, isAuthModalOpen, authModalTab, showAuthModal, closeAuthModal } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [, navigate] = useLocation();
+  const { isAdmin } = useAdminRole();
 
   const handleSignOut = async () => {
     setIsDropdownOpen(false);
@@ -73,9 +75,19 @@ export default function Header() {
                   <DropdownMenuContent align="end" className="w-56">
                     <div className="px-2 py-1.5">
                       <p className="text-sm font-medium truncate">{user?.email}</p>
-                      <p className="text-xs text-muted-foreground">حساب مجاني</p>
+                      <p className="text-xs text-muted-foreground">{isAdmin ? "حساب إداري" : "حساب مجاني"}</p>
                     </div>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => { setIsDropdownOpen(false); navigate('/dashboard'); }}>
+                      <LayoutDashboard className="h-4 w-4 text-primary" />
+                      داشبوردي
+                    </DropdownMenuItem>
+                    {isAdmin && (
+                      <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => { setIsDropdownOpen(false); navigate('/admin'); }}>
+                        <Shield className="h-4 w-4 text-red-500" />
+                        <span className="text-red-600">لوحة الإدارة</span>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => { setIsDropdownOpen(false); window.location.href = '/subscribe'; }}>
                       <Crown className="h-4 w-4 text-amber-500" />
                       ترقية الاشتراك

@@ -14,7 +14,7 @@ export default function AboutUs() {
             <Link href="/">
               <Button
                 variant="ghost"
-                className="mb-4 flex items-center justify-end"
+                className="mb-4 flex items-center justify-start"
                 data-testid="button-back"
               >
                 <ArrowRight className="mr-2 h-4 w-4" />
@@ -23,7 +23,7 @@ export default function AboutUs() {
             </Link>
 
             {/* العنوان */}
-            <div className="flex items-center justify-end gap-3 mb-2">
+            <div className="flex items-center justify-start gap-3 mb-2">
               <h1 className="text-4xl font-bold text-foreground">
                 من نحن
               </h1>
@@ -35,7 +35,7 @@ export default function AboutUs() {
           <div className="space-y-10 text-foreground leading-relaxed">
 
             <section className="space-y-4">
-              <h2 className="text-2xl font-bold flex items-center justify-end gap-2">
+              <h2 className="text-2xl font-bold flex items-center justify-start gap-2">
                 <span>رسالتنا</span>
                 <Target className="h-6 w-6 text-primary" />
               </h2>
@@ -53,7 +53,7 @@ export default function AboutUs() {
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-2xl font-bold flex items-center justify-end gap-2">
+              <h2 className="text-2xl font-bold flex items-center justify-start gap-2">
                 <span>كيف يعمل تلخيصلي؟</span>
                 <Zap className="h-6 w-6 text-primary" />
               </h2>
@@ -72,7 +72,7 @@ export default function AboutUs() {
             </section>
 
             <section className="space-y-4">
-              <h2 className="text-2xl font-bold flex items-center justify-end gap-2">
+              <h2 className="text-2xl font-bold flex items-center justify-start gap-2">
                 <span>لماذا تلخيصلي؟</span>
                 <Award className="h-6 w-6 text-primary" />
               </h2>

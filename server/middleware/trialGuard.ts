@@ -17,6 +17,28 @@ export interface TrialInfo {
 }
 
 export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
+  // 1. Admin Check: Bypass limits entirely
+  const role = await db.getUserRole(userId);
+  if (role === "admin") {
+    return {
+      userId,
+      isExpired: false,
+      minutesUsed: 0,
+      minutesLimit: 999999,
+      minutesRemaining: 999999,
+      dailyMinutesUsed: 0,
+      dailyLimit: 999999,
+      dailyRemaining: 999999,
+      firstUseDate: null,
+      daysUsed: 0,
+      canUseService: true
+    };
+  }
+
+  // 2. Dynamic Settings
+  const sysSettings = await db.getSystemSettings();
+  const dynamicTrialLimits = sysSettings['TRIAL_LIMITS'] || TRIAL_LIMITS;
+
   const totalMinutesUsed = await db.getTotalUsage(userId);
   const todayUsage = await db.getTodayUsage(userId);
   const dailyMinutesUsed = todayUsage?.minutes_used || 0;
@@ -29,15 +51,15 @@ export async function checkTrialStatus(userId: string): Promise<TrialInfo> {
     daysUsed = Math.floor((now.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
   }
 
-  const minutesLimit = TRIAL_LIMITS.MAX_AUDIO_MINUTES;
-  const dailyLimit = TRIAL_LIMITS.DAILY_LIMIT_MINUTES;
+  const minutesLimit = dynamicTrialLimits.MAX_AUDIO_MINUTES;
+  const dailyLimit = dynamicTrialLimits.DAILY_LIMIT_MINUTES;
 
   const minutesRemaining = Math.max(0, minutesLimit - totalMinutesUsed);
   const dailyRemaining = Math.max(0, dailyLimit - dailyMinutesUsed);
 
   const totalLimitReached = totalMinutesUsed >= minutesLimit;
   const dailyLimitReached = dailyMinutesUsed >= dailyLimit;
-  const daysExpired = daysUsed >= TRIAL_LIMITS.VALIDITY_DAYS;
+  const daysExpired = daysUsed >= dynamicTrialLimits.VALIDITY_DAYS;
 
   const isExpired = totalLimitReached || daysExpired;
   const canUseService = !isExpired && !dailyLimitReached;
