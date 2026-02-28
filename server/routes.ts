@@ -59,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const { requireAuth } = await import("./middleware/auth");
   app.get("/api/user/settings", requireAuth, getUserSettings);
   app.post("/api/user/settings", requireAuth, updateUserSettings);
-  app.get("/api/user/status", handleGetUserStatus); // Supabase-based trial/subscription status
+  app.get("/api/user/status", requireAuth, handleGetUserStatus); // Supabase-based trial/subscription status
   app.patch("/api/user/profile", requireAuth, updateProfile);
   app.delete("/api/user/account", requireAuth, deleteAccount);
 
