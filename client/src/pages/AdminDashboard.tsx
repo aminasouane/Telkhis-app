@@ -29,7 +29,7 @@ function StatCard({ icon: Icon, title, value, subtitle, color }: {
                         <Icon className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <p className="text-2xl font-bold text-gray-900">{value}</p>
+                        <p className="text-2xl font-bold text-foreground">{value}</p>
                         <p className="text-xs text-muted-foreground">{title}</p>
                     </div>
                 </div>
@@ -196,12 +196,12 @@ export default function AdminDashboard() {
     // Not admin
     if (!isAdmin) {
         return (
-            <div className="min-h-screen bg-gray-50 flex flex-col" dir="rtl">
+            <div className="min-h-screen bg-background flex flex-col" dir="rtl">
                 <Header />
                 <main className="flex-1 flex items-center justify-center">
                     <div className="text-center space-y-4">
-                        <Shield className="h-16 w-16 text-red-400 mx-auto" />
-                        <h2 className="text-xl font-bold text-gray-800">ممنوع الوصول</h2>
+                        <Shield className="h-16 w-16 text-destructive mx-auto" />
+                        <h2 className="text-xl font-bold text-foreground">ممنوع الوصول</h2>
                         <p className="text-muted-foreground">ليس لديك صلاحية الوصول لهذه الصفحة</p>
                         <Button onClick={() => navigate("/")}>العودة للرئيسية</Button>
                     </div>
@@ -212,7 +212,7 @@ export default function AdminDashboard() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col" dir="rtl">
+        <div className="min-h-screen bg-background flex flex-col" dir="rtl">
             <Header />
 
             <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-8 space-y-6">
@@ -221,11 +221,11 @@ export default function AdminDashboard() {
                     {/* Header with Title and TabsList */}
                     <div className="flex flex-col sm:flex-row-reverse sm:items-center justify-between gap-4 mb-6">
                         <div className="flex items-center flex-row-reverse gap-3">
-                            <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                                <Shield className="h-6 w-6 text-red-600" />
+                            <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                                <Shield className="h-6 w-6 text-destructive" />
                             </div>
                             <div className="text-right">
-                                <h1 className="text-xl font-bold text-gray-900">لوحة الإدارة</h1>
+                                <h1 className="text-xl font-bold text-foreground">لوحة الإدارة</h1>
                                 <p className="text-sm text-muted-foreground">إدارة النظام والمستخدمين</p>
                             </div>
                         </div>
@@ -246,13 +246,13 @@ export default function AdminDashboard() {
                         {/* Stats grid */}
                         {!statsLoading && stats && (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <StatCard icon={Users} title="إجمالي المستخدمين" value={stats.totalUsers} color="bg-blue-500" />
+                                <StatCard icon={Users} title="إجمالي المستخدمين" value={stats.totalUsers} color="bg-chart-1" />
                                 <StatCard icon={CreditCard} title="مشتركون" value={stats.paidUsers}
-                                    subtitle={`${stats.trialUsers} تجربة مجانية`} color="bg-emerald-500" />
+                                    subtitle={`${stats.trialUsers} تجربة مجانية`} color="bg-chart-2" />
                                 <StatCard icon={FileText} title="التلخيصات اليوم" value={stats.summariesToday}
-                                    subtitle={`${stats.totalSummaries} إجمالي`} color="bg-purple-500" />
+                                    subtitle={`${stats.totalSummaries} إجمالي`} color="bg-chart-3" />
                                 <StatCard icon={TrendingUp} title="الإيرادات (د.ج)"
-                                    value={stats.revenueTotal.toLocaleString()} color="bg-amber-500" />
+                                    value={stats.revenueTotal.toLocaleString()} color="bg-chart-4" />
                             </div>
                         )}
 
@@ -321,16 +321,16 @@ export default function AdminDashboard() {
                                                 return (
                                                     <div
                                                         key={u.id}
-                                                        className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors border border-transparent hover:border-gray-200"
+                                                        className="flex items-center justify-between p-3 rounded-lg hover:bg-accent cursor-pointer transition-colors border border-transparent hover:border-border"
                                                         onClick={() => setSelectedUserId(u.id)}
                                                     >
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2">
-                                                                <p className="text-sm font-medium text-gray-800 truncate">
+                                                                <p className="text-sm font-medium text-foreground truncate">
                                                                     {u.email}
                                                                 </p>
                                                                 {u.role === "admin" && (
-                                                                    <Badge variant="outline" className="text-[10px] text-red-600 border-red-200">أدمن</Badge>
+                                                                    <Badge variant="outline" className="text-[10px] text-destructive border-border">أدمن</Badge>
                                                                 )}
                                                             </div>
                                                             <div className="flex items-center gap-2 mt-0.5">

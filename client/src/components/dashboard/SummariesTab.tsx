@@ -58,7 +58,7 @@ export default function SummariesTab() {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" dir="rtl">
             {/* Search bar */}
             <div className="relative">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -70,7 +70,7 @@ export default function SummariesTab() {
                 />
             </div>
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground text-right">
                 {filtered.length} تلخيص{filtered.length !== 1 ? "ات" : ""}
             </p>
 
@@ -82,7 +82,7 @@ export default function SummariesTab() {
                             {/* Header row */}
                             <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                    <h4 className="font-medium text-gray-800 text-sm line-clamp-1">
+                                    <h4 className="font-medium text-foreground text-sm line-clamp-1">
                                         {s.title || "بدون عنوان"}
                                     </h4>
                                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
@@ -146,7 +146,7 @@ export default function SummariesTab() {
                                 <div className="pt-3 border-t space-y-3">
                                     <div>
                                         <h5 className="text-xs font-semibold text-muted-foreground mb-1">الملخص</h5>
-                                        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                                             {s.content}
                                         </p>
                                     </div>

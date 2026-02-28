@@ -88,7 +88,7 @@ export default function SettingsTab() {
     };
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-5" dir="rtl">
             {/* Profile card */}
             <Card className="shadow-sm border-0">
                 <CardHeader className="pb-2">
@@ -99,20 +99,21 @@ export default function SettingsTab() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <div className="space-y-1">
-                        <Label className="text-xs">البريد الإلكتروني</Label>
-                        <Input value={user?.email || ""} disabled className="bg-gray-50 text-muted-foreground" />
-                        <p className="text-[10px] text-muted-foreground">لا يمكن تغيير البريد الإلكتروني</p>
+                        <Label className="text-xs text-right block">البريد الإلكتروني</Label>
+                        <Input value={user?.email || ""} disabled className="bg-muted text-muted-foreground text-right" />
+                        <p className="text-[10px] text-muted-foreground text-right">لا يمكن تغيير البريد الإلكتروني</p>
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">الاسم</Label>
+                        <Label className="text-xs text-right block">الاسم</Label>
                         <Input
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="أدخل اسمك"
+                            className="text-right"
                         />
                     </div>
                     {profileMsg && (
-                        <p className={`text-xs font-medium ${profileMsg.ok ? "text-emerald-600" : "text-red-500"}`}>
+                        <p className={`text-xs font-medium text-right ${profileMsg.ok ? "text-emerald-600" : "text-red-500"}`}>
                             {profileMsg.text}
                         </p>
                     )}
@@ -135,22 +136,22 @@ export default function SettingsTab() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground text-right">
                         إذا سجّلت دخولك عبر Google، يمكنك هنا تعيين كلمة سر للدخول بالبريد الإلكتروني.
                     </p>
                     <div className="space-y-1">
-                        <Label className="text-xs">كلمة السر الجديدة</Label>
+                        <Label className="text-xs text-right block">كلمة السر الجديدة</Label>
                         <div className="relative">
                             <Input
                                 type={showPassword ? "text" : "password"}
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
                                 placeholder="6 أحرف على الأقل"
-                                className="pl-10"
+                                className="pl-10 text-right"
                             />
                             <button
                                 type="button"
-                                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-gray-700"
+                                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                                 onClick={() => setShowPassword((p) => !p)}
                             >
                                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -158,16 +159,17 @@ export default function SettingsTab() {
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs">تأكيد كلمة السر</Label>
+                        <Label className="text-xs text-right block">تأكيد كلمة السر</Label>
                         <Input
                             type={showPassword ? "text" : "password"}
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             placeholder="أعد كتابة كلمة السر"
+                            className="text-right"
                         />
                     </div>
                     {pwMessage && (
-                        <p className={`text-xs font-medium ${pwMessage.ok ? "text-emerald-600" : "text-red-500"}`}>
+                        <p className={`text-xs font-medium text-right ${pwMessage.ok ? "text-emerald-600" : "text-red-500"}`}>
                             {pwMessage.text}
                         </p>
                     )}
@@ -190,7 +192,7 @@ export default function SettingsTab() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground text-right">
                         حذف الحساب نهائي ولا يمكن التراجع عنه. سيتم حذف جميع بياناتك وتلخيصاتك.
                     </p>
                     <AlertDialog>

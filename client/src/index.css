@@ -4,95 +4,97 @@
 
 /* LIGHT MODE */
 :root {
-  --button-outline: rgba(0,0,0, .10);
-  --badge-outline: rgba(0,0,0, .05);
+  --button-outline: rgba(0, 0, 0, .10);
+  --badge-outline: rgba(0, 0, 0, .05);
 
   /* Automatic computation of border around primary / danger buttons */
-  --opaque-button-border-intensity: -8; /* In terms of percentages */
+  --opaque-button-border-intensity: -8;
+  /* In terms of percentages */
 
   /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .08);
+  --elevate-1: rgba(0, 0, 0, .03);
+  --elevate-2: rgba(0, 0, 0, .08);
 
-  --background: 0 0% 98%;
+  /* === Tangerine Theme Colors === */
+  --background: 204.0000 12.1951% 91.9608%;
 
-  --foreground: 220 20% 20%;
+  --foreground: 0 0% 20%;
 
-  --border: 220 10% 88%;
+  --border: 210 9.3750% 87.4510%;
 
-  --card: 0 0% 96%;
+  --card: 0 0% 100%;
 
-  --card-foreground: 220 20% 22%;
+  --card-foreground: 0 0% 20%;
 
-  --card-border: 220 8% 92%;
+  --card-border: 210 9.3750% 87.4510%;
 
-  --sidebar: 220 4% 94%;
+  --sidebar: 216 7.9365% 87.6471%;
 
-  --sidebar-foreground: 220 18% 24%;
+  --sidebar-foreground: 0 0% 20%;
 
-  --sidebar-border: 220 6% 90%;
+  --sidebar-border: 220 13.0435% 90.9804%;
 
-  --sidebar-primary: 180 70% 45%;
+  --sidebar-primary: 182 55% 45%;
 
   --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 220 12% 88%;
+  --sidebar-accent: 207.6923 46.4286% 89.0196%;
 
-  --sidebar-accent-foreground: 220 20% 26%;
+  --sidebar-accent-foreground: 224.4444 64.2857% 32.9412%;
 
-  --sidebar-ring: 180 70% 45%;
+  --sidebar-ring: 182 55% 45%;
 
-  --popover: 220 6% 92%;
+  --popover: 0 0% 100%;
 
-  --popover-foreground: 220 20% 24%;
+  --popover-foreground: 0 0% 20%;
 
-  --popover-border: 220 8% 88%;
+  --popover-border: 210 9.3750% 87.4510%;
 
-  --primary: 180 70% 45%;
+  --primary: 182 55% 45%;
 
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 8% 86%;
+  --secondary: 220.0000 14.2857% 95.8824%;
 
-  --secondary-foreground: 220 20% 28%;
+  --secondary-foreground: 215 13.7931% 34.1176%;
 
-  --muted: 220 10% 90%;
+  --muted: 210 20.0000% 98.0392%;
 
-  --muted-foreground: 220 18% 45%;
+  --muted-foreground: 220 8.9362% 46.0784%;
 
-  --accent: 220 15% 92%;
+  --accent: 207.6923 46.4286% 89.0196%;
 
-  --accent-foreground: 220 20% 26%;
+  --accent-foreground: 224.4444 64.2857% 32.9412%;
 
-  --destructive: 0 70% 50%;
+  --destructive: 0 84.2365% 60.1961%;
 
   --destructive-foreground: 0 0% 100%;
 
-  --input: 220 15% 75%;
-  --ring: 180 70% 45%;
-  --chart-1: 220 70% 45%;
-  --chart-2: 145 65% 45%;
-  --chart-3: 35 90% 50%;
-  --chart-4: 280 60% 50%;
-  --chart-5: 10 75% 55%;
+  --input: 220 15.7895% 96.2745%;
+  --ring: 182 55% 45%;
+  --chart-1: 210 37.5000% 65.4902%;
+  --chart-2: 12.9032 73.2283% 75.0980%;
+  --chart-3: 213.1579 29.9213% 50.1961%;
+  --chart-4: 216.9231 35.7798% 42.7451%;
+  --chart-5: 221.0127 43.6464% 35.4902%;
 
+  /* Fonts preserved from original */
   --font-sans: 'Noto Kufi Arabic', 'Inter', Open Sans, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
-  --radius: .5rem; /* 8px */
-  --shadow-2xs: 0px 1px 2px 0px hsl(220 20% 20% / 0.05);
-  --shadow-xs: 0px 1px 3px 0px hsl(220 20% 20% / 0.08);
-  --shadow-sm: 0px 2px 4px 0px hsl(220 20% 20% / 0.06), 0px 1px 2px -1px hsl(220 20% 20% / 0.08);
-  --shadow: 0px 4px 6px 0px hsl(220 20% 20% / 0.07), 0px 2px 4px -1px hsl(220 20% 20% / 0.06);
-  --shadow-md: 0px 6px 12px 0px hsl(220 20% 20% / 0.08), 0px 2px 6px -2px hsl(220 20% 20% / 0.08);
-  --shadow-lg: 0px 10px 20px 0px hsl(220 20% 20% / 0.10), 0px 4px 8px -2px hsl(220 20% 20% / 0.08);
-  --shadow-xl: 0px 16px 32px 0px hsl(220 20% 20% / 0.12), 0px 6px 12px -4px hsl(220 20% 20% / 0.10);
-  --shadow-2xl: 0px 24px 48px 0px hsl(220 20% 20% / 0.16);
+  --radius: 0.75rem;
+  --shadow-2xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 1px 2px -1px hsl(0 0% 0% / 0.10);
+  --shadow: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 1px 2px -1px hsl(0 0% 0% / 0.10);
+  --shadow-md: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 2px 4px -1px hsl(0 0% 0% / 0.10);
+  --shadow-lg: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 4px 6px -1px hsl(0 0% 0% / 0.10);
+  --shadow-xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 8px 10px -1px hsl(0 0% 0% / 0.10);
+  --shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.25);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
-  /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
-
+  /* Automatically computed borders */
   /* Fallback for older browsers */
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -123,85 +125,87 @@
 }
 
 .dark {
-  --button-outline: rgba(255,255,255, .10);
-  --badge-outline: rgba(255,255,255, .05);
+  --button-outline: rgba(255, 255, 255, .10);
+  --badge-outline: rgba(255, 255, 255, .05);
 
-  --opaque-button-border-intensity: 9;  /* In terms of percentages */
+  --opaque-button-border-intensity: 9;
+  /* In terms of percentages */
 
   /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
+  --elevate-1: rgba(255, 255, 255, .04);
+  --elevate-2: rgba(255, 255, 255, .09);
 
-  --background: 220 15% 12%;
+  /* === Tangerine Theme Dark Colors === */
+  --background: 219.1304 29.1139% 15.4902%;
 
-  --foreground: 220 10% 95%;
+  --foreground: 0 0% 89.8039%;
 
-  --border: 220 12% 20%;
+  --border: 224.3478 15.8621% 28.4314%;
 
-  --card: 220 14% 14%;
+  --card: 223.6364 20.7547% 20.7843%;
 
-  --card-foreground: 220 10% 93%;
+  --card-foreground: 0 0% 89.8039%;
 
-  --card-border: 220 12% 18%;
+  --card-border: 224.3478 15.8621% 28.4314%;
 
-  --sidebar: 220 15% 16%;
+  --sidebar: 222.8571 20.0000% 20.5882%;
 
-  --sidebar-foreground: 220 10% 91%;
+  --sidebar-foreground: 0 0% 89.8039%;
 
-  --sidebar-border: 220 12% 20%;
+  --sidebar-border: 224.3478 15.8621% 28.4314%;
 
-  --sidebar-primary: 180 80% 65%;
+  --sidebar-primary: 182 55% 45%;
 
-  --sidebar-primary-foreground: 180 100% 10%;
+  --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 220 14% 22%;
+  --sidebar-accent: 223.6364 34.3750% 25.0980%;
 
-  --sidebar-accent-foreground: 220 10% 88%;
+  --sidebar-accent-foreground: 213.3333 96.9231% 87.2549%;
 
-  --sidebar-ring: 180 80% 65%;
+  --sidebar-ring: 182 55% 45%;
 
-  --popover: 220 14% 18%;
+  --popover: 223.3333 19.1489% 18.4314%;
 
-  --popover-foreground: 220 10% 92%;
+  --popover-foreground: 0 0% 89.8039%;
 
-  --popover-border: 220 12% 22%;
+  --popover-border: 224.3478 15.8621% 28.4314%;
 
-  --primary: 180 80% 65%;
+  --primary: 182 55% 45%;
 
-  --primary-foreground: 180 100% 10%;
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 12% 24%;
+  --secondary: 222 19.2308% 20.3922%;
 
-  --secondary-foreground: 220 10% 90%;
+  --secondary-foreground: 0 0% 89.8039%;
 
-  --muted: 220 12% 20%;
+  --muted: 222 19.2308% 20.3922%;
 
-  --muted-foreground: 220 10% 65%;
+  --muted-foreground: 0 0% 63.9216%;
 
-  --accent: 220 14% 22%;
+  --accent: 223.6364 34.3750% 25.0980%;
 
-  --accent-foreground: 220 10% 88%;
+  --accent-foreground: 213.3333 96.9231% 87.2549%;
 
-  --destructive: 0 70% 50%;
+  --destructive: 0 84.2365% 60.1961%;
 
   --destructive-foreground: 0 0% 100%;
 
-  --input: 220 15% 35%;
-  --ring: 180 80% 65%;
-  --chart-1: 220 80% 70%;
-  --chart-2: 145 65% 65%;
-  --chart-3: 35 90% 65%;
-  --chart-4: 280 60% 70%;
-  --chart-5: 10 75% 65%;
+  --input: 224.3478 15.8621% 28.4314%;
+  --ring: 182 55% 45%;
+  --chart-1: 210 37.5000% 65.4902%;
+  --chart-2: 11.7241 63.5036% 73.1373%;
+  --chart-3: 213.1579 29.9213% 50.1961%;
+  --chart-4: 216.9231 35.7798% 42.7451%;
+  --chart-5: 221.0127 43.6464% 35.4902%;
 
-  --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.20);
-  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.30);
-  --shadow-sm: 0px 2px 4px 0px hsl(0 0% 0% / 0.25), 0px 1px 2px -1px hsl(0 0% 0% / 0.30);
-  --shadow: 0px 4px 6px 0px hsl(0 0% 0% / 0.30), 0px 2px 4px -1px hsl(0 0% 0% / 0.25);
-  --shadow-md: 0px 6px 12px 0px hsl(0 0% 0% / 0.35), 0px 2px 6px -2px hsl(0 0% 0% / 0.30);
-  --shadow-lg: 0px 10px 20px 0px hsl(0 0% 0% / 0.40), 0px 4px 8px -2px hsl(0 0% 0% / 0.35);
-  --shadow-xl: 0px 16px 32px 0px hsl(0 0% 0% / 0.45), 0px 6px 12px -4px hsl(0 0% 0% / 0.40);
-  --shadow-2xl: 0px 24px 48px 0px hsl(0 0% 0% / 0.50);
+  --shadow-2xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 1px 2px -1px hsl(0 0% 0% / 0.10);
+  --shadow: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 1px 2px -1px hsl(0 0% 0% / 0.10);
+  --shadow-md: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 2px 4px -1px hsl(0 0% 0% / 0.10);
+  --shadow-lg: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 4px 6px -1px hsl(0 0% 0% / 0.10);
+  --shadow-xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.10), 0px 8px 10px -1px hsl(0 0% 0% / 0.10);
+  --shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.25);
 
   /* Fallback for older browsers */
   --sidebar-primary-border: hsl(var(--sidebar-primary));
@@ -352,6 +356,7 @@
 
 /* Print Styles */
 @media print {
+
   /* Hide non-printable elements */
   header,
   nav,
@@ -411,16 +416,32 @@
   }
 
   /* Typography for print */
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     page-break-after: avoid;
     color: black !important;
     font-weight: bold;
   }
 
-  h1 { font-size: 18pt; }
-  h2 { font-size: 16pt; }
-  h3 { font-size: 14pt; }
-  h4 { font-size: 13pt; }
+  h1 {
+    font-size: 18pt;
+  }
+
+  h2 {
+    font-size: 16pt;
+  }
+
+  h3 {
+    font-size: 14pt;
+  }
+
+  h4 {
+    font-size: 13pt;
+  }
 
   p {
     orphans: 3;
@@ -429,7 +450,8 @@
   }
 
   /* Lists */
-  ul, ol {
+  ul,
+  ol {
     page-break-inside: avoid;
   }
 
