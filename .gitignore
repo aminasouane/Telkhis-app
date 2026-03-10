@@ -16,3 +16,4 @@ logs/
 ssl/
 .bash_history
 .npm/
+.vscode-server/
