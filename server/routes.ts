@@ -42,21 +42,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Secure API endpoints for guest and user management
-  const { optionalAuth } = await import("./middleware/auth");
+  const { optionalAuth, requireAuth } = await import("./middleware/auth");
   app.post("/api/guest-session", createGuestSession);
-  app.post("/api/save-summary", optionalAuth, saveSummary);
-  app.get("/api/summaries", optionalAuth, getSummaries);
-  app.get("/api/summaries/:id", optionalAuth, getSummaryById);
-  app.delete("/api/summaries/:id", optionalAuth, deleteSummary);
-  app.post("/api/migrate-guest", migrateGuest);
-  app.get("/api/trial-status", getTrialStatus);
+  app.post("/api/save-summary", requireAuth, saveSummary);
+  app.get("/api/summaries", requireAuth, getSummaries);
+  app.get("/api/summaries/:id", requireAuth, getSummaryById);
+  app.delete("/api/summaries/:id", requireAuth, deleteSummary);
+  app.post("/api/migrate-guest", requireAuth, migrateGuest);
+  app.get("/api/trial-status", requireAuth, getTrialStatus);
 
   // User management endpoints
-  app.get("/api/user", getUser);
-  app.post("/api/user/upsert", upsertUser);
+  app.get("/api/user", requireAuth, getUser);
+  app.post("/api/user/upsert", requireAuth, upsertUser);
 
   // Settings & Profile (Protected by requireAuth)
-  const { requireAuth } = await import("./middleware/auth");
   app.get("/api/user/settings", requireAuth, getUserSettings);
   app.post("/api/user/settings", requireAuth, updateUserSettings);
   app.get("/api/user/status", requireAuth, handleGetUserStatus); // Supabase-based trial/subscription status
@@ -140,7 +139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Live summary endpoint - processes audio chunks during recording
-  app.post("/api/process-audio-live", upload.single("audio"), async (req: Request, res) => {
+  app.post("/api/process-audio-live", requireAuth, upload.single("audio"), async (req: Request, res) => {
     try {
       const file = (req as any).file;
       const language = req.body.language || "ar";
@@ -211,7 +210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Process audio file endpoint (final processing)
-  app.post("/api/process-audio", upload.single("audio"), async (req: Request, res) => {
+  app.post("/api/process-audio", requireAuth, upload.single("audio"), async (req: Request, res) => {
     const startTime = Date.now();
     const timings: Record<string, number> = {};
 

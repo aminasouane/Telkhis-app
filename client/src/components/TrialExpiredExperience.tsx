@@ -1,13 +1,13 @@
+import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Calendar, Sparkles, Check, Star, Crown } from "lucide-react";
+import { Clock, Calendar, Sparkles, Check, Star, Crown, Loader2 } from "lucide-react";
 import { type TrialStatus } from "@/services/localTrialService";
 import { TRIAL_CONFIG } from "@/config/trialConfig";
-
-const CHARGILY_BASIC_LINK = import.meta.env.VITE_CHARGILY_LINK_BASIC || "http://pay.chargily.com/payment-links/01k94gvp2jbxkhaskbf2z52khy";
-const CHARGILY_STUDENT_LINK = import.meta.env.VITE_CHARGILY_LINK_STUDENT || "http://pay.chargily.com/payment-links/01k94h40j1g6hx2ztjvkvn43q1";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
 
 interface TrialExpiredExperienceProps {
   trialStatus: TrialStatus | null;
@@ -19,6 +19,8 @@ export default function TrialExpiredExperience({
   showMetrics = true,
 }: TrialExpiredExperienceProps) {
   const { appUserId, user, isAuthenticated, showAuthModal } = useAuth();
+  const { toast } = useToast();
+  const [isCreatingCheckout, setIsCreatingCheckout] = useState<string | null>(null);
 
   const getTitle = () => {
     if (!trialStatus) return "انتهت تجربتك المجانية";
@@ -40,14 +42,51 @@ export default function TrialExpiredExperience({
     }
   };
 
-  const buildPaymentUrl = (baseLink: string) => {
+  const handleSubscribe = async (planId: "basic") => {
+    if (!isAuthenticated) {
+      showAuthModal('signup');
+      return;
+    }
+
     try {
-      const url = new URL(baseLink);
-      if (appUserId) url.searchParams.set("user_id", appUserId);
-      if (user?.email) url.searchParams.set("email", user.email);
-      return url.toString();
-    } catch {
-      return baseLink;
+      setIsCreatingCheckout(planId);
+
+      // Get current session token to send with the request
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const response = await fetch('/api/chargily/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          planId,
+          locale: "ar"
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || "فشل إنشاء جلسة الدفع");
+      }
+
+      if (data.checkoutUrl) {
+        // Redirect to Chargily payment page
+        window.location.href = data.checkoutUrl;
+      } else {
+        throw new Error("لم يتم العثور على رابط الدفع من الخادم");
+      }
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      toast({
+        title: "خطأ",
+        description: error.message || "حدث خطأ أثناء إعداد عملية الدفع. يرجى المحاولة لاحقاً.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingCheckout(null);
     }
   };
 
@@ -94,18 +133,21 @@ export default function TrialExpiredExperience({
 
         {/* Plans */}
         <div>
-          <h2 className="text-xl font-bold mb-6">اختر خطة الاشتراك</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <h2 className="text-xl font-bold mb-6">خطة الاشتراك</h2>
+          <div className="max-w-sm mx-auto">
 
             {/* Basic Plan */}
-            <Card className="border-2 hover:border-primary transition-colors">
+            <Card className="border-2 border-primary relative">
+              <div className="absolute -top-3 right-1/2 translate-x-1/2">
+                <Badge className="bg-primary text-primary-foreground px-3">الخطة الاحترافية</Badge>
+              </div>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">🩵 الخطة الأساسية</CardTitle>
                   <Badge variant="outline">Basic</Badge>
                 </div>
                 <div className="text-3xl font-bold text-primary mt-1">
-                  1,200 <span className="text-base font-normal text-muted-foreground">دج</span>
+                  1,900 <span className="text-base font-normal text-muted-foreground">دج</span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -126,58 +168,14 @@ export default function TrialExpiredExperience({
                 {isAuthenticated ? (
                   <Button
                     className="w-full"
-                    variant="outline"
-                    onClick={() => window.open(buildPaymentUrl(CHARGILY_BASIC_LINK), "_blank")}
+                    disabled={isCreatingCheckout !== null}
+                    onClick={() => handleSubscribe('basic')}
                   >
-                    اشترك الآن
-                  </Button>
-                ) : (
-                  <Button className="w-full" variant="outline" onClick={() => showAuthModal('signup')}>
-                    🔐 سجّل دخولك للاشتراك
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Student Plan */}
-            <Card className="border-2 border-primary relative">
-              <div className="absolute -top-3 right-1/2 translate-x-1/2">
-                <Badge className="bg-primary text-primary-foreground px-3">الأكثر طلباً</Badge>
-              </div>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">💙 خطة الطالب</CardTitle>
-                  <Badge variant="outline">Student</Badge>
-                </div>
-                <div className="text-3xl font-bold text-primary mt-1">
-                  4,700 <span className="text-base font-normal text-muted-foreground">دج</span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <ul className="text-sm text-muted-foreground space-y-2 text-right">
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500 shrink-0" />
-                    30 محاضرة صوتية × 45 دقيقة
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500 shrink-0" />
-                    تفريغ وتلخيص بجودة عالية
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500 shrink-0" />
-                    تنظيم الملخصات حسب المادة
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500 shrink-0" />
-                    مثالية للدراسة اليومية
-                  </li>
-                </ul>
-                {isAuthenticated ? (
-                  <Button
-                    className="w-full"
-                    onClick={() => window.open(buildPaymentUrl(CHARGILY_STUDENT_LINK), "_blank")}
-                  >
-                    <Star className="h-4 w-4 ml-2" />
+                    {isCreatingCheckout === 'basic' ? (
+                      <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                    ) : (
+                      <Star className="h-4 w-4 ml-2" />
+                    )}
                     اشترك الآن
                   </Button>
                 ) : (

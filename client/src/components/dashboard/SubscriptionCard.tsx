@@ -8,16 +8,14 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 
-function getPlanLabel(planName: string): { label: string; color: string; icon: typeof Crown } {
-    switch (planName) {
+function getPlanLabel(planName: string): { label: string; color: string; icon: typeof Crown | typeof ShieldCheck | typeof Zap | typeof Clock } {
+    const normalizedPlan = planName?.toLowerCase().trim();
+    switch (normalizedPlan) {
         case "admin":
             return { label: "حساب إداري", color: "bg-primary/10 text-primary", icon: ShieldCheck };
         case "basic":
-            return { label: "الخطة الأساسية", color: "bg-blue-100 text-blue-700", icon: Zap };
-        case "student":
-            return { label: "خطة الطالب", color: "bg-purple-100 text-purple-700", icon: Crown };
-        case "professional":
-            return { label: "خطة المحترف", color: "bg-amber-100 text-amber-700", icon: Crown };
+        case "الخطة الأساسية":
+            return { label: "الخطة الأساسية", color: "bg-blue-600 hover:bg-blue-700 text-white border border-red-500 shadow-md font-bold uppercase", icon: Zap };
         default:
             return { label: "تجربة مجانية", color: "bg-muted text-muted-foreground", icon: Clock };
     }

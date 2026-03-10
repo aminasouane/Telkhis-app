@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Mic, Square, StopCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabaseClient";
 
-type RecordingStatus = "idle" | "recording" | "stopping";
+export type RecordingStatus = "idle" | "recording" | "stopping";
 
 interface LiveUpdateData {
   transcription: string;
@@ -20,12 +21,12 @@ interface RecordingControlProps {
   language: string;
 }
 
-export default function RecordingControl({ 
-  onRecordingComplete, 
+export default function RecordingControl({
+  onRecordingComplete,
   onLiveUpdate,
   onRecordingStart,
   onBeforeRecording,
-  language 
+  language
 }: RecordingControlProps) {
   const [status, setStatus] = useState<RecordingStatus>("idle");
   const [duration, setDuration] = useState(0);
@@ -56,10 +57,10 @@ export default function RecordingControl({
 
     try {
       setIsProcessingLive(true);
-      
+
       // Create blob from accumulated chunks
       const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
-      
+
       // Only process if we have meaningful audio (> 1KB)
       if (audioBlob.size < 1024) {
         return;
@@ -70,8 +71,15 @@ export default function RecordingControl({
       formData.append("language", language);
       formData.append("audioDuration", duration.toString());
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch("/api/process-audio-live", {
         method: "POST",
+        headers,
         body: formData,
       });
 
@@ -98,7 +106,7 @@ export default function RecordingControl({
     if (onBeforeRecording && !onBeforeRecording()) {
       return; // Block recording - caller handles showing modal
     }
-    
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
@@ -116,7 +124,7 @@ export default function RecordingControl({
         const recordingDuration = duration; // Capture current duration
         onRecordingComplete(audioBlob, recordingDuration);
         stream.getTracks().forEach((track) => track.stop());
-        
+
         // Reset to idle after recording is complete
         setStatus("idle");
         setDuration(0);
@@ -150,7 +158,7 @@ export default function RecordingControl({
 
   const stopRecording = () => {
     if (status === "stopping") return; // Prevent multiple clicks
-    
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       setStatus("stopping");
       mediaRecorderRef.current.stop();

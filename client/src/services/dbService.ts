@@ -1,4 +1,13 @@
 import type { Language } from "@shared/schema";
+import { supabase } from '../lib/supabaseClient';
+
+async function getAuthHeaders(contentType: string = 'application/json'): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {};
+  if (contentType) headers['Content-Type'] = contentType;
+  if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+  return headers;
+}
 
 export interface UserData {
   id: string;
@@ -45,7 +54,8 @@ export interface UserSettings {
 
 export async function getUserData(userId: string): Promise<UserData | null> {
   try {
-    const response = await fetch(`/api/user?userId=${userId}`);
+    const headers = await getAuthHeaders('');
+    const response = await fetch(`/api/user?userId=${userId}`, { headers });
     if (!response.ok) return null;
     const { user } = await response.json();
     return user;
@@ -57,11 +67,10 @@ export async function getUserData(userId: string): Promise<UserData | null> {
 
 export async function upsertUser(userId: string, email: string, name?: string): Promise<UserData | null> {
   try {
+    const headers = await getAuthHeaders();
     const response = await fetch('/api/user/upsert', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ userId, email, name }),
     });
 
@@ -80,11 +89,10 @@ export async function upsertUser(userId: string, email: string, name?: string): 
 
 export async function saveSummary(summaryData: SummaryData & { processedAt?: string }): Promise<SummaryData | null> {
   try {
+    const headers = await getAuthHeaders();
     const response = await fetch('/api/save-summary', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         userId: summaryData.user_id,
         title: summaryData.title,
@@ -113,8 +121,9 @@ export async function saveSummary(summaryData: SummaryData & { processedAt?: str
 
 export async function getSummaries(userId: string): Promise<SummaryData[]> {
   try {
-    const response = await fetch(`/api/summaries?userId=${userId}`);
-    
+    const headers = await getAuthHeaders('');
+    const response = await fetch(`/api/summaries?userId=${userId}`, { headers });
+
     if (!response.ok) {
       console.error('Failed to fetch summaries');
       return [];
@@ -130,8 +139,9 @@ export async function getSummaries(userId: string): Promise<SummaryData[]> {
 
 export async function getSummaryById(summaryId: string, userId: string): Promise<SummaryData | null> {
   try {
-    const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`);
-    
+    const headers = await getAuthHeaders('');
+    const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`, { headers });
+
     if (!response.ok) {
       console.error('Failed to fetch summary');
       return null;
@@ -147,10 +157,12 @@ export async function getSummaryById(summaryId: string, userId: string): Promise
 
 export async function deleteSummary(summaryId: string, userId: string): Promise<boolean> {
   try {
+    const headers = await getAuthHeaders('');
     const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`, {
       method: 'DELETE',
+      headers,
     });
-    
+
     if (!response.ok) {
       console.error('Failed to delete summary');
       return false;
@@ -165,8 +177,9 @@ export async function deleteSummary(summaryId: string, userId: string): Promise<
 
 export async function getUserSubscription(userId: string): Promise<SubscriptionData | null> {
   try {
-    const response = await fetch(`/api/payment/latest?userId=${userId}`);
-    
+    const headers = await getAuthHeaders('');
+    const response = await fetch(`/api/payment/latest?userId=${userId}`, { headers });
+
     if (!response.ok) {
       console.error('Failed to fetch subscription');
       return null;
@@ -181,8 +194,8 @@ export async function getUserSubscription(userId: string): Promise<SubscriptionD
 }
 
 export async function updateSubscription(
-  userId: string, 
-  planName: string, 
+  userId: string,
+  planName: string,
   endDate?: string
 ): Promise<SubscriptionData | null> {
   console.warn('updateSubscription: Direct subscription updates are handled by payment webhooks');
@@ -191,8 +204,9 @@ export async function updateSubscription(
 
 export async function getUserSettings(userId: string): Promise<UserSettings | null> {
   try {
-    const response = await fetch(`/api/user/settings?userId=${userId}`);
-    
+    const headers = await getAuthHeaders('');
+    const response = await fetch(`/api/user/settings?userId=${userId}`, { headers });
+
     if (!response.ok) {
       console.error('Failed to fetch settings');
       return null;
@@ -208,11 +222,10 @@ export async function getUserSettings(userId: string): Promise<UserSettings | nu
 
 export async function updateUserSettings(settings: UserSettings): Promise<UserSettings | null> {
   try {
+    const headers = await getAuthHeaders();
     const response = await fetch('/api/user/settings', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         user_id: settings.user_id,
         preferred_language: settings.preferred_language,

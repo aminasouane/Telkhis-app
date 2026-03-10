@@ -13,6 +13,7 @@ import { Moon, Sun, User, LogOut, Crown, UserPlus, LogIn, LayoutDashboard, Shiel
 import AuthModal from "@/components/AuthModal";
 import { useLocation } from "wouter";
 import { useAdminRole } from "@/hooks/useAdmin";
+import { useUserStatus } from "@/hooks/useUserStatus";
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
@@ -20,6 +21,17 @@ export default function Header() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [, navigate] = useLocation();
   const { isAdmin } = useAdminRole();
+  const { status } = useUserStatus();
+
+  function getPlanDisplayName() {
+    if (isAdmin) return "حساب إداري";
+    if (!status || !status.planName || status.planName === "trial") return "تجربة مجانية";
+    const name = status.planName.toLowerCase().trim();
+    if (name === "basic" || name === "الخطة الأساسية") return "الخطة الأساسية";
+    if (name === "student" || name === "خطة الطالب") return "خطة الطالب";
+    if (name === "professional" || name === "خطة المحترف") return "خطة المحترف";
+    return status.planName;
+  }
 
   const handleSignOut = async () => {
     setIsDropdownOpen(false);
@@ -75,7 +87,13 @@ export default function Header() {
                   <DropdownMenuContent align="end" className="w-56">
                     <div className="px-2 py-1.5">
                       <p className="text-sm font-medium truncate">{user?.email}</p>
-                      <p className="text-xs text-muted-foreground">{isAdmin ? "حساب إداري" : "حساب مجاني"}</p>
+                      {getPlanDisplayName() === "الخطة الأساسية" ? (
+                        <div className="mt-1 w-fit rounded bg-blue-600 px-2.5 py-0.5 text-xs font-bold text-white border border-red-500 shadow-sm">
+                          {getPlanDisplayName()}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-0.5">{getPlanDisplayName()}</p>
+                      )}
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => { setIsDropdownOpen(false); navigate('/dashboard'); }}>

@@ -38,6 +38,9 @@ export default function PaymentSuccess() {
           return;
         }
 
+        // Wait 4 seconds to give Chargily webhook time to activate the subscription
+        await new Promise(resolve => setTimeout(resolve, 4000));
+
         // Fetch latest payment info
         const response = await fetch(`/api/payment/latest?userId=${userId}`);
         if (response.ok) {
@@ -47,16 +50,15 @@ export default function PaymentSuccess() {
           }
         }
 
-        // Invalidate auth and subscription cache to reflect new subscription
+        // ✅ Invalidate the correct userStatus cache key used by useUserStatus hook
+        queryClient.invalidateQueries({ queryKey: ["userStatus"] });
         queryClient.invalidateQueries({ queryKey: ['/api/trial-status'] });
         queryClient.invalidateQueries({ queryKey: ['/api/summaries'] });
+
       } catch (error) {
         console.error("Error fetching payment info:", error);
       } finally {
-        // Wait at least 2 seconds for better UX
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 2000);
+        setIsLoading(false);
       }
     };
 

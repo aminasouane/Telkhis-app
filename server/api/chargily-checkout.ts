@@ -12,7 +12,7 @@ import { createCheckout, isChargilyConfigured } from "../services/chargily";
 
 // Schema for checkout creation (without userId - will be extracted from auth)
 const createCheckoutSchema = z.object({
-  planId: z.enum(["basic", "student", "professional"]),
+  planId: z.enum(["basic"]),
   locale: z.enum(["ar", "en", "fr"]).default("ar"),
 });
 
@@ -39,7 +39,7 @@ export async function handleCreateCheckout(req: Request, res: Response) {
 
     // Validate request body (no userId allowed from client)
     const validation = createCheckoutSchema.safeParse(req.body);
-    
+
     if (!validation.success) {
       return res.status(400).json({
         error: "Invalid request data",
@@ -77,7 +77,7 @@ export async function handleCreateCheckout(req: Request, res: Response) {
 
   } catch (error: any) {
     console.error("[API] Error creating Chargily checkout:", error);
-    
+
     return res.status(500).json({
       error: "Failed to create payment session",
       message: error.message || "An unexpected error occurred",

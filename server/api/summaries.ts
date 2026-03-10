@@ -6,12 +6,9 @@ export async function getSummaries(req: Request, res: Response) {
     const userId = req.query.userId as string;
     if (!userId) return res.status(400).json({ error: "User ID is required" });
 
-    // IDOR Protection
-    if (req.authenticatedUserId) {
-      if (req.authenticatedUserId !== userId) return res.status(403).json({ error: "Forbidden" });
-    } else {
-      const isRegistered = await db.getUser(userId);
-      if (isRegistered) return res.status(401).json({ error: "Unauthorized" });
+    // Ensure users can only fetch their own summaries
+    if (req.authenticatedUserId !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     const summaries = await db.getSummaries(userId);
@@ -28,12 +25,9 @@ export async function getSummaryById(req: Request, res: Response) {
     const userId = req.query.userId as string;
     if (!userId) return res.status(400).json({ error: "User ID is required" });
 
-    // IDOR Protection
-    if (req.authenticatedUserId) {
-      if (req.authenticatedUserId !== userId) return res.status(403).json({ error: "Forbidden" });
-    } else {
-      const isRegistered = await db.getUser(userId);
-      if (isRegistered) return res.status(401).json({ error: "Unauthorized" });
+    // Ensure users can only fetch their own summaries
+    if (req.authenticatedUserId !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     const summary = await db.getSummaryById(id, userId);
@@ -51,12 +45,9 @@ export async function deleteSummary(req: Request, res: Response) {
     const userId = req.body.userId || req.query.userId;
     if (!userId) return res.status(400).json({ error: "User ID is required" });
 
-    // IDOR Protection
-    if (req.authenticatedUserId) {
-      if (req.authenticatedUserId !== userId) return res.status(403).json({ error: "Forbidden" });
-    } else {
-      const isRegistered = await db.getUser(userId);
-      if (isRegistered) return res.status(401).json({ error: "Unauthorized" });
+    // Ensure users can only delete their own summaries
+    if (req.authenticatedUserId !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     const deleted = await db.deleteSummary(id, userId);

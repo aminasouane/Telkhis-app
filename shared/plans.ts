@@ -6,7 +6,7 @@ import { z } from "zod";
  * خطط الاشتراك المدعومة في تطبيق تلخيصلي
  */
 
-export type PlanId = "basic" | "student" | "professional";
+export type PlanId = "basic";
 
 export interface SubscriptionPlan {
   id: PlanId;
@@ -52,7 +52,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     description: "Perfect for trying out the service after the free trial",
     descriptionAr: "مثالية لتجربة الخدمة بعد النسخة المجانية",
     price: 4.99,
-    priceDZD: 1200, // الأساسية على موقع Chargily
+    priceDZD: 1900, // الأساسية على موقع Chargily
     currency: "DZD",
     lectures: 5,
     lecturesDuration: 45,
@@ -75,72 +75,6 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     badgeAr: "للمبتدئين",
   },
 
-  student: {
-    id: "student",
-    name: "Student Plan",
-    nameAr: "خطة الطالب",
-    description: "Most popular plan for university students",
-    descriptionAr: "الخطة الأكثر طلباً للطلاب الجامعيين",
-    price: 19.00,
-    priceDZD: 4700, // الطلابية على موقع Chargily
-    currency: "DZD",
-    lectures: 30,
-    lecturesDuration: 45,
-    totalMinutes: 1350, // 30 × 45 = 1350 minutes
-    features: [
-      "Transcribe & summarize 30 lectures",
-      "45 minutes per lecture",
-      "All features from Basic Plan",
-      "Priority processing",
-      "Save full history",
-      "Priority email support",
-    ],
-    featuresAr: [
-      "تلخيص 30 محاضرة",
-      "مدة كل محاضرة 45 دقيقة",
-      "جميع مميزات الخطة الأساسية",
-      "أولوية في المعالجة",
-      "حفظ التاريخ الكامل",
-      "دعم ذو أولوية عبر البريد",
-    ],
-    popular: true,
-    badge: "Most Popular",
-    badgeAr: "الأكثر طلباً",
-  },
-
-  professional: {
-    id: "professional",
-    name: "Professional Plan",
-    nameAr: "خطة المحترف",
-    description: "For teachers, researchers, and heavy users",
-    descriptionAr: "للأساتذة، الباحثين، وأصحاب الاستخدام المكثف",
-    price: 34.99,
-    priceDZD: 9000, // Professional - يُحدَّد لاحقاً
-    currency: "DZD",
-    lectures: 60,
-    lecturesDuration: 45,
-    totalMinutes: 2700, // 60 × 45 = 2700 minutes
-    features: [
-      "Transcribe & summarize 60 lectures",
-      "45 minutes per lecture",
-      "All features from Student Plan",
-      "Highest priority processing",
-      "Advanced export options",
-      "Dedicated support",
-      "Early access to new features",
-    ],
-    featuresAr: [
-      "تلخيص 60 محاضرة",
-      "مدة كل محاضرة 45 دقيقة",
-      "جميع مميزات خطة الطالب",
-      "أعلى أولوية في المعالجة",
-      "خيارات تصدير متقدمة",
-      "دعم مخصص",
-      "وصول مبكر للميزات الجديدة",
-    ],
-    badge: "Best Value",
-    badgeAr: "الأفضل قيمة",
-  },
 };
 
 /**
@@ -161,7 +95,7 @@ export function getAllPlans(): SubscriptionPlan[] {
  * Zod schema for plan selection
  */
 export const planSelectionSchema = z.object({
-  planId: z.enum(["basic", "student", "professional"]),
+  planId: z.enum(["basic"]),
 });
 
 export type PlanSelection = z.infer<typeof planSelectionSchema>;
@@ -170,7 +104,7 @@ export type PlanSelection = z.infer<typeof planSelectionSchema>;
  * Chargily checkout creation schema
  */
 export const chargilyCheckoutSchema = z.object({
-  planId: z.enum(["basic", "student", "professional"]),
+  planId: z.enum(["basic"]),
   userId: z.string().uuid(),
   userEmail: z.string().email().optional(),
   userName: z.string().optional(),
