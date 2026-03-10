@@ -17,3 +17,5 @@ ssl/
 .bash_history
 .npm/
 .vscode-server/
+.copilot/
+.wget-hsts
