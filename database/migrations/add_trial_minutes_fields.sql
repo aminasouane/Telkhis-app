@@ -7,7 +7,7 @@
 -- 1. Add trial minutes fields to subscriptions table
 ALTER TABLE subscriptions
 ADD COLUMN IF NOT EXISTS trial_minutes_used NUMERIC(10,2) DEFAULT 0,
-ADD COLUMN IF NOT EXISTS trial_minutes_limit NUMERIC(10,2) DEFAULT 30.0;
+ADD COLUMN IF NOT EXISTS trial_minutes_limit NUMERIC(10,2) DEFAULT 45.0;
 
 -- Create index for faster queries on trial minutes
 CREATE INDEX IF NOT EXISTS idx_subscriptions_trial_minutes 
@@ -15,7 +15,7 @@ ON subscriptions(trial_minutes_used, trial_minutes_limit);
 
 -- 2. Update existing trial subscriptions to use 30-minute limit
 UPDATE subscriptions
-SET trial_minutes_limit = 30.0,
+SET trial_minutes_limit = 45.0,
     trial_minutes_used = 0
 WHERE plan_name = 'trial' AND status = 'active';
 
@@ -70,8 +70,8 @@ $$ LANGUAGE plpgsql;
 -- Comments for Documentation
 -- ========================================
 
-COMMENT ON COLUMN subscriptions.trial_minutes_used IS 'Total audio minutes used during trial (max 30)';
-COMMENT ON COLUMN subscriptions.trial_minutes_limit IS 'Maximum audio minutes allowed in trial (30 minutes)';
+COMMENT ON COLUMN subscriptions.trial_minutes_used IS 'Total audio minutes used during trial (max 45)';
+COMMENT ON COLUMN subscriptions.trial_minutes_limit IS 'Maximum audio minutes allowed in trial (45 minutes)';
 
 -- ========================================
 -- Verification Queries

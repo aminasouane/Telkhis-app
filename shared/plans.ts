@@ -52,21 +52,21 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     description: "Perfect for trying out the service after the free trial",
     descriptionAr: "مثالية لتجربة الخدمة بعد النسخة المجانية",
     price: 4.99,
-    priceDZD: 1900, // الأساسية على موقع Chargily
+    priceDZD: 1000, // الخطة الأساسية
     currency: "DZD",
-    lectures: 5,
+    lectures: 30,
     lecturesDuration: 45,
-    totalMinutes: 225, // 5 × 45 = 225 minutes
+    totalMinutes: 1350, // 30 × 45 = 1350 minutes
     features: [
-      "Transcribe & summarize 5 lectures",
-      "45 minutes per lecture",
+      "45 minutes per day for 30 days",
+      "Total 1350 minutes",
       "Support for Arabic, French, and Algerian dialect",
       "PDF & TXT export",
       "Email support",
     ],
     featuresAr: [
-      "تلخيص 5 محاضرات",
-      "مدة كل محاضرة 45 دقيقة",
+      "45 دقيقة يومياً لمدة 30 يوم",
+      "1350 دقيقة إجمالية",
       "دعم العربية، الفرنسية، واللهجة الجزائرية",
       "تصدير PDF و TXT",
       "دعم عبر البريد الإلكتروني",

@@ -157,8 +157,8 @@ export default function SubscriptionCard() {
                 </CardContent>
             </Card>
 
-            {/* Daily limit — trial only */}
-            {isTrial && (
+            {/* Daily limit — all users have 45 min/day limit */}
+            {status.dailyMinutesLimit !== null && (
                 <Card className="shadow-sm border-0">
                     <CardHeader className="pb-2">
                         <CardTitle className="flex items-center justify-end gap-2 text-base font-semibold text-card-foreground">

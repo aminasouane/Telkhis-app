@@ -78,10 +78,9 @@ function detectPlanFromAmount(amountDZD: number): string | null {
     match = allPlans.find(p => p.priceDZD === Math.round(amountDZD / 100));
   }
 
-  // Try matching known prices: 1200 DZD = Basic, 4700 DZD = Student
+  // Try matching known prices: 1000 DZD = Basic
   if (!match) {
-    if (amountDZD === 1200 || amountDZD === 120000) return "basic";
-    if (amountDZD === 4700 || amountDZD === 470000) return "student";
+    if (amountDZD === 1000 || amountDZD === 100000) return "basic";
   }
 
   return match?.id || null;
@@ -126,7 +125,7 @@ async function activateSubscription(data: {
       userId: data.userId,
       planName: plan.nameAr,
       planId: plan.id,
-      totalMinutes: plan.totalMinutes, // ✅ Basic=225 min, Student=1350 min
+      totalMinutes: plan.totalMinutes, // ✅ Basic=1350 min
       paymentProvider: "chargily",
     });
 

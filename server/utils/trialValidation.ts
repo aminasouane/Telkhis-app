@@ -36,7 +36,7 @@ export async function validateTrialUsage(
       };
     }
 
-    // ── Check for active paid subscription (no daily limits) ──
+    // ── Check for active paid subscription (45 min/day daily limit applies) ──
     const subscription = await db.getActiveSubscription(userId);
     const isPaid =
       subscription !== null &&
@@ -44,20 +44,56 @@ export async function validateTrialUsage(
       subscription.plan_name !== "trial" &&
       subscription.status === "active";
 
-    if (isPaid) {
-      console.log(`[trialValidation] PAID user ${userId} — no daily limit`);
-      return {
-        allowed: true,
-        totalMinutesUsed: 0,
-        dailyMinutesUsed: 0,
-        minutesRemaining: 999999,
-        dailyMinutesRemaining: 999999,
-      };
-    }
-
-    // ── Free trial: read DYNAMIC limits from DB (admin can change these) ──
+    // ── Read DYNAMIC limits from DB (used for both trial and paid) ──
     const sysSettings = await db.getSystemSettings();
     const dynamicLimits = sysSettings['TRIAL_LIMITS'] || TRIAL_LIMITS;
+
+    if (isPaid) {
+      const paidLimits = sysSettings['PAID_LIMITS'] as any;
+      const paidDailyLimit: number = paidLimits?.DAILY_LIMIT_MINUTES ?? 45;
+
+      const todayUsage = await db.getTodayUsage(userId);
+      const dailyMinutesUsed = todayUsage?.minutes_used || 0;
+      const dailyMinutesRemaining = Math.max(0, paidDailyLimit - dailyMinutesUsed);
+
+      const minutesUsed = Number(subscription.trial_minutes_used ?? 0);
+      const minutesLimit = Number(subscription.trial_minutes_limit ?? 1350);
+      const totalMinutesRemaining = Math.max(0, minutesLimit - minutesUsed);
+
+      console.log(`[trialValidation] PAID user ${userId} — daily: ${dailyMinutesUsed.toFixed(2)}/${paidDailyLimit} min, total: ${minutesUsed.toFixed(2)}/${minutesLimit} min`);
+
+      if (dailyMinutesUsed >= paidDailyLimit) {
+        return {
+          allowed: false,
+          reason: "Daily limit reached",
+          errorCode: "DAILY_LIMIT_REACHED",
+          totalMinutesUsed: minutesUsed,
+          dailyMinutesUsed,
+          minutesRemaining: totalMinutesRemaining,
+          dailyMinutesRemaining: 0,
+        };
+      }
+
+      if (totalMinutesRemaining <= 0) {
+        return {
+          allowed: false,
+          reason: "Subscription minutes exhausted",
+          errorCode: "SUBSCRIPTION_EXHAUSTED",
+          totalMinutesUsed: minutesUsed,
+          dailyMinutesUsed,
+          minutesRemaining: 0,
+          dailyMinutesRemaining,
+        };
+      }
+
+      return {
+        allowed: true,
+        totalMinutesUsed: minutesUsed,
+        dailyMinutesUsed,
+        minutesRemaining: totalMinutesRemaining,
+        dailyMinutesRemaining,
+      };
+    }
 
     const totalMinutesUsed = await db.getTotalUsage(userId);
     const todayUsage = await db.getTodayUsage(userId);

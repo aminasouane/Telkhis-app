@@ -12,13 +12,11 @@ export default function AdminSettingsTab() {
     const { toast } = useToast();
 
     const [trialLimits, setTrialLimits] = useState<any>({});
-    const [studentLimits, setStudentLimits] = useState<any>({});
-    const [proLimits, setProLimits] = useState<any>({});
+    const [paidLimits, setPaidLimits] = useState<any>({});
 
     useEffect(() => {
         if (settings['TRIAL_LIMITS']) setTrialLimits(settings['TRIAL_LIMITS']);
-        if (settings['STUDENT_LIMITS']) setStudentLimits(settings['STUDENT_LIMITS']);
-        if (settings['PRO_LIMITS']) setProLimits(settings['PRO_LIMITS']);
+        if (settings['PAID_LIMITS']) setPaidLimits(settings['PAID_LIMITS']);
     }, [settings]);
 
     const handleSave = async (key: string, value: any, description: string) => {
@@ -100,56 +98,37 @@ export default function AdminSettingsTab() {
                 </CardContent>
             </Card>
 
-            {/* Student Plan Limits */}
+            {/* Paid Plan Limits */}
             <Card className="shadow-sm border-0">
                 <CardHeader className="pb-3 border-b text-right flex flex-col items-end">
-                    <CardTitle className="text-base font-semibold text-purple-700 w-full text-right flex flex-row-reverse items-center gap-2">خطة الطالب (Student)</CardTitle>
+                    <CardTitle className="text-base font-semibold text-blue-700 w-full text-right flex flex-row-reverse items-center gap-2">الخطة المدفوعة الأساسية (Paid Basic)</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-4 text-right">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="rtl">
                         <div className="space-y-2">
+                            <Label>الحد الأقصى الإجمالي (دقائق)</Label>
+                            <Input
+                                type="number"
+                                value={paidLimits.TOTAL_MINUTES || ''}
+                                onChange={e => setPaidLimits({ ...paidLimits, TOTAL_MINUTES: Number(e.target.value) })}
+                            />
+                        </div>
+                        <div className="space-y-2">
                             <Label>الحد اليومي (دقائق)</Label>
                             <Input
                                 type="number"
-                                value={studentLimits.DAILY_LIMIT_MINUTES || ''}
-                                onChange={e => setStudentLimits({ ...studentLimits, DAILY_LIMIT_MINUTES: Number(e.target.value) })}
+                                value={paidLimits.DAILY_LIMIT_MINUTES || ''}
+                                onChange={e => setPaidLimits({ ...paidLimits, DAILY_LIMIT_MINUTES: Number(e.target.value) })}
                             />
                         </div>
                     </div>
                     <Button
                         disabled={isUpdating}
-                        onClick={() => handleSave('STUDENT_LIMITS', studentLimits, 'Student plan daily limits')}
-                        className="w-full md:w-auto bg-purple-600 hover:bg-purple-700"
+                        onClick={() => handleSave('PAID_LIMITS', paidLimits, 'Paid plan limits')}
+                        className="w-full md:w-auto bg-blue-600 hover:bg-blue-700"
                     >
                         <Save className="h-4 w-4 ml-2" />
-                        حفظ إعدادات الطالب
-                    </Button>
-                </CardContent>
-            </Card>
-
-            {/* Professional Plan Limits */}
-            <Card className="shadow-sm border-0">
-                <CardHeader className="pb-3 border-b text-right flex flex-col items-end">
-                    <CardTitle className="text-base font-semibold text-amber-700 w-full text-right flex flex-row-reverse items-center gap-2">خطة المحترف (Professional)</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 pt-4 text-right">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4" dir="rtl">
-                        <div className="space-y-2">
-                            <Label>الحد اليومي (دقائق)</Label>
-                            <Input
-                                type="number"
-                                value={proLimits.DAILY_LIMIT_MINUTES || ''}
-                                onChange={e => setProLimits({ ...proLimits, DAILY_LIMIT_MINUTES: Number(e.target.value) })}
-                            />
-                        </div>
-                    </div>
-                    <Button
-                        disabled={isUpdating}
-                        onClick={() => handleSave('PRO_LIMITS', proLimits, 'Professional plan daily limits')}
-                        className="w-full md:w-auto bg-amber-600 hover:bg-amber-700"
-                    >
-                        <Save className="h-4 w-4 ml-2" />
-                        حفظ إعدادات المحترف
+                        حفظ إعدادات الخطة المدفوعة
                     </Button>
                 </CardContent>
             </Card>

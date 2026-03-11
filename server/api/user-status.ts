@@ -49,26 +49,39 @@ export async function handleGetUserStatus(req: Request, res: Response) {
             subscription.status === "active";
 
         if (isPaid && subscription) {
-            // Paid subscriber: use subscription limits
+            // Paid subscriber: enforce 45 min/day daily limit + total subscription minutes
+            const paidLimits = sysSettings['PAID_LIMITS'] as any;
+            const paidDailyLimit: number = paidLimits?.DAILY_LIMIT_MINUTES ?? 45;
+
             const minutesUsed = Number(subscription.trial_minutes_used ?? 0);
-            const minutesLimit = Number(subscription.trial_minutes_limit ?? 9999);
+            const minutesLimit = Number(subscription.trial_minutes_limit ?? 1350);
             const minutesRemaining = Math.max(0, minutesLimit - minutesUsed);
-            const canProcess = minutesRemaining > 0;
+
+            const paidTodayUsage = await db.getTodayUsage(userId);
+            const dailyMinutesUsed = Number(paidTodayUsage?.minutes_used ?? 0);
+            const dailyMinutesRemaining = Math.max(0, paidDailyLimit - dailyMinutesUsed);
+            const isDailyLimitReached = dailyMinutesUsed >= paidDailyLimit;
+
+            const canProcess = minutesRemaining > 0 && !isDailyLimitReached;
+            let blockReason: string | null = null;
+            if (!canProcess) {
+                blockReason = isDailyLimitReached ? "daily_limit" : "SUBSCRIPTION_EXHAUSTED";
+            }
 
             return res.json({
                 isPaid: true,
                 hasTrial: false,
-                trialState: "PAID",
+                trialState: isDailyLimitReached ? "DAILY_LIMIT" : "PAID",
                 planName: subscription.plan_name,
                 minutesUsed,
                 minutesLimit,
                 minutesRemaining,
-                dailyMinutesUsed: 0,
-                dailyMinutesLimit: null, // no daily limit for paid
-                dailyMinutesRemaining: null,
+                dailyMinutesUsed,
+                dailyMinutesLimit: paidDailyLimit,
+                dailyMinutesRemaining,
                 daysRemaining: null,
                 canProcess,
-                blockReason: canProcess ? null : "SUBSCRIPTION_EXHAUSTED",
+                blockReason,
             });
         }
 
@@ -129,10 +142,11 @@ export async function handleGetUserStatus(req: Request, res: Response) {
             planName: "trial",
             minutesUsed: totalMinutesUsed,
             minutesLimit: dynamicTrialLimits.MAX_AUDIO_MINUTES,
-            minutesRemaining: totalMinutesRemaining,
+            // When days expire, all remaining minutes become 0
+            minutesRemaining: isExpired ? 0 : totalMinutesRemaining,
             dailyMinutesUsed: dailyMinutesUsed,
             dailyMinutesLimit: dynamicTrialLimits.DAILY_LIMIT_MINUTES,
-            dailyMinutesRemaining: dailyMinutesRemaining,
+            dailyMinutesRemaining: isExpired ? 0 : dailyMinutesRemaining,
             daysRemaining,
             canProcess,
             blockReason,

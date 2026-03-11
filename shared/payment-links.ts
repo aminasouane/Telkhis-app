@@ -41,10 +41,8 @@ export function getPaymentLink(planId: PlanId): string | null {
  */
 export function arePaymentLinksConfigured(): boolean {
   const basicLink = process.env.CHARGILY_LINK_BASIC;
-  const studentLink = process.env.CHARGILY_LINK_STUDENT;
-  const professionalLink = process.env.CHARGILY_LINK_PROFESSIONAL;
   
-  return !!(basicLink && studentLink && professionalLink);
+  return !!(basicLink);
 }
 
 /**
@@ -55,14 +53,6 @@ export function getPaymentLinksStatus(): Record<PlanId, { configured: boolean; l
     basic: {
       configured: !!process.env.CHARGILY_LINK_BASIC,
       link: process.env.CHARGILY_LINK_BASIC || null,
-    },
-    student: {
-      configured: !!process.env.CHARGILY_LINK_STUDENT,
-      link: process.env.CHARGILY_LINK_STUDENT || null,
-    },
-    professional: {
-      configured: !!process.env.CHARGILY_LINK_PROFESSIONAL,
-      link: process.env.CHARGILY_LINK_PROFESSIONAL || null,
     },
   };
 }

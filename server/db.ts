@@ -131,8 +131,8 @@ export async function getOrCreateUser(userId: string, email?: string, name?: str
     plan_name: 'trial',
     status: 'active',
     trial_minutes_used: 0,
-    trial_minutes_limit: 210,
-    trial_daily_limit: 30,
+    trial_minutes_limit: 315,
+    trial_daily_limit: 45,
   });
 
   return data as User;
@@ -296,12 +296,26 @@ export async function createSubscription(data: {
   endDate?: string;
   paymentProvider?: string;
 }): Promise<Subscription> {
+  // Check for an existing active subscription to rollover minutes
+  const activeSub = await getActiveSubscription(data.userId);
+  let rolloverMinutes = 0;
+  
+  if (activeSub && activeSub.plan_name !== 'trial' && activeSub.trial_minutes_limit > 0) {
+    const remaining = activeSub.trial_minutes_limit - (activeSub.trial_minutes_used || 0);
+    if (remaining > 0) {
+      rolloverMinutes = remaining;
+      console.log(`[Subscription] Rolling over ${Math.floor(remaining)} minutes from previous ${activeSub.plan_name} plan.`);
+    }
+  }
+
   // Cancel existing active subscriptions
   await supabaseAdmin
     .from('subscriptions')
     .update({ status: 'cancelled' })
     .eq('user_id', data.userId)
     .eq('status', 'active');
+
+  const finalMinutesLimit = (data.totalMinutes ?? 0) + rolloverMinutes;
 
   const { data: row, error } = await supabaseAdmin
     .from('subscriptions')
@@ -312,7 +326,7 @@ export async function createSubscription(data: {
       start_date: new Date().toISOString(),
       end_date: data.endDate || null,
       payment_provider: data.paymentProvider || null,
-      trial_minutes_limit: data.totalMinutes ?? null,
+      trial_minutes_limit: finalMinutesLimit > 0 ? finalMinutesLimit : null,
       trial_minutes_used: 0,
     })
     .select()

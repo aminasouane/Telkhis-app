@@ -14,8 +14,6 @@ import type { PlanId } from "../../shared/plans";
  */
 const PAYMENT_LINKS: Record<PlanId, string> = {
   basic: process.env.CHARGILY_LINK_BASIC || "",
-  student: process.env.CHARGILY_LINK_STUDENT || "",
-  professional: process.env.CHARGILY_LINK_PROFESSIONAL || "",
 };
 
 /**
@@ -26,7 +24,7 @@ export async function getPaymentLink(req: Request, res: Response) {
     const { planId } = req.params;
 
     // Validate plan ID
-    if (!planId || !["basic", "student", "professional"].includes(planId)) {
+    if (!planId || !["basic"].includes(planId)) {
       return res.status(400).json({
         error: "Invalid plan ID",
         message: "معرّف الخطة غير صحيح",
@@ -69,15 +67,7 @@ export async function checkPaymentLinksStatus(_req: Request, res: Response) {
       configured: !!PAYMENT_LINKS.basic,
       link: PAYMENT_LINKS.basic ? "✓ Set" : "✗ Not set",
     },
-    student: {
-      configured: !!PAYMENT_LINKS.student,
-      link: PAYMENT_LINKS.student ? "✓ Set" : "✗ Not set",
-    },
-    professional: {
-      configured: !!PAYMENT_LINKS.professional,
-      link: PAYMENT_LINKS.professional ? "✓ Set" : "✗ Not set",
-    },
-    allConfigured: !!(PAYMENT_LINKS.basic && PAYMENT_LINKS.student && PAYMENT_LINKS.professional),
+    allConfigured: !!(PAYMENT_LINKS.basic),
   };
 
   return res.json(status);

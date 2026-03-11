@@ -345,7 +345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate post-save usage to inform client about NEXT attempt
       const audioDurationMinutes = audioDuration / 60;
       const newDailyUsage = trialValidation.dailyMinutesUsed + audioDurationMinutes;
-      const newDailyRemaining = Math.max(0, 30 - newDailyUsage); // 30 min daily limit
+      const newDailyRemaining = Math.max(0, 45 - newDailyUsage); // 45 min daily limit
 
       // Determine if next attempt will be blocked (daily limit OR trial expiry)
       const isDailyLimitReached = newDailyRemaining <= 0;

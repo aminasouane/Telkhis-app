@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import { Moon, Sun, User, LogOut, Crown, UserPlus, LogIn, LayoutDashboard, Shield } from "lucide-react";
 import AuthModal from "@/components/AuthModal";
 import { useLocation } from "wouter";
@@ -88,8 +89,10 @@ export default function Header() {
                     <div className="px-2 py-1.5">
                       <p className="text-sm font-medium truncate">{user?.email}</p>
                       {getPlanDisplayName() === "الخطة الأساسية" ? (
-                        <div className="mt-1 w-fit rounded bg-blue-600 px-2.5 py-0.5 text-xs font-bold text-white border border-red-500 shadow-sm">
-                          {getPlanDisplayName()}
+                        <div className="mt-1">
+                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-400 border-blue-200 dark:border-blue-800">
+                            {getPlanDisplayName()}
+                          </Badge>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground mt-0.5">{getPlanDisplayName()}</p>

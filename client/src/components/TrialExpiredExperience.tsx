@@ -3,11 +3,12 @@ import { useAuth } from "@/components/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Calendar, Sparkles, Check, Star, Crown, Loader2 } from "lucide-react";
+import { Clock, Calendar, Sparkles, Check, Star, Crown, Loader2, ArrowRight } from "lucide-react";
 import { type TrialStatus } from "@/services/localTrialService";
 import { TRIAL_CONFIG } from "@/config/trialConfig";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabaseClient";
+import { useUserStatus } from "@/hooks/useUserStatus";
 
 interface TrialExpiredExperienceProps {
   trialStatus: TrialStatus | null;
@@ -19,8 +20,11 @@ export default function TrialExpiredExperience({
   showMetrics = true,
 }: TrialExpiredExperienceProps) {
   const { appUserId, user, isAuthenticated, showAuthModal } = useAuth();
+  const { status } = useUserStatus();
   const { toast } = useToast();
   const [isCreatingCheckout, setIsCreatingCheckout] = useState<string | null>(null);
+
+  const isCurrentBasicPlan = status?.planName?.toLowerCase() === 'basic' || status?.planName === 'الخطة الأساسية';
 
   const getTitle = () => {
     if (!trialStatus) return "انتهت تجربتك المجانية";
@@ -137,7 +141,14 @@ export default function TrialExpiredExperience({
           <div className="max-w-sm mx-auto">
 
             {/* Basic Plan */}
-            <Card className="border-2 border-primary relative">
+            <Card className="border-2 border-primary relative mt-6">
+              {isCurrentBasicPlan && (
+                <div className="absolute -top-3 left-4 z-10 shadow-sm border border-primary/20 bg-background rounded-full px-1">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary border-none text-xs">
+                    مفعلة حالياً ✅
+                  </Badge>
+                </div>
+              )}
               <div className="absolute -top-3 right-1/2 translate-x-1/2">
                 <Badge className="bg-primary text-primary-foreground px-3">الخطة الاحترافية</Badge>
               </div>
@@ -147,14 +158,14 @@ export default function TrialExpiredExperience({
                   <Badge variant="outline">Basic</Badge>
                 </div>
                 <div className="text-3xl font-bold text-primary mt-1">
-                  1,900 <span className="text-base font-normal text-muted-foreground">دج</span>
+                  1,000 <span className="text-base font-normal text-muted-foreground">دج</span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <ul className="text-sm text-muted-foreground space-y-2 text-right">
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-green-500 shrink-0" />
-                    5 محاضرات صوتية × 45 دقيقة
+                    45 دقيقة يومياً × 30 يوم = 1350 دقيقة
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-green-500 shrink-0" />
@@ -176,7 +187,7 @@ export default function TrialExpiredExperience({
                     ) : (
                       <Star className="h-4 w-4 ml-2" />
                     )}
-                    اشترك الآن
+                    {isCurrentBasicPlan ? "جدد اشتراكك" : "اشترك الآن"}
                   </Button>
                 ) : (
                   <Button className="w-full" onClick={() => showAuthModal('signup')}>

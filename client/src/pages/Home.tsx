@@ -214,11 +214,12 @@ export default function Home() {
     console.log('[FLOW] processAudio START - sending audio to server');
     console.log(`[FLOW] Audio size: ${audioBlob.size} bytes, duration: ${audioDuration}s`);
 
-    // Client-side pre-check: warn before upload if duration known and exceeds 45 min
-    if (audioDuration && audioDuration > 2700) {
+    // Client-side pre-check: warn before upload if duration known and exceeds daily limit
+    const dailyLimitSeconds = (userStatus.dailyMinutesLimit || 45) * 60;
+    if (audioDuration && audioDuration > dailyLimitSeconds) {
       toast({
         title: "⏱️ مدة التسجيل طويلة جداً",
-        description: `الحد الأقصى لكل جلسة هو 45 دقيقة. مدة ملفك: ${Math.ceil(audioDuration / 60)} دقيقة. يُرجى تقسيم التسجيل لأجزاء أصغر.`,
+        description: `الحد الأقصى لكل جلسة هو ${userStatus.dailyMinutesLimit || 45} دقيقة. مدة ملفك: ${Math.ceil(audioDuration / 60)} دقيقة. يُرجى تقسيم التسجيل لأجزاء أصغر.`,
         variant: "destructive",
       });
       return;
@@ -292,7 +293,7 @@ export default function Home() {
         if (errorData.errorCode === "DURATION_EXCEEDED") {
           toast({
             title: "⏱️ مدة التسجيل طويلة جداً",
-            description: `الحد الأقصى لكل جلسة هو 45 دقيقة. مدة ملفك: ${Math.ceil((errorData.duration || 0) / 60)} دقيقة. يُرجى تقسيم التسجيل لأجزاء أصغر.`,
+            description: `الحد الأقصى لكل جلسة هو ${userStatus.dailyMinutesLimit || 45} دقيقة. مدة ملفك: ${Math.ceil((errorData.duration || 0) / 60)} دقيقة. يُرجى تقسيم التسجيل لأجزاء أصغر.`,
             variant: "destructive",
           });
           setIsProcessing(false);
@@ -417,11 +418,12 @@ export default function Home() {
       // Calculate audio duration before processing
       const duration = await getAudioDuration(file);
 
-      // Client-side pre-check: warn if duration exceeds 45 minutes
-      if (duration > 2700) {
+      // Client-side pre-check: warn if duration exceeds limits
+      const dailyLimitSeconds = (userStatus.dailyMinutesLimit || 45) * 60;
+      if (duration > dailyLimitSeconds) {
         toast({
           title: "⏱️ مدة التسجيل طويلة جداً",
-          description: `الحد الأقصى لكل جلسة هو 45 دقيقة. مدة ملفك: ${Math.ceil(duration / 60)} دقيقة. يُرجى تقسيم التسجيل لأجزاء أصغر.`,
+          description: `الحد الأقصى للتسجيل هو ${userStatus.dailyMinutesLimit || 45} دقيقة. مدة ملفك: ${Math.ceil(duration / 60)} دقيقة. يُرجى تقسيم التسجيل لأجزاء أصغر.`,
           variant: "destructive",
         });
         return;
@@ -565,7 +567,7 @@ export default function Home() {
 
                   {/* Duration limit info */}
                   <p className="text-center text-xs text-muted-foreground mt-3">
-                    ⏱️ الحد الأقصى لكل جلسة: <span className="font-medium text-foreground">45 دقيقة</span> — لتسجيلات أطول يُرجى تقسيمها إلى أجزاء
+                    ⏱️ الحد الأقصى لكل جلسة: <span className="font-medium text-foreground">{userStatus.dailyMinutesLimit || 45} دقيقة</span> — لتسجيلات أطول يُرجى تقسيمها إلى أجزاء
                   </p>
 
                   <TabsContent value="record" className="mt-8 space-y-8">
