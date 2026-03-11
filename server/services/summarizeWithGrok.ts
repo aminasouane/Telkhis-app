@@ -1,6 +1,35 @@
 import OpenAI from "openai";
 
 const GROK_TIMEOUT_MS = 60000; // 60 seconds timeout for Grok API
+const MAX_RETRIES = 3;
+const INITIAL_RETRY_DELAY = 2000; // 2 seconds
+
+// Grok API hard limits: 5 concurrent requests, 32 RPM
+const MAX_CONCURRENT_REQUESTS = 5;
+let activeRequests = 0;
+const requestQueue: Array<() => void> = [];
+
+function acquireSemaphore(): Promise<void> {
+  return new Promise((resolve) => {
+    if (activeRequests < MAX_CONCURRENT_REQUESTS) {
+      activeRequests++;
+      resolve();
+    } else {
+      requestQueue.push(() => {
+        activeRequests++;
+        resolve();
+      });
+    }
+  });
+}
+
+function releaseSemaphore(): void {
+  activeRequests--;
+  if (requestQueue.length > 0) {
+    const next = requestQueue.shift()!;
+    next();
+  }
+}
 
 let grokClient: OpenAI | null = null;
 
@@ -126,6 +155,8 @@ export interface SummarizeResult {
   processingTime: number;
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function summarizeWithGrok(
   options: SummarizeOptions
 ): Promise<SummarizeResult> {
@@ -142,86 +173,98 @@ export async function summarizeWithGrok(
   const startTime = Date.now();
   const systemPrompt = SUMMARIZATION_PROMPTS[language] || SUMMARIZATION_PROMPTS.ar;
 
-  const userPrompt = `النص المراد تلخيصه:
+  const userPrompt = `النص المراد تلخيصه:\n\n${transcript}\n\n---\nقدم الملخص مع النقاط الرئيسية:`;
 
-${transcript}
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    // Acquire semaphore slot — blocks here if 5 requests are already in-flight
+    await acquireSemaphore();
+    let retryDelayMs: number | null = null;
 
----
-قدم الملخص مع النقاط الرئيسية:`;
-
-  try {
-    console.log(`Starting Grok summarization for ${transcript.length} chars in ${language}...`);
-    
-    const client = getGrokClient();
-    
-    // Create AbortController for timeout handling
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => {
-      abortController.abort();
-    }, GROK_TIMEOUT_MS);
-    
-    let response;
     try {
-      response = await client.chat.completions.create(
-        {
-          model: "grok-3",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          max_tokens: maxTokens,
-          temperature: 0.3,
-        },
-        { signal: abortController.signal }
-      );
+      console.log(`Starting Grok summarization for ${transcript.length} chars in ${language} (Attempt ${attempt + 1}/${MAX_RETRIES + 1}, active: ${activeRequests})...`);
+      
+      const client = getGrokClient();
+      
+      // Create AbortController for timeout handling
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        abortController.abort();
+      }, GROK_TIMEOUT_MS);
+      
+      let response;
+      try {
+        response = await client.chat.completions.create(
+          {
+            model: "grok-3",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            max_tokens: maxTokens,
+            temperature: 0.3,
+          },
+          { signal: abortController.signal }
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const rawSummary = response.choices[0]?.message?.content || "";
+      const processingTime = Date.now() - startTime;
+      
+      console.log(`Grok summarization completed in ${processingTime}ms`);
+
+      // Clean markdown symbols from the summary
+      const summary = cleanSummaryText(rawSummary);
+      const keyPoints = extractKeyPoints(summary);
+
+      return {
+        summary,
+        keyPoints,
+        processingTime,
+      };
+    } catch (error: any) {
+      const processingTime = Date.now() - startTime;
+      console.error(`Grok summarization error after ${processingTime}ms (Attempt ${attempt + 1}):`, error.message || error);
+
+      const isRateLimit = error.status === 429 || error.message?.includes("429") || error.message?.includes("Too many requests");
+      const isNetworkError = error.code === "ETIMEDOUT" || error.code === "ECONNABORTED" || error.status === 503 || error.status === 500;
+
+      if ((isRateLimit || isNetworkError) && attempt < MAX_RETRIES) {
+        // Exponential backoff: 2s, 4s, 8s — sleep happens AFTER releasing semaphore
+        retryDelayMs = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
+        console.log(`Retrying Grok API in ${retryDelayMs}ms due to ${isRateLimit ? 'rate limit' : 'network error'}...`);
+      } else {
+        // Non-retryable or exhausted retries — throw formatted error
+        if (error.name === "AbortError" || error.message?.includes("aborted")) {
+          throw new Error("انتهت مهلة الاتصال بخادم التلخيص (60 ثانية). يرجى المحاولة مرة أخرى.");
+        }
+        if (error.code === "ETIMEDOUT" || error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+          throw new Error("انتهت مهلة الاتصال بخادم التلخيص. يرجى المحاولة مرة أخرى.");
+        }
+        if (error.status === 401) {
+          throw new Error("مفتاح API غير صالح");
+        }
+        if (error.status === 429 || error.message?.includes("429") || error.message?.includes("Too many requests")) {
+          throw new Error("الخادم يواجه ضغطاً عالياً حالياً. يرجى المحاولة بعد لحظات قليلة.");
+        }
+        if (error.status === 503 || error.status === 500) {
+          throw new Error("خدمة التلخيص غير متاحة مؤقتاً. يرجى المحاولة لاحقاً.");
+        }
+        throw new Error(`فشل التلخيص: ${error.message || "خطأ غير معروف"}`);
+      }
     } finally {
-      clearTimeout(timeoutId);
+      // Always release the semaphore slot so the queue can progress
+      releaseSemaphore();
     }
 
-    const rawSummary = response.choices[0]?.message?.content || "";
-    const processingTime = Date.now() - startTime;
-    
-    console.log(`Grok summarization completed in ${processingTime}ms`);
-
-    // Clean markdown symbols from the summary
-    const summary = cleanSummaryText(rawSummary);
-    const keyPoints = extractKeyPoints(summary);
-
-    return {
-      summary,
-      keyPoints,
-      processingTime,
-    };
-  } catch (error: any) {
-    const processingTime = Date.now() - startTime;
-    console.error(`Grok summarization error after ${processingTime}ms:`, error);
-
-    // Handle AbortController timeout
-    if (error.name === "AbortError" || error.message?.includes("aborted")) {
-      throw new Error("انتهت مهلة الاتصال بخادم التلخيص (60 ثانية). يرجى المحاولة مرة أخرى.");
+    // Sleep OUTSIDE the semaphore hold so the freed slot can serve other requests
+    if (retryDelayMs !== null) {
+      await sleep(retryDelayMs);
     }
-
-    // Handle other timeout errors
-    if (error.code === "ETIMEDOUT" || error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-      throw new Error("انتهت مهلة الاتصال بخادم التلخيص. يرجى المحاولة مرة أخرى.");
-    }
-
-    // Handle specific API errors
-    if (error.status === 401) {
-      throw new Error("مفتاح API غير صالح");
-    }
-    if (error.status === 429) {
-      throw new Error("تم تجاوز الحد الأقصى للطلبات. يرجى المحاولة لاحقاً.");
-    }
-    if (error.status === 503) {
-      throw new Error("خدمة التلخيص غير متاحة مؤقتاً. يرجى المحاولة لاحقاً.");
-    }
-    if (error.status === 500) {
-      throw new Error("خطأ في خادم التلخيص. يرجى المحاولة لاحقاً.");
-    }
-
-    throw new Error(`فشل التلخيص: ${error.message || "خطأ غير معروف"}`);
   }
+  
+  throw new Error("فشل التلخيص بعد عدة محاولات.");
 }
 
 function extractKeyPoints(summary: string): string[] {

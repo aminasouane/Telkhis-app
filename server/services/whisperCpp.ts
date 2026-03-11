@@ -18,6 +18,39 @@ const MAX_AUDIO_DURATION_SECONDS = 30 * 60;
 let isInitialized = false;
 let initializationPromise: Promise<void> | null = null;
 
+// Concurrency control for Whisper.
+// Safety analysis: 16GB total, ~5GB idle OS usage, ~10.5GB available.
+// One 30-min file peaks at ~847MB RAM. 5 slots = ~4.2GB peak for Whisper,
+// leaving ~6.3GB free for Node.js, Grok, FFmpeg, and browsing users.
+// CPU: 5 processes × 2 threads = 10 threads on 8 cores — leaves room for the rest.
+// Recommendation was 5–8; we use 5 (conservative lower bound) to ensure
+// the server never gets overwhelmed when users are simultaneously browsing,
+// summarizing, and transcribing.
+const MAX_CONCURRENT_WHISPER = 5;
+let activeWhisperRequests = 0;
+const whisperQueue: (() => void)[] = [];
+
+async function acquireWhisperSemaphore(): Promise<void> {
+  if (activeWhisperRequests < MAX_CONCURRENT_WHISPER) {
+    activeWhisperRequests++;
+    return Promise.resolve();
+  }
+  return new Promise(resolve => {
+    whisperQueue.push(() => {
+      activeWhisperRequests++;
+      resolve();
+    });
+  });
+}
+
+function releaseWhisperSemaphore(): void {
+  activeWhisperRequests = Math.max(0, activeWhisperRequests - 1);
+  if (whisperQueue.length > 0) {
+    const next = whisperQueue.shift();
+    if (next) next();
+  }
+}
+
 async function checkFfmpegAvailable(): Promise<boolean> {
   try {
     await execAsync("ffmpeg -version");
@@ -242,45 +275,53 @@ export async function transcribeWithWhisperCpp(
 ): Promise<string> {
   await ensureModelReady();
 
-  const tempId = randomUUID();
-  const tempDir = path.join(os.tmpdir(), `whisper-${tempId}`);
-  const tempInputPath = path.join(tempDir, filename);
-  const tempWavPath = path.join(tempDir, "audio.wav");
+  // Acquire a slot in the semaphore *before* doing any heavy work
+  await acquireWhisperSemaphore();
 
   try {
-    fs.mkdirSync(tempDir, { recursive: true });
-    fs.writeFileSync(tempInputPath, audioBuffer);
+    const tempId = randomUUID();
+    const tempDir = path.join(os.tmpdir(), `whisper-${tempId}`);
+    const tempInputPath = path.join(tempDir, filename);
+    const tempWavPath = path.join(tempDir, "audio.wav");
 
-    await prepareAudioForWhisper(tempInputPath, tempWavPath);
-
-    const duration = await getAudioDuration(tempWavPath);
-    if (duration > MAX_AUDIO_DURATION_SECONDS) {
-      throw new Error(
-        `مدة الصوت (${Math.round(duration / 60)} دقيقة) تتجاوز الحد المسموح (${MAX_AUDIO_DURATION_SECONDS / 60} دقيقة)`
-      );
-    }
-    console.log(`[whisper.cpp] Audio duration: ${Math.round(duration)} seconds`);
-
-    const whisperLanguage = language === "dz" ? "ar" : language;
-
-    console.log(`[whisper.cpp] Transcribing: ${filename}`);
-    console.log(`[whisper.cpp] Language: ${whisperLanguage}`);
-
-    const text = await runWhisperBinary(tempWavPath, whisperLanguage);
-    
-    console.log(`[whisper.cpp] Transcription complete`);
-    return text;
-  } catch (error: any) {
-    console.error("[whisper.cpp] Transcription error:", error);
-    throw new Error(`Whisper transcription failed: ${error.message}`);
-  } finally {
     try {
-      if (fs.existsSync(tempDir)) {
-        fs.rmSync(tempDir, { recursive: true, force: true });
+      fs.mkdirSync(tempDir, { recursive: true });
+      fs.writeFileSync(tempInputPath, audioBuffer);
+
+      await prepareAudioForWhisper(tempInputPath, tempWavPath);
+
+      const duration = await getAudioDuration(tempWavPath);
+      if (duration > MAX_AUDIO_DURATION_SECONDS) {
+        throw new Error(
+          `مدة الصوت (${Math.round(duration / 60)} دقيقة) تتجاوز الحد المسموح (${MAX_AUDIO_DURATION_SECONDS / 60} دقيقة)`
+        );
       }
-    } catch (cleanupError) {
-      console.warn("[whisper.cpp] Failed to cleanup temp files:", cleanupError);
+      console.log(`[whisper.cpp] Audio duration: ${Math.round(duration)} seconds`);
+
+      const whisperLanguage = language === "dz" ? "ar" : language;
+
+      console.log(`[whisper.cpp] Transcribing: ${filename} (Active: ${activeWhisperRequests}/${MAX_CONCURRENT_WHISPER})`);
+      console.log(`[whisper.cpp] Language: ${whisperLanguage}`);
+
+      const text = await runWhisperBinary(tempWavPath, whisperLanguage);
+      
+      console.log(`[whisper.cpp] Transcription complete`);
+      return text;
+    } catch (error: any) {
+      console.error("[whisper.cpp] Transcription error:", error);
+      throw new Error(`Whisper transcription failed: ${error.message}`);
+    } finally {
+      try {
+        if (fs.existsSync(tempDir)) {
+          fs.rmSync(tempDir, { recursive: true, force: true });
+        }
+      } catch (cleanupError) {
+        console.warn("[whisper.cpp] Failed to cleanup temp files:", cleanupError);
+      }
     }
+  } finally {
+    // Release the semaphore slot regardless of success or failure
+    releaseWhisperSemaphore();
   }
 }
 
