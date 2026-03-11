@@ -23,7 +23,7 @@ interface PaymentInfo {
 
 export default function Success() {
   const [, navigate] = useLocation();
-  const { appUserId } = useAuth();
+  const { appUserId, session } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [countdown, setCountdown] = useState(5);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
@@ -38,7 +38,12 @@ export default function Success() {
         }
 
         // Fetch latest payment info
-        const response = await fetch(`/api/payment/latest?userId=${userId}`);
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        
+        const response = await fetch(`/api/payment/latest?userId=${userId}`, { headers });
         if (response.ok) {
           const data = await response.json();
           if (data.payment) {

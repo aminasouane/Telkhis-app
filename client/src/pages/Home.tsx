@@ -527,7 +527,7 @@ export default function Home() {
               <div className="flex justify-center">
                 <Button
                   variant="outline"
-                  onClick={() => navigate("/history")}
+                  onClick={() => navigate("/dashboard")}
                   data-testid="button-view-history"
                 >
                   <History className="h-4 w-4 ml-2" />
@@ -629,7 +629,7 @@ export default function Home() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => navigate("/history")}
+                    onClick={() => navigate("/dashboard")}
                     data-testid="button-view-history-from-result"
                   >
                     <History className="h-4 w-4 ml-2" />

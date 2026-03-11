@@ -1,4 +1,12 @@
+import { supabase } from '../lib/supabaseClient';
+
 const DEVICE_ID_KEY = 'takhleesly_device_id';
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  return token ? { "Authorization": `Bearer ${token}` } : {};
+}
 
 export interface GuestSessionResponse {
   userId: string;
@@ -72,7 +80,8 @@ export async function createGuestSession(): Promise<GuestSessionResponse | null>
  */
 export async function getTrialStatus(userId: string): Promise<TrialStatus | null> {
   try {
-    const response = await fetch(`/api/trial-status?userId=${userId}`);
+    const headers = await getAuthHeaders();
+    const response = await fetch(`/api/trial-status?userId=${userId}`, { headers });
     
     if (!response.ok) {
       console.error('Failed to get trial status');
@@ -108,9 +117,11 @@ export async function saveSummary(
   processedAt?: string
 ): Promise<{ success: boolean; trialStatus?: TrialStatus; error?: string; message?: string }> {
   try {
+    const headers = await getAuthHeaders();
     const response = await fetch('/api/save-summary', {
       method: 'POST',
       headers: {
+        ...headers,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -155,9 +166,11 @@ export async function saveSummary(
  */
 export async function migrateGuestToUser(guestUserId: string, authenticatedUserId: string): Promise<boolean> {
   try {
+    const headers = await getAuthHeaders();
     const response = await fetch('/api/migrate-guest', {
       method: 'POST',
       headers: {
+        ...headers,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -186,7 +199,8 @@ export async function migrateGuestToUser(guestUserId: string, authenticatedUserI
  */
 export async function getSummaries(userId: string) {
   try {
-    const response = await fetch(`/api/summaries?userId=${userId}`);
+    const headers = await getAuthHeaders();
+    const response = await fetch(`/api/summaries?userId=${userId}`, { headers });
     
     if (!response.ok) {
       console.error('Failed to get summaries');
@@ -206,7 +220,8 @@ export async function getSummaries(userId: string) {
  */
 export async function getSummaryById(summaryId: string, userId: string) {
   try {
-    const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`);
+    const headers = await getAuthHeaders();
+    const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`, { headers });
     
     if (!response.ok) {
       console.error('Failed to get summary');
@@ -226,8 +241,10 @@ export async function getSummaryById(summaryId: string, userId: string) {
  */
 export async function deleteSummary(summaryId: string, userId: string): Promise<boolean> {
   try {
+    const headers = await getAuthHeaders();
     const response = await fetch(`/api/summaries/${summaryId}?userId=${userId}`, {
       method: 'DELETE',
+      headers,
     });
     
     if (!response.ok) {

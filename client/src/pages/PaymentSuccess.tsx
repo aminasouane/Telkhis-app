@@ -24,7 +24,7 @@ interface PaymentInfo {
 
 export default function PaymentSuccess() {
   const [, navigate] = useLocation();
-  const { appUserId } = useAuth();
+  const { appUserId, session } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [countdown, setCountdown] = useState(5);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
@@ -42,7 +42,12 @@ export default function PaymentSuccess() {
         await new Promise(resolve => setTimeout(resolve, 4000));
 
         // Fetch latest payment info
-        const response = await fetch(`/api/payment/latest?userId=${userId}`);
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        
+        const response = await fetch(`/api/payment/latest?userId=${userId}`, { headers });
         if (response.ok) {
           const data = await response.json();
           if (data.payment) {
@@ -183,7 +188,7 @@ export default function PaymentSuccess() {
             variant="outline"
             className="w-full"
             size="lg"
-            onClick={() => navigate("/history")}
+            onClick={() => navigate("/dashboard")}
             data-testid="button-view-history"
           >
             <ArrowRight className="ml-2 h-5 w-5" />

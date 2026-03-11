@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 export default function SettingsTab() {
-    const { user, signOut } = useAuth();
+    const { user, session, signOut } = useAuth();
 
     // Profile state
     const [name, setName] = useState(user?.user_metadata?.name || "");
@@ -35,9 +35,13 @@ export default function SettingsTab() {
         setProfileLoading(true);
         setProfileMsg(null);
         try {
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
             const res = await fetch("/api/user/profile", {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({ userId: user?.id, name }),
             });
             if (!res.ok) throw new Error("Failed");
@@ -74,9 +78,13 @@ export default function SettingsTab() {
     const handleDeleteAccount = async () => {
         setDeleteLoading(true);
         try {
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
             const res = await fetch("/api/user/account", {
                 method: "DELETE",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({ userId: user?.id }),
             });
             if (!res.ok) throw new Error("Failed");

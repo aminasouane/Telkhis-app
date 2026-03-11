@@ -24,7 +24,11 @@ export function useSummaries() {
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`/api/summaries?userId=${user.id}`);
+            const headers: Record<string, string> = {};
+            if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+            const res = await fetch(`/api/summaries?userId=${user.id}`, { headers });
             if (!res.ok) throw new Error("Failed to fetch summaries");
             const data = await res.json();
             setSummaries(data.summaries || []);
@@ -33,13 +37,18 @@ export function useSummaries() {
         } finally {
             setIsLoading(false);
         }
-    }, [user]);
+    }, [user, session]);
 
     const deleteSummary = useCallback(async (id: string) => {
         if (!user) return false;
         try {
+            const headers: Record<string, string> = {};
+            if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
             const res = await fetch(`/api/summaries/${id}?userId=${user.id}`, {
                 method: "DELETE",
+                headers,
             });
             if (!res.ok) throw new Error("Failed to delete");
             setSummaries((prev) => prev.filter((s) => s.id !== id));
@@ -47,7 +56,7 @@ export function useSummaries() {
         } catch {
             return false;
         }
-    }, [user]);
+    }, [user, session]);
 
     useEffect(() => {
         fetchSummaries();

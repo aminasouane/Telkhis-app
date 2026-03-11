@@ -5,6 +5,13 @@ import {
   resetTrialData, 
   type TrialData 
 } from "./localTrialService";
+import { supabase } from '../lib/supabaseClient';
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  return token ? { "Authorization": `Bearer ${token}` } : {};
+}
 
 interface ServerTrialStatus {
   trialStatus: {
@@ -26,7 +33,8 @@ interface ServerTrialStatus {
 
 async function fetchServerTrialStatus(userId: string): Promise<ServerTrialStatus | null> {
   try {
-    const response = await fetch(`/api/trial-status?userId=${userId}`);
+    const headers = await getAuthHeaders();
+    const response = await fetch(`/api/trial-status?userId=${userId}`, { headers });
     if (!response.ok) {
       console.error('[trialSync] Failed to fetch server trial status');
       return null;

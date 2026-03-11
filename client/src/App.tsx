@@ -12,7 +12,6 @@ import { SettingsSync } from "@/components/SettingsSync";
 import Home from "@/pages/Home";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Dashboard from "@/pages/Dashboard";
-import HistoryScreen from "@/pages/HistoryScreen";
 import Subscribe from "@/pages/Subscribe";
 import Success from "@/pages/Success";
 import PaymentSuccess from "@/pages/PaymentSuccess";
@@ -56,7 +55,6 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/admin" component={AdminDashboard} />
-      <Route path="/history" component={HistoryScreen} />
       <Route path="/subscribe" component={Subscribe} />
       <Route path="/success" component={Success} />
       <Route path="/payment/success" component={PaymentSuccess} />

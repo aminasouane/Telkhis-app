@@ -7,7 +7,7 @@ export default function RecordingControlExample() {
 
   return (
     <div className="p-8">
-      <RecordingControl onRecordingComplete={handleRecordingComplete} />
+      <RecordingControl onRecordingComplete={handleRecordingComplete} language="ar" />
     </div>
   );
 }

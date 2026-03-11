@@ -8,6 +8,7 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     FileText, Search, Trash2, Clock, Globe, ChevronDown, ChevronUp, RefreshCw, Mic
 } from "lucide-react";
@@ -143,26 +144,42 @@ export default function SummariesTab() {
 
                             {/* Expanded content */}
                             {expandedId === s.id && (
-                                <div className="pt-3 border-t space-y-3">
-                                    <div>
-                                        <h5 className="text-xs font-semibold text-muted-foreground mb-1">الملخص</h5>
-                                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                                            {s.content}
-                                        </p>
-                                    </div>
-                                    {s.key_points && s.key_points.length > 0 && (
-                                        <div>
-                                            <h5 className="text-xs font-semibold text-muted-foreground mb-1">النقاط الأساسية</h5>
-                                            <ul className="space-y-1">
-                                                {s.key_points.map((p, i) => (
-                                                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
-                                                        <span className="text-primary mt-1">•</span>
-                                                        <span>{p}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
+                                <div className="pt-3 border-t">
+                                    <Tabs defaultValue="summary" className="w-full">
+                                        <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted/50">
+                                            <TabsTrigger value="summary" className="text-xs">الملخص</TabsTrigger>
+                                            <TabsTrigger value="transcript" className="text-xs">النص الكامل (التفريغ)</TabsTrigger>
+                                        </TabsList>
+                                        
+                                        <TabsContent value="summary" className="space-y-3 mt-0">
+                                            <div>
+                                                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                                                    {s.content}
+                                                </p>
+                                            </div>
+                                            {s.key_points && s.key_points.length > 0 && (
+                                                <div className="pt-3 mt-3 border-t">
+                                                    <h5 className="text-xs font-semibold text-muted-foreground mb-2">النقاط الأساسية</h5>
+                                                    <ul className="space-y-1">
+                                                        {s.key_points.map((p, i) => (
+                                                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-1.5">
+                                                                <span className="text-primary mt-1">•</span>
+                                                                <span>{p}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </TabsContent>
+                                        
+                                        <TabsContent value="transcript" className="space-y-3 mt-0">
+                                            <div className="bg-muted/30 p-3 rounded-lg max-h-[300px] overflow-y-auto border border-border/50">
+                                                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                                                    {s.transcript || "لا يوجد نص متاح لهذا التسجيل."}
+                                                </p>
+                                            </div>
+                                        </TabsContent>
+                                    </Tabs>
                                 </div>
                             )}
                         </CardContent>
