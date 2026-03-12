@@ -52,7 +52,7 @@ export const SUBSCRIPTION_PLANS: Record<PlanId, SubscriptionPlan> = {
     description: "Perfect for trying out the service after the free trial",
     descriptionAr: "مثالية لتجربة الخدمة بعد النسخة المجانية",
     price: 4.99,
-    priceDZD: 1000, // الخطة الأساسية
+    priceDZD: 1500, // الخطة الأساسية
     currency: "DZD",
     lectures: 30,
     lecturesDuration: 45,

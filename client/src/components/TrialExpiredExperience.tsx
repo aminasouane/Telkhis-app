@@ -158,7 +158,7 @@ export default function TrialExpiredExperience({
                   <Badge variant="outline">Basic</Badge>
                 </div>
                 <div className="text-3xl font-bold text-primary mt-1">
-                  1,000 <span className="text-base font-normal text-muted-foreground">دج</span>
+                  1,500 <span className="text-base font-normal text-muted-foreground">دج</span>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">

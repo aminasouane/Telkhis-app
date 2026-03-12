@@ -78,9 +78,9 @@ function detectPlanFromAmount(amountDZD: number): string | null {
     match = allPlans.find(p => p.priceDZD === Math.round(amountDZD / 100));
   }
 
-  // Try matching known prices: 1000 DZD = Basic
+  // Try matching known prices: 1500 DZD = Basic
   if (!match) {
-    if (amountDZD === 1000 || amountDZD === 100000) return "basic";
+    if (amountDZD === 1500 || amountDZD === 150000) return "basic";
   }
 
   return match?.id || null;
