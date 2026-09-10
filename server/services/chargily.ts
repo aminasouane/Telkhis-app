@@ -32,34 +32,35 @@ export const chargilyClient = new ChargilyClient({
  * @param data Checkout data including plan ID and user info
  * @returns Checkout object with checkout_url for redirect
  */
-export async function createCheckout(data: ChargilyCheckoutData) {
+export async function createCheckout(
+  data: ChargilyCheckoutData,
+  customAmount?: number,
+  additionalMetadata?: Record<string, string>
+) {
   const plan = getPlanById(data.planId);
   
   if (!plan) {
     throw new Error(`Invalid plan ID: ${data.planId}`);
   }
 
-  // Note: In a production setup, you would:
-  // 1. Create products and prices in Chargily Dashboard or via API
-  // 2. Store their IDs in the plan configuration
-  // 3. Use those IDs here
-  
-  // For now, we'll use direct amount checkout (simpler approach)
+  const finalAmount = customAmount !== undefined ? customAmount : plan.priceDZD;
+
   const checkoutData = {
-    amount: plan.priceDZD,
+    amount: finalAmount,
     currency: "dzd" as const,
     success_url: `${process.env.VITE_APP_URL || "http://localhost:5000"}/success`,
     failure_url: `${process.env.VITE_APP_URL || "http://localhost:5000"}/subscribe`,
     webhook_endpoint: `${process.env.VITE_APP_URL || "http://localhost:5000"}/api/chargily/webhook`,
     locale: data.locale,
     
-    // Optional: Add metadata to track the subscription
+    // Track the subscription and coupon in metadata
     metadata: {
       user_id: data.userId,
       plan_id: data.planId,
       plan_name: plan.nameAr,
       lectures: plan.lectures.toString(),
       total_minutes: plan.totalMinutes.toString(),
+      ...(additionalMetadata || {}),
     },
   };
 
@@ -191,6 +192,7 @@ async function handleCheckoutPaid(checkoutData: any) {
       currency: checkoutData.currency,
       transactionId: checkoutData.transaction_id || checkoutData.id,
       paymentMethod: checkoutData.payment_method,
+      metadata,
     },
   };
 }

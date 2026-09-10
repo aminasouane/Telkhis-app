@@ -85,6 +85,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/payment-link/:planId", getPaymentLink);
   app.get("/api/payment-links/status", checkPaymentLinksStatus);
 
+  // Coupon endpoints
+  const {
+    handleValidateCoupon,
+    handleGetAdminCoupons,
+    handleCreateAdminCoupon,
+    handleUpdateAdminCoupon,
+    handleDeleteAdminCoupon,
+    handleGetAdminCouponUsages,
+  } = await import("./api/coupons");
+
+  // Public/user coupon validation
+  app.post("/api/coupons/validate", requireAuth, handleValidateCoupon);
+
+  // Admin coupon management
+  app.get("/api/admin/coupons", requireAdmin, handleGetAdminCoupons);
+  app.post("/api/admin/coupons", requireAdmin, handleCreateAdminCoupon);
+  app.patch("/api/admin/coupons/:id", requireAdmin, handleUpdateAdminCoupon);
+  app.delete("/api/admin/coupons/:id", requireAdmin, handleDeleteAdminCoupon);
+  app.get("/api/admin/coupons/usages", requireAdmin, handleGetAdminCouponUsages);
+
   // Chargily Pay endpoints (with authentication)
   app.post("/api/chargily/create-checkout", requireAuth, handleCreateCheckout);
 

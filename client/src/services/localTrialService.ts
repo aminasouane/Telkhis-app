@@ -148,8 +148,8 @@ export function getTrialStatus(appUserId: string): TrialStatus {
   
   // ============================================================
   // TRIAL VALIDITY (MVP v3.2):
-  // 1. Days expired (7 days from first use) → blocks user
-  // 2. Total limit (210 min) → blocks user
+  // 1. Days expired (30 days from first use) → blocks user
+  // 2. Total limit (900 min) → blocks user
   // 3. Daily limit exhausted (45 min/day) → blocks user (handled separately)
   // ============================================================
   let state: TrialStateType;

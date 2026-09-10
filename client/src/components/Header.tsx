@@ -28,7 +28,7 @@ export default function Header() {
     if (isAdmin) return "حساب إداري";
     if (!status || !status.planName || status.planName === "trial") return "تجربة مجانية";
     const name = status.planName.toLowerCase().trim();
-    if (name === "basic" || name === "الخطة الأساسية") return "الخطة الأساسية";
+    if (name === "basic" || name === "الخطة الأساسية") return "الخطة الاحترافية";
     if (name === "student" || name === "خطة الطالب") return "خطة الطالب";
     if (name === "professional" || name === "خطة المحترف") return "خطة المحترف";
     return status.planName;
@@ -88,7 +88,7 @@ export default function Header() {
                   <DropdownMenuContent align="end" className="w-56">
                     <div className="px-2 py-1.5">
                       <p className="text-sm font-medium truncate">{user?.email}</p>
-                      {getPlanDisplayName() === "الخطة الأساسية" ? (
+                      {getPlanDisplayName() === "الخطة الاحترافية" ? (
                         <div className="mt-1">
                           <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/40 dark:text-blue-400 border-blue-200 dark:border-blue-800">
                             {getPlanDisplayName()}

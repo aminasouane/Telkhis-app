@@ -17,7 +17,7 @@ async function migrateSettings() {
             
             INSERT INTO public.system_settings (key, value, description)
             VALUES 
-                ('TRIAL_LIMITS', '{"MAX_AUDIO_MINUTES": 210, "DAILY_LIMIT_MINUTES": 30, "VALIDITY_DAYS": 7, "MAX_FILE_DURATION_SECONDS": 300}', 'Trial plan limits'),
+                ('TRIAL_LIMITS', '{"MAX_AUDIO_MINUTES": 900, "DAILY_LIMIT_MINUTES": 30, "VALIDITY_DAYS": 30, "MAX_FILE_DURATION_SECONDS": 300}', 'Trial plan limits'),
                 ('PAID_LIMITS', '{"DAILY_LIMIT_MINUTES": 45, "TOTAL_MINUTES": 1350}', 'Paid plan limits'),
                 ('STUDENT_LIMITS', '{"DAILY_LIMIT_MINUTES": 45}', 'Student plan daily limits'),
                 ('PRO_LIMITS', '{"DAILY_LIMIT_MINUTES": 45}', 'Professional plan daily limits')

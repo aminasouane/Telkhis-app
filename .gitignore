@@ -20,3 +20,6 @@ ssl/
 .copilot/
 .wget-hsts
 server/services/summarizeWithGrok.backup.ts
+.antigravity-ide-server/
+.vscode-server-insiders/
+.dotnet/

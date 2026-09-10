@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { verifySignature } from "@chargily/chargily-pay";
 import { processWebhookEvent } from "../services/chargily";
+import { recordCouponUsage } from "../services/coupons";
 import * as db from "../db";
 import { getPlanById, getAllPlans } from "../../shared/plans";
 
@@ -95,6 +96,7 @@ async function activateSubscription(data: {
   currency: string;
   transactionId?: string;
   paymentMethod?: string;
+  metadata?: Record<string, any>;
 }) {
   try {
     // Try plan from metadata first, then detect from amount
@@ -131,6 +133,26 @@ async function activateSubscription(data: {
 
     console.log(`[Webhook] ✅ Subscription activated: user=${data.userId} plan=${plan.id} minutes=${plan.totalMinutes}`);
     console.log(`[Webhook] Subscription ID: ${subscription.id}`);
+
+    // If a coupon was used, record its usage
+    const meta = data.metadata || {};
+    if (meta.coupon_code && meta.coupon_id) {
+      try {
+        await recordCouponUsage({
+          couponId: meta.coupon_id,
+          couponCode: meta.coupon_code,
+          userId: data.userId,
+          planId: plan.id,
+          originalPrice: Number(meta.original_amount) || plan.priceDZD,
+          discountPercent: Number(meta.discount_percent) || 0,
+          discountAmount: Number(meta.discount_amount) || 0,
+          finalPrice: Number(meta.final_amount) || data.amount,
+          usageType: meta.usage_type === "renewal" ? "renewal" : "registration",
+        });
+      } catch (couponErr) {
+        console.error("[Webhook] Error recording coupon usage:", couponErr);
+      }
+    }
 
   } catch (error) {
     console.error("[Webhook] Failed to activate subscription:", error);

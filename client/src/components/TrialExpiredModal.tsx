@@ -45,7 +45,7 @@ export default function TrialExpiredModal({
         // Minutes exhausted but days may remain
         return "استهلكت رصيدك المجاني";
       case "EXPIRED":
-        // 7 days passed since first use
+        // 30 days passed since first use
         return "انتهت صلاحية التجربة";
       default:
         return "انتهت تجربتك المجانية";

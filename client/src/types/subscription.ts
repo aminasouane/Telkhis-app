@@ -2,7 +2,7 @@ import { type TrialStatus } from "@/services/localTrialService";
 
 // trial_active: User has active trial with remaining minutes
 // trial_used_up: Trial minutes exhausted but days remaining
-// trial_expired: Trial days expired (7 days passed)
+// trial_expired: Trial days expired (30 days passed)
 // subscribed: User has active paid subscription
 export type SubscriptionStatus = "trial_active" | "trial_used_up" | "trial_expired" | "subscribed";
 

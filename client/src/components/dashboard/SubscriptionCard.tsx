@@ -15,7 +15,7 @@ function getPlanLabel(planName: string): { label: string; color: string; icon: t
             return { label: "حساب إداري", color: "bg-primary/10 text-primary", icon: ShieldCheck };
         case "basic":
         case "الخطة الأساسية":
-            return { label: "الخطة الأساسية", color: "bg-blue-600 hover:bg-blue-700 text-white border border-red-500 shadow-md font-bold uppercase", icon: Zap };
+            return { label: "الخطة الاحترافية", color: "bg-blue-600 hover:bg-blue-700 text-white border border-red-500 shadow-md font-bold uppercase", icon: Zap };
         default:
             return { label: "تجربة مجانية", color: "bg-muted text-muted-foreground", icon: Clock };
     }

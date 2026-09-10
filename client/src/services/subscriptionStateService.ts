@@ -52,7 +52,7 @@ export function getSubscriptionState(appUserId: string): SubscriptionState {
   if (subscription?.isActive) {
     status = "subscribed";
   } else if (trialStatus.state === "EXPIRED") {
-    // Days expired (7 days passed since first use)
+    // Days expired (30 days passed since first use)
     status = "trial_expired";
   } else if (trialStatus.state === "USED_UP") {
     // Minutes exhausted but days remaining
@@ -124,11 +124,11 @@ export function getUsagePermissions(appUserId: string, audioDurationMinutes?: nu
     }
     
     case "trial_expired": {
-      // Days expired (7 days passed)
+      // Days expired (30 days passed)
       return {
         allowed: false,
         state,
-        reason: "انتهت صلاحية التجربة المجانية بعد 7 أيام",
+        reason: "انتهت صلاحية التجربة المجانية بعد 30 يوماً",
       };
     }
   }

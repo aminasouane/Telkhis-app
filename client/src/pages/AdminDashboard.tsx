@@ -13,9 +13,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
+import AdminCouponsTab from "@/components/admin/AdminCouponsTab";
 import {
     Users, FileText, CreditCard, TrendingUp, Search, RefreshCw, Shield,
-    ChevronLeft, Clock, Mail, Calendar, ArrowLeft, Settings, ArrowRight
+    ChevronLeft, Clock, Mail, Calendar, ArrowLeft, Settings, ArrowRight, Ticket
 } from "lucide-react";
 
 function StatCard({ icon: Icon, title, value, subtitle, color }: {
@@ -245,6 +246,10 @@ export default function AdminDashboard() {
                                 <Users className="h-4 w-4" />
                                 <span className="hidden sm:inline">المستخدمون</span>
                             </TabsTrigger>
+                            <TabsTrigger value="coupons" className="gap-2 flex-row-reverse">
+                                <Ticket className="h-4 w-4" />
+                                <span className="hidden sm:inline">الكوبونات</span>
+                            </TabsTrigger>
                             <TabsTrigger value="settings" className="gap-2 flex-row-reverse">
                                 <Settings className="h-4 w-4" />
                                 <span className="hidden sm:inline">إعدادات النظام</span>
@@ -394,6 +399,10 @@ export default function AdminDashboard() {
                                 </CardContent>
                             </Card>
                         )}
+                    </TabsContent>
+
+                    <TabsContent value="coupons" className="outline-none focus:ring-0">
+                        <AdminCouponsTab />
                     </TabsContent>
 
                     <TabsContent value="settings" className="outline-none focus:ring-0">
